@@ -12,24 +12,24 @@ from joblib import dump
 import io
 
 st.set_option('client.showErrorDetails', True)
-
 st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
 
 # Load MoveNet MultiPose model
 @st.cache_resource
 def load_model():
-    os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'  # Add this line
+    os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'
     return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 model = load_model()
 
-# Extract keypoints
+# ✅ Fix: Keypoint extraction
 def extract_keypoints(results):
     people = []
-    raw = results['output_0'].numpy()[0]
-    for i in range(6):  # up to 6 people
-        person = raw[i*51:(i+1)*51].reshape(17, 3)
-        if np.mean(person[:, 2]) > 0.2:
-            people.append(person.tolist())
+    raw = results['output_0'].numpy()[0]  # shape (6, 56)
+    for person_data in raw:
+        keypoints = np.array(person_data[:51]).reshape(17, 3)  # y, x, confidence
+        score = person_data[55]  # person score
+        if score > 0.2 and np.mean(keypoints[:, 2]) > 0.2:
+            people.append(keypoints.tolist())
     return people
 
 # Punch classification
@@ -39,7 +39,6 @@ def classify_punch(keypoints):
         lw, rw = kp[9], kp[10]
         ls, rs = kp[5], kp[6]
         le, re = kp[7], kp[8]
-
         if lw[2] > 0.2 and ls[2] > 0.2 and lw[0] < ls[0]:
             result.append("Left Jab")
         elif rw[2] > 0.2 and rs[2] > 0.2 and rw[0] < rs[0]:
@@ -52,7 +51,7 @@ def classify_punch(keypoints):
             result.append("Guard")
     return result
 
-# Posture checks
+# Posture analysis
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
@@ -76,7 +75,7 @@ def detect_gloves(keypoints):
         gloves.append(f"Gloves: L-{'yes' if lw[2]>0.2 else 'no'} R-{'yes' if rw[2]>0.2 else 'no'}")
     return gloves
 
-# Draw annotations
+# Draw keypoints and annotations
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     for i, kp in enumerate(keypoints):
         for j, (y, x, s) in enumerate(kp):
@@ -98,10 +97,7 @@ if uploaded_files:
     for uploaded_file in uploaded_files:
         st.subheader(f"Processing: {uploaded_file.name}")
 
-        # Create safe temporary directory
         temp_dir = tempfile.mkdtemp()
-        
-        # Save uploaded file to /tmp
         input_path = os.path.join(temp_dir, uploaded_file.name)
         with open(input_path, 'wb') as out_file:
             shutil.copyfileobj(uploaded_file, out_file)
@@ -110,7 +106,6 @@ if uploaded_files:
         width, height = int(cap.get(3)), int(cap.get(4))
         fps = cap.get(cv2.CAP_PROP_FPS)
 
-        # Output video path
         output_path = os.path.join(temp_dir, f"output_{uploaded_file.name}")
         out_writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
@@ -155,7 +150,18 @@ if uploaded_files:
         df = pd.DataFrame(punch_log)
         st.dataframe(df)
 
-        # CSV download
+        # Download button
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
+
+        model_dest = f"/tmp/{base_name}_svm_model.joblib"
+        if st.button(f"Train SVM on {uploaded_file.name}"):
+            if 'punch' in df.columns:
+                X = df[['frame', 'person']]
+                y = df['punch']
+                clf = svm.SVC()
+                clf.fit(X, y)
+                dump(clf, model_dest)
+                st.success("SVM trained and saved ✅")
+
