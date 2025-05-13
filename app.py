@@ -10,6 +10,7 @@ from sklearn import svm
 from joblib import dump
 import io
 
+st.set_option('client.showErrorDetails', True)
 
 # Load MoveNet MultiPose model
 model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
