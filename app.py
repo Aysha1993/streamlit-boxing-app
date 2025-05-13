@@ -159,6 +159,7 @@ if uploaded_files:
             gloves = detect_gloves(keypoints)
 
             annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
+            
             out_writer.write(annotated)
 
             for i in range(len(punches)):
