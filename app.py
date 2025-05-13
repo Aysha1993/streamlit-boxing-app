@@ -1,12 +1,3 @@
-#  Define paths in Drive
-drive_base = "/content"
-video_dir = f"{drive_base}/Videos"
-log_dir = f"{drive_base}/Logs"
-model_dir = f"{drive_base}/Models"
-import os
-os.makedirs(video_dir, exist_ok=True)
-os.makedirs(log_dir, exist_ok=True)
-os.makedirs(model_dir, exist_ok=True)
 import streamlit as st
 import tensorflow_hub as hub
 import tensorflow as tf
@@ -17,7 +8,6 @@ import tempfile
 import os
 from sklearn import svm
 from joblib import dump
-import uuid
 
 model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 
@@ -85,7 +75,7 @@ def detect_gloves(keypoints):
         gloves.append(f"Left: {'yes' if lwrist[2] > 0.2 else 'no'}, Right: {'yes' if rwrist[2] > 0.2 else 'no'}")
     return gloves
 
-st.title("🥊 Boxing Analyzer with Drive Save")
+st.title("🥊 Boxing Analyzer")
 
 uploaded_files = st.file_uploader("Upload videos", type=["mp4"], accept_multiple_files=True)
 
@@ -101,7 +91,7 @@ if uploaded_files:
         fps = cap.get(cv2.CAP_PROP_FPS)
 
         base_name = os.path.splitext(uploaded_file.name)[0]
-        out_path = f"/content/{base_name}_out.mp4"
+        out_path = f"/tmp/{base_name}_out.mp4"
         out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
         punch_log = []
@@ -123,13 +113,13 @@ if uploaded_files:
             gloves = detect_gloves(keypoints)
 
             for i, punch in enumerate(punches):
-                punch_log.append({{
+                punch_log.append({
                     "frame": cap.get(cv2.CAP_PROP_POS_FRAMES),
                     "person": i,
                     "punch": punch,
                     "posture": postures[i],
                     "gloves": gloves[i]
-                }})
+                })
 
             out.write(frame)
 
@@ -137,19 +127,16 @@ if uploaded_files:
         out.release()
 
         st.video(out_path)
-        st.success("✅ All videos processed!")
+        st.success("✅ Video processed!")
         df = pd.DataFrame(punch_log)
         st.dataframe(df)
 
-        # Save to Google Drive
-        video_dest = os.path.join("{video_dir}", f"{base_name}_annotated.mp4")
-        csv_dest = os.path.join("{log_dir}", f"{base_name}_punch_log.csv")
-        model_dest = os.path.join("{model_dir}", f"{base_name}_svm_model.joblib")
+        csv_dest = f"/tmp/{base_name}_punch_log.csv"
+        model_dest = f"/tmp/{base_name}_svm_model.joblib"
 
-        os.rename(out_path, video_dest)
         df.to_csv(csv_dest, index=False)
 
-        st.success("Saved annotated video and log to Drive ✅")
+        st.download_button("Download CSV", csv_dest, file_name=f"{base_name}_log.csv")
 
         if st.button(f"Train SVM on {uploaded_file.name}"):
             if 'punch' in df.columns:
@@ -158,4 +145,4 @@ if uploaded_files:
                 clf = svm.SVC()
                 clf.fit(X, y)
                 dump(clf, model_dest)
-                st.success("SVM trained and saved to Drive ✅")
+                st.success("SVM trained and saved ✅")
