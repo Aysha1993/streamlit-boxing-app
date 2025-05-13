@@ -117,7 +117,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         max_y = int(max(y_coords) * h)
 
         # 🟡 Bounding box
-        cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), (0, 255, 255), 2)
+        #cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), (0, 255, 255), 2)
 
         # 🟢 Draw keypoints
         for (y, x, s) in kp:
