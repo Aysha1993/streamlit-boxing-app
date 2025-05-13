@@ -69,10 +69,10 @@ def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
         msgs = []
-        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow ↓")  # Left elbow drop
-        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow ↓")  # Right elbow drop
-        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder ↓")  # Left shoulder drop
-        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder ↓")  # Right shoulder drop
+        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow drop")  # Left elbow drop
+        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow drop")  # Right elbow drop
+        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder drop")  # Left shoulder drop
+        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")  # Right shoulder drop
         if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")  # Left knee bend
         if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")  # Right knee bend
         if kp[9][0] > kp[7][0]: msgs.append("Left Wrist ↓")  # Left wrist drop
