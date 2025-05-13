@@ -155,6 +155,10 @@ if uploaded_files:
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
 
+        # Get base name without extension for saving the model
+        base_name = os.path.splitext(uploaded_file.name)[0]  # Get the file name without extension
+        model_dest = f"/tmp/{base_name}_svm_model.joblib"
+        
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
         if st.button(f"Train SVM on {uploaded_file.name}"):
             if 'punch' in df.columns:
