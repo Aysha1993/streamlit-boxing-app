@@ -98,6 +98,7 @@ SKELETON_EDGES = [
 # Draw annotations
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
+
     for i, kp in enumerate(keypoints):
         visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
         if not visible_points:
@@ -107,10 +108,14 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         max_x = int(max(x_coords) * w)
         min_y = int(min(y_coords) * h)
         max_y = int(max(y_coords) * h)
+
+        # Draw circles for keypoints
         for (y, x, s) in kp:
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+
+        # Draw lines for skeleton edges
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -118,11 +123,20 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt1 = int(x1 * w), int(y1 * h)
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-        cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+        # Draw glove detection (red bounding boxes only for gloves)
+        if "glove" in gloves[i].lower():  # Check if the label contains "glove"
+            color = (0, 0, 255)  # Red color in BGR
+            cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), color, 2)
+            cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+        # Draw punch and posture info
         cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
     return frame
+
 
 # Video uploader
 uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
