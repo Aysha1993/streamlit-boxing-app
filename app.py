@@ -75,8 +75,8 @@ def check_posture(keypoints):
         if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")  # Right shoulder drop
         if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")  # Left knee bend
         if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")  # Right knee bend
-        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist ↓")  # Left wrist drop
-        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist ↓")  # Right wrist drop
+        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist drop")  # Left wrist drop
+        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist drop")  # Right wrist drop
 
         if not msgs:
             msgs.append("Good Posture")  # If no issues, posture is good
