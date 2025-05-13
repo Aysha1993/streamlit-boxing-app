@@ -152,14 +152,3 @@ if uploaded_files:
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
-
-
-        model_dest = f"/tmp/{base_name}_svm_model.joblib"
-        if st.button(f"Train SVM on {uploaded_file.name}"):
-            if 'punch' in df.columns:
-                X = df[['frame', 'person']]
-                y = df['punch']
-                clf = svm.SVC()
-                clf.fit(X, y)
-                dump(clf, model_dest)
-                st.success("SVM trained and saved ✅")
