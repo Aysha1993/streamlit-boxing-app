@@ -32,39 +32,55 @@ def extract_keypoints(results):
             people.append(keypoints.tolist())
     return people
 
-# Punch classification
+# Punch classification (with Left/Right for Jab, Cross, Hook)
 def classify_punch(keypoints):
     result = []
     for kp in keypoints:
-        lw, rw = kp[9], kp[10]
-        ls, rs = kp[5], kp[6]
-        le, re = kp[7], kp[8]
+        lw, rw = kp[9], kp[10]  # Left wrist, Right wrist
+        ls, rs = kp[5], kp[6]  # Left shoulder, Right shoulder
+        le, re = kp[7], kp[8]  # Left elbow, Right elbow
+
+        # Left Jab
         if lw[2] > 0.2 and ls[2] > 0.2 and lw[0] < ls[0]:
             result.append("Left Jab")
+        # Right Jab
         elif rw[2] > 0.2 and rs[2] > 0.2 and rw[0] < rs[0]:
+            result.append("Right Jab")
+        # Left Cross
+        elif lw[2] > 0.2 and ls[2] > 0.2 and abs(lw[0] - ls[0]) > 0.1:
+            result.append("Left Cross")
+        # Right Cross
+        elif rw[2] > 0.2 and rs[2] > 0.2 and abs(rw[0] - rs[0]) > 0.1:
             result.append("Right Cross")
+        # Left Hook
         elif le[2] > 0.2 and abs(le[1] - lw[1]) > 0.1:
             result.append("Left Hook")
+        # Right Hook
         elif re[2] > 0.2 and abs(re[1] - rw[1]) > 0.1:
             result.append("Right Hook")
+        # Guard (default when no other punch is detected)
         else:
             result.append("Guard")
     return result
 
-# Posture analysis
+
+# Posture analysis with correction (elbow drop and good stance)
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
         msgs = []
-        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow ↓")
-        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow ↓")
-        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder ↓")
-        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder ↓")
-        if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")
-        if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")
-        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist ↓")
-        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist ↓")
-        feedback.append(", ".join(msgs) if msgs else "Good Posture")
+        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow ↓")  # Left elbow drop
+        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow ↓")  # Right elbow drop
+        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder ↓")  # Left shoulder drop
+        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder ↓")  # Right shoulder drop
+        if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")  # Left knee bend
+        if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")  # Right knee bend
+        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist ↓")  # Left wrist drop
+        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist ↓")  # Right wrist drop
+
+        if not msgs:
+            msgs.append("Good Posture")  # If no issues, posture is good
+        feedback.append(", ".join(msgs))
     return feedback
 
 # Glove detection
@@ -147,10 +163,14 @@ if uploaded_files:
         st.video(output_path)
         st.success("✅ Annotated video ready")
 
+        # Save annotated video for download
+        with open(output_path, "rb") as f:
+            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+
         df = pd.DataFrame(punch_log)
         st.dataframe(df)
 
-        # Download button
+        # Download button for CSV
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
@@ -158,8 +178,7 @@ if uploaded_files:
         # Get base name without extension for saving the model
         base_name = os.path.splitext(uploaded_file.name)[0]  # Get the file name without extension
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
-        
-        model_dest = f"/tmp/{base_name}_svm_model.joblib"
+
         if st.button(f"Train SVM on {uploaded_file.name}"):
             if 'punch' in df.columns:
                 X = df[['frame', 'person']]
@@ -168,4 +187,3 @@ if uploaded_files:
                 clf.fit(X, y)
                 dump(clf, model_dest)
                 st.success("SVM trained and saved ✅")
-
