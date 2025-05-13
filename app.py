@@ -173,8 +173,7 @@ if uploaded_files:
         st.dataframe(df)
         
         if not df.empty:
-            st.dataframe(df.head(10))
-        
+            st.dataframe(df.head(10))     
             # Use StringIO for download
             csv_buffer = io.StringIO()
             df.to_csv(csv_buffer, index=False)
