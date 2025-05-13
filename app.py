@@ -167,11 +167,28 @@ if uploaded_files:
         st.success("✅ Video processed and annotated!")
 
         df = pd.DataFrame(punch_log)
+        st.write(f"Total punch entries: {len(punch_log)}")
         st.dataframe(df)
+        
+        if not df.empty:
+            st.dataframe(df.head(10))
+        
+            # Use StringIO for download
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False)
+            st.download_button(
+                label="Download CSV",
+                data=csv_buffer.getvalue(),
+                file_name=f"{base_name}_log.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("No punch data was extracted.")
 
-        csv_dest = f"/tmp/{base_name}_punch_log.csv"
-        df.to_csv(csv_dest, index=False)
-        st.download_button("Download CSV", csv_dest, file_name=f"{base_name}_log.csv")
+
+        #csv_dest = f"/tmp/{base_name}_punch_log.csv"
+        #df.to_csv(csv_dest, index=False)
+        #st.download_button("Download CSV", csv_dest, file_name=f"{base_name}_log.csv")
 
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
         if st.button(f"Train SVM on {uploaded_file.name}"):
