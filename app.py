@@ -9,8 +9,17 @@ import os
 from sklearn import svm
 from joblib import dump
 
-model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+st.set_page_config(page_title="Boxing Analyzer", layout="wide")
+st.title("🥊 Boxing Analyzer with MoveNet MultiPose")
 
+# Load MoveNet MultiPose
+@st.cache_resource
+def load_model():
+    return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+
+model = load_model()
+
+# Draw pose skeleton
 def draw_skeleton(frame, keypoints):
     for person in keypoints:
         for i, kp in enumerate(person):
@@ -19,16 +28,24 @@ def draw_skeleton(frame, keypoints):
                 cv2.circle(frame, (x, y), 4, (0, 255, 0), -1)
     return frame
 
+# Extract keypoints from MoveNet MultiPose output
 def extract_keypoints(results):
+    keypoints_with_scores = results['output_0'].numpy()
     keypoints = []
-    for person in results['output_0'][0]:
+    for person in keypoints_with_scores[0]:
+        score = person[55]  # overall confidence
+        if score < 0.2:
+            continue
         person_kps = []
         for i in range(17):
-            y, x, score = person[i*3:(i+1)*3]
-            person_kps.append([y, x, score])
+            y = person[i * 3]
+            x = person[i * 3 + 1]
+            conf = person[i * 3 + 2]
+            person_kps.append([y, x, conf])
         keypoints.append(person_kps)
     return keypoints
 
+# Punch classification
 def classify_punch(keypoints):
     punch_type = []
     for person in keypoints:
@@ -52,6 +69,7 @@ def classify_punch(keypoints):
             punch_type.append("guard")
     return punch_type
 
+# Posture analysis
 def check_posture(keypoints):
     feedback = []
     for person in keypoints:
@@ -67,6 +85,7 @@ def check_posture(keypoints):
         feedback.append("Elbow drop detected" if elbow_drop else "Good posture")
     return feedback
 
+# Glove detection (presence of wrists)
 def detect_gloves(keypoints):
     gloves = []
     for person in keypoints:
@@ -75,13 +94,12 @@ def detect_gloves(keypoints):
         gloves.append(f"Left: {'yes' if lwrist[2] > 0.2 else 'no'}, Right: {'yes' if rwrist[2] > 0.2 else 'no'}")
     return gloves
 
-st.title("🥊 Boxing Analyzer")
-
-uploaded_files = st.file_uploader("Upload videos", type=["mp4"], accept_multiple_files=True)
+# File uploader
+uploaded_files = st.file_uploader("📂 Upload MP4 boxing video(s)", type=["mp4"], accept_multiple_files=True)
 
 if uploaded_files:
     for uploaded_file in uploaded_files:
-        st.subheader(f"Video: {uploaded_file.name}")
+        st.subheader(f"🎞️ {uploaded_file.name}")
         temp_file = tempfile.NamedTemporaryFile(delete=False)
         temp_file.write(uploaded_file.read())
 
@@ -107,6 +125,7 @@ if uploaded_files:
 
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
+
             frame = draw_skeleton(frame, keypoints)
             punches = classify_punch(keypoints)
             postures = check_posture(keypoints)
@@ -114,7 +133,7 @@ if uploaded_files:
 
             for i, punch in enumerate(punches):
                 punch_log.append({
-                    "frame": cap.get(cv2.CAP_PROP_POS_FRAMES),
+                    "frame": int(cap.get(cv2.CAP_PROP_POS_FRAMES)),
                     "person": i,
                     "punch": punch,
                     "posture": postures[i],
@@ -126,23 +145,28 @@ if uploaded_files:
         cap.release()
         out.release()
 
+        # Display output video
         st.video(out_path)
         st.success("✅ Video processed!")
+
+        # Create DataFrame
         df = pd.DataFrame(punch_log)
         st.dataframe(df)
 
-        csv_dest = f"/tmp/{base_name}_punch_log.csv"
-        model_dest = f"/tmp/{base_name}_svm_model.joblib"
+        csv_path = f"/tmp/{base_name}_punch_log.csv"
+        model_path = f"/tmp/{base_name}_svm_model.joblib"
+        df.to_csv(csv_path, index=False)
 
-        df.to_csv(csv_dest, index=False)
+        # Download CSV button
+        with open(csv_path, "rb") as f:
+            st.download_button("⬇️ Download Punch Log CSV", f, file_name=f"{base_name}_punch_log.csv")
 
-        st.download_button("Download CSV", csv_dest, file_name=f"{base_name}_log.csv")
-
-        if st.button(f"Train SVM on {uploaded_file.name}"):
+        # Train SVM
+        if st.button(f"🧠 Train SVM Model on {uploaded_file.name}"):
             if 'punch' in df.columns:
                 X = df[['frame', 'person']]
                 y = df['punch']
                 clf = svm.SVC()
                 clf.fit(X, y)
-                dump(clf, model_dest)
-                st.success("SVM trained and saved ✅")
+                dump(clf, model_path)
+                st.success("✅ SVM model trained and saved!")
