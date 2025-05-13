@@ -17,6 +17,7 @@ st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
 # Load MoveNet MultiPose model
 @st.cache_resource
 def load_model():
+    os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'  # Add this line
     return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 model = load_model()
 
