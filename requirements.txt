@@ -6,4 +6,5 @@ pandas
 numpy
 scikit-learn
 joblib
+ffmpeg-python
 
