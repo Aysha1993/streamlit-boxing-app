@@ -1,4 +1,3 @@
-%%writefile app.py
 import streamlit as st
 
 st.title("Streamlit in Colab")
