@@ -91,18 +91,31 @@ def detect_gloves(keypoints):
         gloves.append(f"Gloves: L-{'yes' if lw[2]>0.2 else 'no'} R-{'yes' if rw[2]>0.2 else 'no'}")
     return gloves
 
-# Draw keypoints and annotations
+# Draw keypoints, bounding box, and annotations (including gloves) inside the box
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     for i, kp in enumerate(keypoints):
+        # Get bounding box around the keypoints (use minimum and maximum x/y values)
+        min_x = min(kp, key=lambda x: x[1])[1]  # Find min x
+        max_x = max(kp, key=lambda x: x[1])[1]  # Find max x
+        min_y = min(kp, key=lambda x: x[0])[0]  # Find min y
+        max_y = max(kp, key=lambda x: x[0])[0]  # Find max y
+
+        # Convert to pixel coordinates
+        min_x, max_x = int(min_x * frame.shape[1]), int(max_x * frame.shape[1])
+        min_y, max_y = int(min_y * frame.shape[0]), int(max_y * frame.shape[0])
+
+        # Draw bounding box
+        cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), (0, 255, 0), 2)
+
+        # Draw keypoints and annotations inside the bounding box
         for j, (y, x, s) in enumerate(kp):
             if s > 0.2:
                 cx, cy = int(x * frame.shape[1]), int(y * frame.shape[0])
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
+        # Draw punch, posture, and glove annotations inside the box
         label = f"{punches[i]}, {postures[i]}, {gloves[i]}"
-        base_x = int(kp[0][1] * frame.shape[1])
-        base_y = int(kp[0][0] * frame.shape[0]) - 20
-        cv2.putText(frame, label, (base_x, base_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        cv2.putText(frame, label, (min_x, min_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
     return frame
 
