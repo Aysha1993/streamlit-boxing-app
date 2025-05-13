@@ -11,13 +11,14 @@ from joblib import dump
 import io
 
 st.set_option('client.showErrorDetails', True)
-
 st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
+
+# Set TFHub cache location
+os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'
 
 # Load MoveNet MultiPose model
 @st.cache_resource
 def load_model():
-    os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'  # Add this line
     return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 model = load_model()
 
@@ -25,7 +26,7 @@ model = load_model()
 def extract_keypoints(results):
     people = []
     raw = results['output_0'].numpy()[0]
-    for i in range(6):  # up to 6 people
+    for i in range(6):
         person = raw[i*51:(i+1)*51].reshape(17, 3)
         if np.mean(person[:, 2]) > 0.2:
             people.append(person.tolist())
@@ -72,7 +73,7 @@ def detect_gloves(keypoints):
     gloves = []
     for kp in keypoints:
         lw, rw = kp[9], kp[10]
-        gloves.append(f"Gloves: L-{'yes' if lw[2]>0.2 else 'no'} R-{'yes' if rw[2]>0.2 else 'no'}")
+        gloves.append(f"Gloves: L-{'yes' if lw[2] > 0.2 else 'no'} R-{'yes' if rw[2] > 0.2 else 'no'}")
     return gloves
 
 # Draw annotations
@@ -90,22 +91,25 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
 
     return frame
 
-# UI to upload videos
+# File uploader
 uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
 
 if uploaded_files:
     for uploaded_file in uploaded_files:
         st.subheader(f"Processing: {uploaded_file.name}")
-        tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        tfile.write(uploaded_file.read())
-        tfile.flush()
 
-        cap = cv2.VideoCapture(tfile.name)
+        # Save uploaded file safely
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tfile:
+            tfile.write(uploaded_file.read())
+            temp_video_path = tfile.name
+
+        cap = cv2.VideoCapture(temp_video_path)
         width, height = int(cap.get(3)), int(cap.get(4))
         fps = cap.get(cv2.CAP_PROP_FPS)
 
-        # Save output to temp file
-        out_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+        # Create output video path
+        temp_dir = tempfile.mkdtemp()
+        out_path = os.path.join(temp_dir, f"{uploaded_file.name}_annotated.mp4")
         out_writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
         punch_log = []
@@ -142,6 +146,7 @@ if uploaded_files:
 
         cap.release()
         out_writer.release()
+        cv2.destroyAllWindows()
 
         st.video(out_path)
         st.success("✅ Annotated video ready")
@@ -153,3 +158,7 @@ if uploaded_files:
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
+
+        # Optional cleanup
+        # os.remove(temp_video_path)
+        # os.remove(out_path)
