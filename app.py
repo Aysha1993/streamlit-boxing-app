@@ -32,7 +32,7 @@ def detect_poses(frame, model):
             keypoints.append(person.tolist())
     return keypoints
 
-# Filter top 2 confident persons
+# Filter top 2 confident persons (assumed to be boxers)
 def filter_top_two_persons(keypoints):
     scored = []
     for idx, kp in enumerate(keypoints):
@@ -97,7 +97,7 @@ def process_video(input_path, model):
             break
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         raw_keypoints = detect_poses(frame_rgb, model)
-        keypoints = filter_top_two_persons(raw_keypoints)
+        keypoints = filter_top_two_persons(raw_keypoints)  # Only top 2 confident persons assumed to be players
         gloves = detect_gloves(keypoints)
         frame = draw_skeleton(frame, keypoints)
         frame = annotate(frame, gloves)
@@ -121,7 +121,8 @@ if video_file:
     st.success("Video processed!")
     st.video(annotated_path)
     with open(annotated_path, "rb") as f:
-        st.download_button("Download Annotated Video", f, file_name="annotated_output.mp4")       
+        st.download_button("Download Annotated Video", f, file_name="annotated_output.mp4")
+          
         df = pd.DataFrame(punch_log)
         st.dataframe(df)
 
