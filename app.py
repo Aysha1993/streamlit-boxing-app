@@ -72,11 +72,21 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-def detect_gloves(keypoints):
+def detect_gloves(keypoints, distance_thresh=0.1):
     gloves = []
     for kp in keypoints:
-        lw, rw = kp[9], kp[10]
-        gloves.append(f"Gloves: L-{'yes' if lw[2]>0.2 else 'no'} R-{'yes' if rw[2]>0.2 else 'no'}")
+        lw, le = kp[9], kp[7]   # left wrist, left elbow
+        rw, re = kp[10], kp[8]  # right wrist, right elbow
+
+        def is_glove_present(wrist, elbow):
+            if wrist[2] > 0.2 and elbow[2] > 0.2:
+                dist = np.sqrt((wrist[0] - elbow[0]) ** 2 + (wrist[1] - elbow[1]) ** 2)
+                return dist > distance_thresh
+            return False
+
+        left_glove = "yes" if is_glove_present(lw, le) else "no"
+        right_glove = "yes" if is_glove_present(rw, re) else "no"
+        gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
     return gloves
 
 SKELETON_EDGES = [
@@ -92,15 +102,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
 
     for i, kp in enumerate(keypoints):
-        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        if not visible_points:
-            continue
-        y_coords, x_coords = zip(*visible_points)
-        min_x = int(min(x_coords) * w)
-        max_x = int(max(x_coords) * w)
-        min_y = int(min(y_coords) * h)
-        max_y = int(max(y_coords) * h)
-
         # Draw keypoints
         for (y, x, s) in kp:
             if s > 0.2:
@@ -116,18 +117,28 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Reduced glove bounding box
-        if "glove" in gloves[i].lower():
-            color = (0, 0, 255)
-            pad = 5  # Reduced from 10
-            cv2.rectangle(frame, (min_x - pad, min_y - pad), (max_x + pad, max_y + pad), color, 2)
-            cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        # Draw bounding boxes around gloves (wrists)
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                pad = 15
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
-        # Draw punch and posture
-        cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # Determine min/max for posture/punch text placement
+        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        if visible_points:
+            y_coords, x_coords = zip(*visible_points)
+            min_x = int(min(x_coords) * w)
+            max_y = int(max(y_coords) * h)
+
+            # Draw punch and posture
+            cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
-
+    
 uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -163,7 +174,7 @@ if uploaded_files:
 
             punches = classify_punch(keypoints)
             postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints)
+            gloves = detect_gloves(keypoints, distance_thresh=0.1)
             annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
             out_writer.write(annotated)
 
