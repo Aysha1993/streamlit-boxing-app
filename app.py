@@ -170,7 +170,7 @@ if uploaded_files:
 
             punches = classify_punch(keypoints)
             postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints, distance_thresh=0.1)
+            gloves = detect_gloves(keypoints)
             annotated = draw_annotations(frame, keypoints, punches, postures, gloves)
             out_writer.write(annotated)
 
