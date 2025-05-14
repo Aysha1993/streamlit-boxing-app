@@ -11,8 +11,6 @@ import ffmpeg
 from sklearn import svm
 from joblib import dump
 import io
-from PIL import Image, ImageDraw, ImageFont
-
 
 # Load MoveNet Multipose model
 @st.cache_resource
