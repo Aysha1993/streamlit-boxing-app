@@ -159,7 +159,6 @@ model = load_model()
 video_file = st.file_uploader("📤 Upload a Boxing Video", type=["mp4", "mov", "avi"])
 
 if video_file:
-    #st.video(video_file)
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     temp_file.write(video_file.read())
 
