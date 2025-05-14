@@ -72,6 +72,7 @@ def detect_gloves(keypoints):
     return gloves
 
 uploaded_file = st.file_uploader("Upload a short MP4 video (compressed)", type=["mp4"])
+print("uploaded_file")
 
 if uploaded_file:
     st.subheader("🎬 Preview and Analyze")
