@@ -7,7 +7,6 @@ import cv2
 import tempfile
 import os
 import io
-import math
 from sklearn import svm
 from joblib import dump
 
@@ -17,16 +16,16 @@ def load_model():
     model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
     return model.signatures['serving_default']
 
-# Detect poses in frame
+# Detect poses
 def detect_poses(frame, model):
     input_size = 256
     img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), input_size, input_size)
     input_img = tf.cast(img, dtype=tf.int32)
     outputs = model(input_img)
-    keypoints_with_scores = outputs['output_0'].numpy()[:, :, :51].reshape((6, 17, 3))
-    return [person.tolist() for person in keypoints_with_scores if np.mean(person[:, 2]) > 0.2]
+    keypoints = outputs['output_0'].numpy()[:, :, :51].reshape((6, 17, 3))
+    return [kp.tolist() for kp in keypoints if np.mean(np.array(kp)[:, 2]) > 0.2]
 
-# Filter top 2 confident persons
+# Top 2 confident persons
 def filter_top_two_persons(keypoints):
     scored = [(np.mean([s for (_, _, s) in kp]), idx) for idx, kp in enumerate(keypoints)]
     top_two = sorted(scored, reverse=True)[:2]
@@ -49,7 +48,7 @@ def draw_skeleton(frame, keypoints):
                 cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
     return frame
 
-# Angle utility
+# Angle calculation
 def calculate_angle(a, b, c):
     if a[2] < 0.2 or b[2] < 0.2 or c[2] < 0.2:
         return None
@@ -58,7 +57,7 @@ def calculate_angle(a, b, c):
     cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine, -1, 1)))
 
-# Posture analysis
+# Posture
 def analyze_posture(person):
     angles = {
         "left_elbow": calculate_angle(person[5], person[7], person[9]),
@@ -87,7 +86,7 @@ def detect_gloves(person):
     if person[10][2] > 0.3: gloves.append(("Right Glove", person[10]))
     return gloves
 
-# Punch type detection
+# Punch type
 def detect_punch_type(person):
     lw, rw, le, re = person[9], person[10], person[7], person[8]
     punch = []
@@ -107,14 +106,18 @@ def annotate(frame, gloves):
     return frame
 
 # Process video
-def process_video(input_path, model, resize_w=480, skip_rate=2):
-    cap = cv2.VideoCapture(input_path)
+def process_video(video_bytes, model, resize_w=480, skip_rate=3):
+    temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    temp_input.write(video_bytes)
+    temp_input.close()
+
+    cap = cv2.VideoCapture(temp_input.name)
     fps = cap.get(cv2.CAP_PROP_FPS)
     orig_w, orig_h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     resize_h = int(resize_w * orig_h / orig_w)
 
     output_path = tempfile.mktemp(suffix='.mp4')
-    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps // skip_rate, (resize_w, resize_h))
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), max(5, fps // skip_rate), (resize_w, resize_h))
 
     logs, frame_idx = [], 0
     while cap.isOpened():
@@ -152,38 +155,35 @@ def process_video(input_path, model, resize_w=480, skip_rate=2):
     return output_path, pd.DataFrame(logs)
 
 # Streamlit UI
-st.set_page_config(layout="centered", page_title="Boxing Analyzer")
-st.title("🥊 Boxing Pose Analyzer + Punch Detection")
+st.set_page_config(layout="centered", page_title="🥊 Boxing Pose Analyzer")
+st.title("🥊 Boxing Analyzer with Pose + Punch Detection")
 
 model = load_model()
 video_file = st.file_uploader("📤 Upload a Boxing Video", type=["mp4", "mov", "avi"])
 
 if video_file:
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    temp_file.write(video_file.read())
+    with st.spinner("⏳ Processing video..."):
+        annotated_path, df = process_video(video_file.read(), model)
 
-    with st.spinner("⏳ Processing video... Please wait..."):
-        annotated_path, df = process_video(temp_file.name, model)
-
-    st.success("✅ Video annotated!")
+    st.success("✅ Done! Here's the output:")
     st.video(annotated_path)
 
     with open(annotated_path, "rb") as f:
-        st.download_button("⬇️ Download Annotated Video", f, file_name="annotated_output.mp4")
+        st.download_button("⬇️ Download Annotated Video", f, file_name="boxing_annotated.mp4")
 
-    st.subheader("📊 Punch & Posture Log")
+    st.subheader("📊 Punch & Posture Data")
     st.dataframe(df.head())
 
-    csv_buffer = io.StringIO()
-    df.to_csv(csv_buffer, index=False)
-    st.download_button("📥 Download Analysis CSV", csv_buffer.getvalue(), "boxing_analysis.csv", mime="text/csv")
+    csv_io = io.StringIO()
+    df.to_csv(csv_io, index=False)
+    st.download_button("📥 Download CSV", csv_io.getvalue(), "boxing_analysis.csv", mime="text/csv")
 
-    if st.button("🧠 Train SVM Classifier on Punch Data"):
+    if st.button("🧠 Train SVM on Punch Labels"):
         if 'punch' in df.columns:
             X = df[['frame', 'person']]
             y = df['punch']
             clf = svm.SVC()
             clf.fit(X, y)
-            model_name = f"/tmp/svm_punch_model.joblib"
-            dump(clf, model_name)
-            st.success(f"✅ SVM model trained and saved to {model_name}")
+            model_path = "/tmp/svm_punch_model.joblib"
+            dump(clf, model_path)
+            st.success(f"✅ Trained and saved to {model_path}")
