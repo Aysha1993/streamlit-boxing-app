@@ -25,7 +25,7 @@ def detect_poses(frame, model):
     keypoints = outputs['output_0'].numpy()[:, :, :51].reshape((6, 17, 3))
     return [kp.tolist() for kp in keypoints if np.mean(np.array(kp)[:, 2]) > 0.2]
 
-# Top 2 confident persons
+# Filter top 2 confident persons
 def filter_top_two_persons(keypoints):
     scored = [(np.mean([s for (_, _, s) in kp]), idx) for idx, kp in enumerate(keypoints)]
     top_two = sorted(scored, reverse=True)[:2]
@@ -57,7 +57,7 @@ def calculate_angle(a, b, c):
     cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine, -1, 1)))
 
-# Posture
+# Posture analysis
 def analyze_posture(person):
     angles = {
         "left_elbow": calculate_angle(person[5], person[7], person[9]),
@@ -106,12 +106,8 @@ def annotate(frame, gloves):
     return frame
 
 # Process video
-def process_video(video_bytes, model, resize_w=480, skip_rate=3):
-    temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    temp_input.write(video_bytes)
-    temp_input.close()
-
-    cap = cv2.VideoCapture(temp_input.name)
+def process_video(video_path, model, resize_w=480, skip_rate=3):
+    cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     orig_w, orig_h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     resize_h = int(resize_w * orig_h / orig_w)
@@ -161,15 +157,19 @@ st.title("🥊 Boxing Analyzer with Pose + Punch Detection")
 model = load_model()
 video_file = st.file_uploader("📤 Upload a Boxing Video", type=["mp4", "mov", "avi"])
 
-if video_file:
-    with st.spinner("⏳ Processing video..."):
-        annotated_path, df = process_video(video_file.read(), model)
+if video_file is not None:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(video_file.read())
+        tmp.flush()
+        st.video(tmp.name)
+        with st.spinner("⏳ Processing video..."):
+            annotated_path, df = process_video(tmp.name, model)
 
-    st.success("✅ Done! Here's the output:")
+    st.success("✅ Done! Here's the output video:")
     st.video(annotated_path)
 
     with open(annotated_path, "rb") as f:
-        st.download_button("⬇️ Download Annotated Video", f, file_name="boxing_annotated.mp4")
+        st.download_button("⬇️ Download Annotated Video", f, file_name="boxing_annotated.mp4", mime="video/mp4")
 
     st.subheader("📊 Punch & Posture Data")
     st.dataframe(df.head())
