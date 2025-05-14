@@ -81,12 +81,14 @@ def detect_gloves(keypoints, distance_thresh=0.1):
         def is_glove_present(wrist, elbow):
             if wrist[2] > 0.2 and elbow[2] > 0.2:
                 dist = np.sqrt((wrist[0] - elbow[0]) ** 2 + (wrist[1] - elbow[1]) ** 2)
+                print(f"Glove Detection Distance: {dist}")  # Debugging distance calculation
                 return dist > distance_thresh
             return False
 
         left_glove = "yes" if is_glove_present(lw, le) else "no"
         right_glove = "yes" if is_glove_present(rw, re) else "no"
         gloves.append((left_glove, right_glove))
+        print(f"Left Glove: {left_glove}, Right Glove: {right_glove}")  # Debugging glove detection status
     return gloves
 
 SKELETON_EDGES = [
