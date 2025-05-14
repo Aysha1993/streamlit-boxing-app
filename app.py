@@ -1,5 +1,5 @@
 import streamlit as st
-import tensorflow\_hub as hub
+import tensorflow_hub as hub
 import tensorflow as tf
 import numpy as np
 import pandas as pd
