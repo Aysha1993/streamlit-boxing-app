@@ -1,146 +1,156 @@
 import streamlit as st
-import tensorflow_hub as hub
+import tensorflow\_hub as hub
 import tensorflow as tf
 import numpy as np
 import pandas as pd
 import cv2
 import tempfile
+import os
+import shutil
+import ffmpeg
 from sklearn import svm
 from joblib import dump
 import io
 
-st.set_page_config(layout="wide")
-st.title("🥊 Fast Boxing Analyzer")
+# Load MoveNet Multipose model
 
-model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+@st.cache\_resource
+def load\_model():
+model = hub.load("[https://tfhub.dev/google/movenet/multipose/lightning/1](https://tfhub.dev/google/movenet/multipose/lightning/1)")
+return model.signatures\['serving\_default']
 
-def draw_skeleton(frame, keypoints):
-    for person in keypoints:
-        for kp in person:
-            if kp[2] > 0.2:
-                x, y = int(kp[1] * frame.shape[1]), int(kp[0] * frame.shape[0])
-                cv2.circle(frame, (x, y), 4, (0, 255, 0), -1)
-    return frame
+# Detect poses from frame
 
-def extract_keypoints(results):
-    keypoints = []
-    for person in results['output_0'][0]:
-        person_kps = []
-        for i in range(17):
-            y, x, score = person[i*3:(i+1)*3]
-            person_kps.append([y, x, score])
-        keypoints.append(person_kps)
-    return keypoints
+def detect\_poses(frame, model):
+input\_size = 256
+img = tf.image.resize\_with\_pad(tf.expand\_dims(frame, axis=0), input\_size, input\_size)
+input\_img = tf.cast(img, dtype=tf.int32)
+outputs = model(input\_img)
+keypoints\_with\_scores = outputs\['output\_0'].numpy()\[:, :, :51].reshape((6, 17, 3))
 
-def classify_punch(keypoints):
-    punches = []
-    for person in keypoints:
-        if len(person) != 17:
-            punches.append("unknown")
-            continue
-        lwrist, rwrist = person[9], person[10]
-        lshoulder, rshoulder = person[5], person[6]
-        lelbow = person[7]
+```
+keypoints = []
+for person in keypoints_with_scores:
+    if np.mean(person[:, 2]) > 0.2:
+        keypoints.append(person.tolist())
+return keypoints
+```
 
-        if lwrist[2] > 0.2 and lshoulder[2] > 0.2 and lwrist[0] < lshoulder[0]:
-            punches.append("jab")
-        elif rwrist[2] > 0.2 and rshoulder[2] > 0.2 and rwrist[0] < rshoulder[0]:
-            punches.append("cross")
-        elif lelbow[2] > 0.2 and abs(lelbow[1] - lwrist[1]) > 0.1:
-            punches.append("hook")
-        else:
-            punches.append("guard")
-    return punches
+# Filter top 2 confident persons (assumed to be boxers)
 
-def check_posture(keypoints):
-    feedback = []
-    for person in keypoints:
-        if len(person) != 17:
-            feedback.append("unknown")
-            continue
-        lelbow, relbow = person[7], person[8]
-        lhip, rhip = person[11], person[12]
-        elbow_drop = lelbow[0] > lhip[0] and relbow[0] > rhip[0]
-        feedback.append("Elbow drop" if elbow_drop else "Good posture")
-    return feedback
+def filter\_top\_two\_persons(keypoints):
+scored = \[]
+for idx, kp in enumerate(keypoints):
+score = np.mean(\[s for (\_, *, s) in kp])
+scored.append((score, idx))
+top\_two = sorted(scored, reverse=True)\[:2]
+return \[keypoints\[i] for (*, i) in top\_two]
 
-def detect_gloves(keypoints):
-    gloves = []
-    for person in keypoints:
-        lwrist, rwrist = person[9], person[10]
-        gloves.append(f"L: {'yes' if lwrist[2] > 0.2 else 'no'}, R: {'yes' if rwrist[2] > 0.2 else 'no'}")
-    return gloves
+# Draw skeleton on frame
 
-uploaded_file = st.file_uploader("Upload a short MP4 video (compressed)", type=["mp4"])
-print("uploaded_file")
+def draw\_skeleton(frame, keypoints):
+height, width, \_ = frame.shape
+keypoint\_edges = \[(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),(9,10),
+(11,12),(11,13),(13,15),(12,14),(14,16)]
+for person in keypoints:
+for edge in keypoint\_edges:
+p1 = person\[edge\[0]]
+p2 = person\[edge\[1]]
+if p1\[2] > 0.2 and p2\[2] > 0.2:
+x1, y1 = int(p1\[1]\*width), int(p1\[0]\*height)
+x2, y2 = int(p2\[1]\*width), int(p2\[0]\*height)
+cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+for idx, kp in enumerate(person):
+if kp\[2] > 0.2:
+x, y = int(kp\[1]\*width), int(kp\[0]\*height)
+cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
+return frame
 
-if uploaded_file:
-    st.subheader("🎬 Preview and Analyze")
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
+# Detect gloves from wrist keypoints
 
-    with st.spinner("🔍 Processing video..."):
-        cap = cv2.VideoCapture(tfile.name)
-        width, height = int(cap.get(3)), int(cap.get(4))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        temp_output = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-        out = cv2.VideoWriter(temp_output.name, fourcc, fps, (width, height))
+def detect\_gloves(keypoints):
+gloves = \[]
+for person in keypoints:
+left\_wrist = person\[9]
+right\_wrist = person\[10]
+if left\_wrist\[2] > 0.3:
+gloves.append(('Left Glove', left\_wrist))
+if right\_wrist\[2] > 0.3:
+gloves.append(('Right Glove', right\_wrist))
+return gloves
 
-        punch_log = []
+# Annotate detections
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+def annotate(frame, gloves):
+height, width, \_ = frame.shape
+for name, (y, x, c) in gloves:
+cx, cy = int(x \* width), int(y \* height)
+cv2.putText(frame, name, (cx, cy - 10), cv2.FONT\_HERSHEY\_SIMPLEX, 0.5, (255, 0, 0), 2)
+cv2.circle(frame, (cx, cy), 6, (255, 0, 0), -1)
+return frame
 
-            resized = cv2.resize(frame, (256, 256))
-            input_tensor = tf.convert_to_tensor(resized, dtype=tf.uint8)
-            input_tensor = tf.expand_dims(input_tensor, 0)
-            input_tensor = tf.cast(input_tensor, dtype=tf.int32)
+# Process and annotate video
 
-            results = model.signatures['serving_default'](input_tensor)
-            keypoints = extract_keypoints(results)
+def process\_video(input\_path, model):
+cap = cv2.VideoCapture(input\_path)
+width = int(cap.get(cv2.CAP\_PROP\_FRAME\_WIDTH))
+height = int(cap.get(cv2.CAP\_PROP\_FRAME\_HEIGHT))
+fps = int(cap.get(cv2.CAP\_PROP\_FPS))
+out\_path = tempfile.mktemp(suffix='.mp4')
+fourcc = cv2.VideoWriter\_fourcc(\*'mp4v')
+out = cv2.VideoWriter(out\_path, fourcc, fps, (width, height))
 
-            frame = draw_skeleton(frame, keypoints)
-            punches = classify_punch(keypoints)
-            postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints)
+```
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    raw_keypoints = detect_poses(frame_rgb, model)
+    keypoints = filter_top_two_persons(raw_keypoints)  # Only top 2 confident persons assumed to be players
+    gloves = detect_gloves(keypoints)
+    frame = draw_skeleton(frame, keypoints)
+    frame = annotate(frame, gloves)
+    out.write(frame)
 
-            for i, punch in enumerate(punches):
-                punch_log.append({
-                    "frame": cap.get(cv2.CAP_PROP_POS_FRAMES),
-                    "person": i,
-                    "punch": punch,
-                    "posture": postures[i],
-                    "gloves": gloves[i]
-                })
+cap.release()
+out.release()
+return out_path
+```
 
-            out.write(frame)
+# Streamlit UI
 
-        cap.release()
-        out.release()
+st.title("Boxing Pose Estimator with Glove Detection")
+model = load\_model()
+video\_file = st.file\_uploader("Upload Boxing Video", type=\["mp4", "mov"])
 
-    st.success("✅ Video processed!")
+if video\_file:
+tfile = tempfile.NamedTemporaryFile(delete=False)
+tfile.write(video\_file.read())
+st.video(tfile.name)
+with st.spinner("Processing video..."):
+annotated\_path = process\_video(tfile.name, model)
+st.success("Video processed!")
+st.video(annotated\_path)
+with open(annotated\_path, "rb") as f:
+st.download\_button("Download Annotated Video", f, file\_name="annotated\_output.mp4")
 
-    with open(temp_output.name, 'rb') as f:
-        st.video(f.read())
-
+```
     df = pd.DataFrame(punch_log)
     st.dataframe(df)
 
-    csv_buf = io.StringIO()
-    df.to_csv(csv_buf, index=False)
-    st.download_button("⬇️ Download CSV Log", csv_buf.getvalue(), "punch_log.csv", "text/csv")
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
 
-    if st.button("Train Punch Classifier"):
+    base_name = os.path.splitext(uploaded_file.name)[0]
+    model_dest = f"/tmp/{base_name}_svm_model.joblib"
+
+    if st.button(f"Train SVM on {uploaded_file.name}"):
         if 'punch' in df.columns:
             X = df[['frame', 'person']]
             y = df['punch']
             clf = svm.SVC()
             clf.fit(X, y)
-            model_buf = tempfile.NamedTemporaryFile(suffix=".joblib", delete=False)
-            dump(clf, model_buf.name)
-            st.success("✅ SVM model trained.")
-            with open(model_buf.name, "rb") as f:
-                st.download_button("⬇️ Download SVM Model", f, "svm_model.joblib")
+            dump(clf, model_dest)
+            st.success("SVM trained and saved ✅")
