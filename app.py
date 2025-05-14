@@ -8,7 +8,6 @@ import tempfile
 import os
 import shutil
 import ffmpeg
-print(ffmpeg.__file__)
 from sklearn import svm
 from joblib import dump
 import io
@@ -16,7 +15,6 @@ import io
 st.set_option('client.showErrorDetails', True)
 st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
 
-# Load MoveNet MultiPose model
 @st.cache_resource
 def load_model():
     os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'
@@ -24,18 +22,16 @@ def load_model():
 
 model = load_model()
 
-# Extract keypoints
 def extract_keypoints(results):
     people = []
     raw = results['output_0'].numpy()[0]  # shape (6, 56)
     for person_data in raw:
         keypoints = np.array(person_data[:51]).reshape(17, 3)  # y, x, confidence
-        score = person_data[55]  # person score
+        score = person_data[55]
         if score > 0.2 and np.mean(keypoints[:, 2]) > 0.2:
             people.append(keypoints.tolist())
     return people
 
-# Punch classification
 def classify_punch(keypoints):
     result = []
     for kp in keypoints:
@@ -59,7 +55,6 @@ def classify_punch(keypoints):
             result.append("Guard")
     return result
 
-# Posture analysis
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
@@ -77,7 +72,6 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-# Glove detection
 def detect_gloves(keypoints):
     gloves = []
     for kp in keypoints:
@@ -85,7 +79,6 @@ def detect_gloves(keypoints):
         gloves.append(f"Gloves: L-{'yes' if lw[2]>0.2 else 'no'} R-{'yes' if rw[2]>0.2 else 'no'}")
     return gloves
 
-# Skeleton edges
 SKELETON_EDGES = [
     (0, 1), (0, 2), (1, 3), (2, 4),
     (5, 6), (5, 7), (7, 9),
@@ -95,7 +88,6 @@ SKELETON_EDGES = [
     (12, 14), (14, 16)
 ]
 
-# Draw annotations
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
 
@@ -109,13 +101,13 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         min_y = int(min(y_coords) * h)
         max_y = int(max(y_coords) * h)
 
-        # Draw circles for keypoints
+        # Draw keypoints
         for (y, x, s) in kp:
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
-        # Draw lines for skeleton edges
+        # Draw skeleton
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -124,21 +116,18 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw glove detection (red bounding boxes only for gloves)
-        if "glove" in gloves[i].lower():  # Check if the label contains "glove"
-            color = (0, 0, 255)  # Red color in BGR
-            cv2.rectangle(frame, (min_x-10, min_y-10), (max_x+10, max_y+10), color, 2)
-            cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 5)
+        # Reduced glove bounding box
+        if "glove" in gloves[i].lower():
+            color = (0, 0, 255)
+            pad = 5  # Reduced from 10
+            cv2.rectangle(frame, (min_x - pad, min_y - pad), (max_x + pad, max_y + pad), color, 2)
+            cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-        # Draw punch and posture info
-        cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # Draw punch and posture
+        cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
 
-
-# Video uploader
 uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
 
 if uploaded_files:
