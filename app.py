@@ -127,9 +127,9 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         # Draw glove detection (red bounding boxes only for gloves)
         if "glove" in gloves[i].lower():  # Check if the label contains "glove"
             color = (0, 0, 255)  # Red color in BGR
-            cv2.rectangle(frame, (min_x, min_y), (max_x, max_y), color, 2)
+            cv2.rectangle(frame, (min_x-10, min_y-10), (max_x+10, max_y+10), color, 2)
             cv2.putText(frame, gloves[i], (min_x + 5, min_y + 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 5)
 
         # Draw punch and posture info
         cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
