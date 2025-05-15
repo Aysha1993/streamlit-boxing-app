@@ -173,14 +173,14 @@ def analyze_video(video_path, output_path="output_annotated.mp4"):
     df.to_csv("punch_log.csv", index=False)
     print("Punch log saved to punch_log.csv")
 
-base_name = os.path.splitext(uploaded_file.name)[0]
-model_dest = f"/tmp/{base_name}_svm_model.joblib"
-
-if st.button(f"Train SVM on {uploaded_file.name}"):
-    if 'punch' in df.columns:
-        X = df[['frame', 'person']]
-        y = df['punch']
-        clf = svm.SVC()
-        clf.fit(X, y)
-        dump(clf, model_dest)
-        st.success("SVM trained and saved ✅")
+    base_name = os.path.splitext(uploaded_file.name)[0]
+    model_dest = f"/tmp/{base_name}_svm_model.joblib"
+    
+    if st.button(f"Train SVM on {uploaded_file.name}"):
+        if 'punch' in df.columns:
+            X = df[['frame', 'person']]
+            y = df['punch']
+            clf = svm.SVC()
+            clf.fit(X, y)
+            dump(clf, model_dest)
+            st.success("SVM trained and saved ✅")
