@@ -204,10 +204,10 @@ if uploaded_files:
         #data frame    
         df = pd.DataFrame(punch_log)
         print("keypoints ",df['keypoints'].iloc[0])
-         if not df.empty:
+        if not df.empty:
             st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
      
-         def expand_keypoints(keypoints):
+        def expand_keypoints(keypoints):
             # - Decode JSON if needed
             if isinstance(keypoints, str):
                 try:
