@@ -58,8 +58,8 @@ def draw_skeleton(frame, keypoints):
                 x, y = int(kp[1]*width), int(kp[0]*height)
                 cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
     return frame
-
-# Detect gloves from wrist keypoints
+    
+# Detect gloves from wrist keypoints    
 def detect_gloves(keypoints):
     gloves = []
     for person in keypoints:
@@ -70,7 +70,7 @@ def detect_gloves(keypoints):
         if right_wrist[2] > 0.3:
             gloves.append(('Right Glove', right_wrist))
     return gloves
-
+    
 # Annotate detections
 def annotate(frame, gloves):
     height, width, _ = frame.shape
