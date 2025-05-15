@@ -202,20 +202,32 @@ if uploaded_files:
         with open(final_output, "rb") as f:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")     
 
-        df = pd.DataFrame(punch_log)       
-        def expand_keypoints(keypoints):  # keypoints is a list of dicts    
-            x_coords = [kp['x'] for kp in keypoints]      
-            y_coords = [kp['y'] for kp in keypoints]  
-            scores = [kp['score'] for kp in keypoints]
-            data = {
-                f'x_{i}': x for i, x in enumerate(x_coords)
-            } | {
-                f'y_{i}': y for i, y in enumerate(y_coords)
-            } | {
-                f's_{i}': s for i, s in enumerate(scores)
-            }    
-            return pd.Series(data) 
-        # Split keypoints and concatenate with main DataFrame
+        df = pd.DataFrame(punch_log)
+        
+        def expand_keypoints(keypoints):
+            #  Convert stringified list to actual list if needed
+            if isinstance(keypoints, str):
+                keypoints = json.loads(keypoints)
+        
+            #  Sanity check
+            if not isinstance(keypoints, list):
+                return pd.Series()  # skip if not list
+        
+            try:      
+                x_coords = [kp['x'] for kp in keypoints]
+                y_coords = [kp['y'] for kp in keypoints]
+                scores   = [kp['score'] for kp in keypoints]         
+                data = {
+                    f'x_{i}': x for i, x in enumerate(x_coords)
+                } | {
+                    f'y_{i}': y for i, y in enumerate(y_coords)
+                } | {
+                    f's_{i}': s for i, s in enumerate(scores)
+                }         
+                return pd.Series(data)    
+            except (KeyError, TypeError):
+                return pd.Series()  # return empty if malformed    
+        # Apply to expand each keypoint list to individual columns
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
         
