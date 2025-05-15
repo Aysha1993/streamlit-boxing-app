@@ -185,7 +185,8 @@ if uploaded_files:
                     "person": i,
                     "punch": punches[i],
                     "posture": postures[i],
-                    "gloves": gloves[i]
+                    "gloves": gloves[i],
+                    "keypoints": keypoints[i]
                 })
 
         cap.release()
@@ -201,6 +202,7 @@ if uploaded_files:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
 
         df = pd.DataFrame(punch_log)
+        df['keypoints'] = df['keypoints'].apply(lambda x: np.array(x).flatten().tolist())
         st.dataframe(df)
 
         csv_buffer = io.StringIO()
