@@ -1,230 +1,152 @@
 import streamlit as st
-import tensorflow_hub as hub
-import tensorflow as tf
-import numpy as np
-import pandas as pd
 import cv2
 import tempfile
 import os
-import shutil
-import ffmpeg
-import io
+import numpy as np
+import pandas as pd
+import tensorflow_hub as hub
+import tensorflow as tf
+from PIL import Image
+from datetime import datetime
+from moviepy.editor import ImageSequenceClip
 
-# Streamlit App Title
-st.set_option('client.showErrorDetails', True)
-st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
-
-# Load MoveNet MultiPose model
+# Load MoveNet Multipose
 @st.cache_resource
-def load_model():
-    os.environ['TFHUB_CACHE_DIR'] = '/tmp/tfhub'
-    return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+def load_movenet_model():
+    model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+    return model.signatures['serving_default']
 
-model = load_model()
+model = load_movenet_model()
 
-# Extract keypoints from model output
-def extract_keypoints(results):
-    people = []
-    raw = results['output_0'].numpy()[0]
-    for person_data in raw:
-        keypoints = np.array(person_data[:51]).reshape(17, 3)
-        score = person_data[55]
-        if score > 0.2 and np.mean(keypoints[:, 2]) > 0.2:
-            people.append(keypoints.tolist())
-    return people
+# Define constants
+KEYPOINT_DICT = {
+    'nose': 0, 'left_eye': 1, 'right_eye': 2, 'left_ear': 3, 'right_ear': 4,
+    'left_shoulder': 5, 'right_shoulder': 6, 'left_elbow': 7, 'right_elbow': 8,
+    'left_wrist': 9, 'right_wrist': 10, 'left_hip': 11, 'right_hip': 12,
+    'left_knee': 13, 'right_knee': 14, 'left_ankle': 15, 'right_ankle': 16
+}
 
-# Classify punches
-def classify_punch(keypoints):
-    result = []
-    for kp in keypoints:
-        lw, rw = kp[9], kp[10]
-        ls, rs = kp[5], kp[6]
-        le, re = kp[7], kp[8]
+def movenet_detect(image):
+    img = tf.image.resize_with_pad(tf.expand_dims(image, axis=0), 256, 256)
+    input_img = tf.cast(img, dtype=tf.int32)
+    results = model(input_img)
+    keypoints_with_scores = results['output_0'].numpy()
+    return keypoints_with_scores[0]
 
-        if lw[2] > 0.2 and ls[2] > 0.2 and lw[0] < ls[0]:
-            result.append("Left Jab")
-        elif rw[2] > 0.2 and rs[2] > 0.2 and rw[0] < rs[0]:
-            result.append("Right Jab")
-        elif lw[2] > 0.2 and ls[2] > 0.2 and abs(lw[0] - ls[0]) > 0.1:
-            result.append("Left Cross")
-        elif rw[2] > 0.2 and rs[2] > 0.2 and abs(rw[0] - rs[0]) > 0.1:
-            result.append("Right Cross")
-        elif le[2] > 0.2 and abs(le[1] - lw[1]) > 0.1:
-            result.append("Left Hook")
-        elif re[2] > 0.2 and abs(re[1] - rw[1]) > 0.1:
-            result.append("Right Hook")
+def detect_punch_type(keypoints):
+    results = []
+    for person in keypoints:
+        if person[0, 2] < 0.3:
+            continue
+        lw, rw = person[KEYPOINT_DICT['left_wrist']], person[KEYPOINT_DICT['right_wrist']]
+        ls, rs = person[KEYPOINT_DICT['left_shoulder']], person[KEYPOINT_DICT['right_shoulder']]
+        le, re = person[KEYPOINT_DICT['left_elbow']], person[KEYPOINT_DICT['right_elbow']]
+        lh, rh = person[KEYPOINT_DICT['left_hip']], person[KEYPOINT_DICT['right_hip']]
+
+        if lw[2] > 0.3 and lw[1] < ls[1] - 0.1:
+            results.append("Left Jab")
+        elif rw[2] > 0.3 and rw[1] > rs[1] + 0.1:
+            results.append("Right Cross")
+        elif lw[2] > 0.3 and le[2] > 0.3 and lw[1] > le[1]:
+            results.append("Left Hook")
+        elif rw[2] > 0.3 and re[2] > 0.3 and rw[1] < re[1]:
+            results.append("Right Hook")
+        elif lw[2] > 0.3 and rw[2] > 0.3 and lw[1] < ls[1] and rw[1] > rs[1]:
+            results.append("Guard")
+        elif lh[2] > 0.3 and rh[2] > 0.3 and lw[0] > lh[0] and rw[0] > rh[0]:
+            results.append("Duck")
         else:
-            result.append("Guard")
-    return result
+            results.append("Unknown")
+    return results
 
-# Check posture rules
+def is_glove_present(wrist, elbow, thresh=0.08):
+    if wrist[2] > 0.2 and elbow[2] > 0.2:
+        dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
+        return dist > thresh
+    return False
+
 def check_posture(keypoints):
-    feedback = []
-    for kp in keypoints:
-        msgs = []
-        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow drop")
-        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow drop")
-        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder drop")
-        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")
-        if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")
-        if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")
-        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist drop")
-        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist drop")
-        if not msgs:
-            msgs.append("Good Posture")
-        feedback.append(", ".join(msgs))
-    return feedback
+    posture_flags = []
+    for person in keypoints:
+        lw, rw = person[KEYPOINT_DICT['left_wrist']], person[KEYPOINT_DICT['right_wrist']]
+        le, re = person[KEYPOINT_DICT['left_elbow']], person[KEYPOINT_DICT['right_elbow']]
+        ls, rs = person[KEYPOINT_DICT['left_shoulder']], person[KEYPOINT_DICT['right_shoulder']]
+        lh, rh = person[KEYPOINT_DICT['left_hip']], person[KEYPOINT_DICT['right_hip']]
 
-# Detect gloves
-def detect_gloves(keypoints, distance_thresh=0.1):
-    gloves = []
-    for kp in keypoints:
-        lw, le = kp[9], kp[7]
-        rw, re = kp[10], kp[8]
+        flags = []
 
-        def is_glove_present(wrist, elbow):
-            if wrist[2] > 0.2 and elbow[2] > 0.2:
-                dist = np.sqrt((wrist[1] - elbow[1])**2 + (wrist[0] - elbow[0])**2)
-                return dist > distance_thresh
-            return False
+        if le[2] > 0.2 and ls[2] > 0.2 and le[0] > ls[0] + 0.1:
+            flags.append("Left Elbow Drop")
+        if re[2] > 0.2 and rs[2] > 0.2 and re[0] > rs[0] + 0.1:
+            flags.append("Right Elbow Drop")
+        if lw[2] > 0.2 and rw[2] > 0.2 and lw[0] > lh[0] + 0.2 and rw[0] > rh[0] + 0.2:
+            flags.append("Bad Stance")
 
-        left_glove = "yes" if is_glove_present(lw, le) else "no"
-        right_glove = "yes" if is_glove_present(rw, re) else "no"
-        gloves.append((left_glove, right_glove))
-    return gloves
+        posture_flags.append(", ".join(flags) if flags else "Good")
+    return posture_flags
 
-# Skeleton edges
-SKELETON_EDGES = [
-    (0, 1), (0, 2), (1, 3), (2, 4),
-    (5, 6), (5, 7), (7, 9),
-    (6, 8), (8, 10),
-    (5, 11), (6, 12), (11, 12),
-    (11, 13), (13, 15),
-    (12, 14), (14, 16)
-]
+def annotate_frame(frame, punches, gloves, posture):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    color = (0, 255, 0)
+    for i, label in enumerate(zip(punches, gloves, posture)):
+        text = f"{label[0]} | Gloves: {label[1]} | Posture: {label[2]}"
+        cv2.putText(frame, text, (30, 40 + i * 30), font, 0.6, color, 2)
+    return frame
 
-# Draw annotations on frame
-def draw_annotations(frame, keypoints, punches, postures, gloves):
-    h, w = frame.shape[:2]
-    annotated_frame = frame.copy()
+def process_video(video_path):
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frames, logs = [], []
 
-    for i, kp in enumerate(keypoints):
-        # Draw keypoints
-        for (y, x, s) in kp:
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                cv2.circle(annotated_frame, (cx, cy), 4, (0, 255, 0), -1)
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret: break
+        input_img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        input_tensor = tf.convert_to_tensor(input_img, dtype=tf.uint8)
+        keypoints = movenet_detect(input_tensor).reshape((6, 17, 3))
 
-        # Draw skeleton
-        for (p1, p2) in SKELETON_EDGES:
-            y1, x1, s1 = kp[p1]
-            y2, x2, s2 = kp[p2]
-            if s1 > 0.2 and s2 > 0.2:
-                pt1 = int(x1 * w), int(y1 * h)
-                pt2 = int(x2 * w), int(y2 * h)
-                cv2.line(annotated_frame, pt1, pt2, (255, 0, 0), 2)
+        punches = detect_punch_type(keypoints)
+        posture = check_posture(keypoints)
+        gloves = []
 
-        # Draw gloves
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.2 and gloves[i][0 if side == "L" else 1] == "yes":
-                cx, cy = int(x * w), int(y * h)
-                pad = 15
-                cv2.rectangle(annotated_frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-                cv2.putText(annotated_frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        for person in keypoints:
+            lw, rw = person[KEYPOINT_DICT['left_wrist']], person[KEYPOINT_DICT['right_wrist']]
+            le, re = person[KEYPOINT_DICT['left_elbow']], person[KEYPOINT_DICT['right_elbow']]
+            gl = []
+            if is_glove_present(lw, le): gl.append("Left")
+            if is_glove_present(rw, re): gl.append("Right")
+            gloves.append(",".join(gl) if gl else "None")
 
-        # Draw text (punch + posture)
-        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        if visible_points:
-            y_coords, x_coords = zip(*visible_points)
-            min_x = int(min(x_coords) * w)
-            max_y = int(max(y_coords) * h)
-            cv2.putText(annotated_frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        annotated = annotate_frame(frame.copy(), punches, gloves, posture)
+        frames.append(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB))
 
-    return annotated_frame
+        for punch, glove, post in zip(punches, gloves, posture):
+            logs.append({
+                "Punch": punch,
+                "Glove": glove,
+                "Posture": post
+            })
 
-# Streamlit file upload
-uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
+    cap.release()
+    return frames, pd.DataFrame(logs)
 
-# Main processing
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        st.subheader(f"Processing: {uploaded_file.name}")
-        temp_dir = tempfile.mkdtemp()
-        input_path = os.path.join(temp_dir, uploaded_file.name)
+# Streamlit UI
+st.title("🥊 Boxing Analyzer with MoveNet Multipose")
 
-        with open(input_path, 'wb') as f:
-            f.write(uploaded_file.read())
+video_file = st.file_uploader("Upload boxing video", type=["mp4", "mov", "avi"])
 
-        cap = cv2.VideoCapture(input_path)
-        width, height = int(cap.get(3)), int(cap.get(4))
-        fps = cap.get(cv2.CAP_PROP_FPS)
+if video_file:
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    temp_file.write(video_file.read())
+    frames, df = process_video(temp_file.name)
 
-        raw_output = os.path.join(temp_dir, "raw_output.mp4")
-        out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    # Save annotated video
+    output_path = os.path.join(tempfile.gettempdir(), "annotated_output.mp4")
+    clip = ImageSequenceClip(frames, fps=15)
+    clip.write_videofile(output_path, codec="libx264", audio=False)
 
-        punch_log = []
+    st.video(output_path)
+    st.dataframe(df)
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            resized = cv2.resize(frame, (256, 256))
-            input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
-            results = model.signatures['serving_default'](input_tensor)
-
-            keypoints = extract_keypoints(results)
-
-            if not keypoints:
-                out_writer.write(frame)
-                continue
-
-            gloves_all = detect_gloves(keypoints)
-            keypoints_with_gloves = []
-            gloves_filtered = []
-            indices_with_gloves = []
-            for i, (kp, glove) in enumerate(zip(keypoints, gloves_all)):
-                if glove[0] == "yes" or glove[1] == "yes":
-                    keypoints_with_gloves.append(kp)
-                    gloves_filtered.append(glove)
-                    indices_with_gloves.append(i)
-
-            if not keypoints_with_gloves:
-                out_writer.write(frame)
-                continue
-
-            punches = classify_punch(keypoints_with_gloves)
-            postures = check_posture(keypoints_with_gloves)
-
-            annotated = draw_annotations(frame, keypoints_with_gloves, punches, postures, gloves_filtered)
-            out_writer.write(annotated)
-
-            for i in range(len(punches)):
-                punch_log.append({
-                    "frame": int(cap.get(cv2.CAP_PROP_POS_FRAMES)),
-                    "person": indices_with_gloves[i],
-                    "punch": punches[i],
-                    "posture": postures[i],
-                    "gloves": gloves_filtered[i]
-                })
-
-        cap.release()
-        out_writer.release()
-
-        final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
-        ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
-
-        st.video(final_output)
-        st.success("✅ Annotated video ready")
-
-        with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
-
-        df = pd.DataFrame(punch_log)
-        st.dataframe(df)
-
-        csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
-        st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
+    # Download punch log
+    st.download_button("Download Punch Log CSV", df.to_csv(index=False), file_name="punch_log.csv")
