@@ -10,7 +10,6 @@ import shutil
 import ffmpeg
 from sklearn import svm
 from joblib import dump
-from tqdm import tqdm
 import io
 
 
