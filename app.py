@@ -80,7 +80,8 @@ def detect_gloves(keypoints, distance_thresh=0.1):
 
         def is_glove_present(wrist, elbow):
             if wrist[2] > 0.2 and elbow[2] > 0.2:
-                dist = np.sqrt((wrist[0] - elbow[0])**2 + (wrist[1] - elbow[1])**2)
+                # wrist and elbow are (y, x, score), swap for distance calc
+                dist = np.sqrt((wrist[1] - elbow[1])**2 + (wrist[0] - elbow[0])**2)
                 return dist > distance_thresh
             return False
 
@@ -103,38 +104,40 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     annotated_frame = frame.copy()
 
     for i, kp in enumerate(keypoints):
-        if gloves[i][0] == "yes" or gloves[i][1] == "yes":
-            for (y, x, s) in kp:
-                if s > 0.2:
-                    cx, cy = int(x * w), int(y * h)
-                    cv2.circle(annotated_frame, (cx, cy), 4, (0, 255, 0), -1)
+        # Draw all keypoints and skeleton
+        for (y, x, s) in kp:
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                cv2.circle(annotated_frame, (cx, cy), 4, (0, 255, 0), -1)
 
-            for (p1, p2) in SKELETON_EDGES:
-                y1, x1, s1 = kp[p1]
-                y2, x2, s2 = kp[p2]
-                if s1 > 0.2 and s2 > 0.2:
-                    pt1 = int(x1 * w), int(y1 * h)
-                    pt2 = int(x2 * w), int(y2 * h)
-                    cv2.line(annotated_frame, pt1, pt2, (255, 0, 0), 2)
+        for (p1, p2) in SKELETON_EDGES:
+            y1, x1, s1 = kp[p1]
+            y2, x2, s2 = kp[p2]
+            if s1 > 0.2 and s2 > 0.2:
+                pt1 = int(x1 * w), int(y1 * h)
+                pt2 = int(x2 * w), int(y2 * h)
+                cv2.line(annotated_frame, pt1, pt2, (255, 0, 0), 2)
 
-            for side, wrist_idx in zip(["L", "R"], [9, 10]):
-                y, x, s = kp[wrist_idx]
-                if s > 0.2:
-                    cx, cy = int(x * w), int(y * h)
-                    pad = 15
-                    cv2.rectangle(annotated_frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-                    cv2.putText(annotated_frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+        # Highlight gloves if detected
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
+            if s > 0.2 and gloves[i][0 if side == "L" else 1] == "yes":
+                cx, cy = int(x * w), int(y * h)
+                pad = 15
+                cv2.rectangle(annotated_frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                cv2.putText(annotated_frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
-            visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-            if visible_points:
-                y_coords, x_coords = zip(*visible_points)
-                min_x = int(min(x_coords) * w)
-                max_y = int(max(y_coords) * h)
+        # Annotate punch and posture text
+        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        if visible_points:
+            y_coords, x_coords = zip(*visible_points)
+            min_x = int(min(x_coords) * w)
+            max_y = int(max(y_coords) * h)
 
-                cv2.putText(annotated_frame, f"{punches[i]}, {postures[i]}",
-                            (min_x, max_y + 20), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (255, 255, 255), 1)
+            cv2.putText(annotated_frame, f"{punches[i]}, {postures[i]}",
+                        (min_x, max_y + 20), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, (255, 255, 255), 2)
 
     return annotated_frame
 
