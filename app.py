@@ -14,19 +14,19 @@ import io
 
 # Load MoveNet Multipose model
 
-@st.cache\_resource
-def load\_model():
+@st.cache_resource
+def load_model():
 model = hub.load("[https://tfhub.dev/google/movenet/multipose/lightning/1](https://tfhub.dev/google/movenet/multipose/lightning/1)")
-return model.signatures\['serving\_default']
+return model.signatures['serving\_default']
 
 # Detect poses from frame
 
-def detect\_poses(frame, model):
-input\_size = 256
-img = tf.image.resize\_with\_pad(tf.expand\_dims(frame, axis=0), input\_size, input\_size)
-input\_img = tf.cast(img, dtype=tf.int32)
-outputs = model(input\_img)
-keypoints\_with\_scores = outputs\['output\_0'].numpy()\[:, :, :51].reshape((6, 17, 3))
+def detect_poses(frame, model):
+input_size = 256
+img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), input_size, input_size)
+input_img = tf.cast(img, dtype=tf.int32)
+outputs = model(input_img)
+keypoints_with_scores = outputs['output_0'].numpy()[:, :, :51].reshape((6, 17, 3))
 
 ```
 keypoints = []
@@ -38,67 +38,67 @@ return keypoints
 
 # Filter top 2 confident persons (assumed to be boxers)
 
-def filter\_top\_two\_persons(keypoints):
-scored = \[]
+def filter_top_two_persons(keypoints):
+scored = []
 for idx, kp in enumerate(keypoints):
-score = np.mean(\[s for (\_, *, s) in kp])
+score = np.mean([s for (_, *, s) in kp])
 scored.append((score, idx))
-top\_two = sorted(scored, reverse=True)\[:2]
-return \[keypoints\[i] for (*, i) in top\_two]
+top_two = sorted(scored, reverse=True)[:2]
+return [keypoints[i] for (*, i) in top_two]
 
 # Draw skeleton on frame
 
-def draw\_skeleton(frame, keypoints):
-height, width, \_ = frame.shape
-keypoint\_edges = \[(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),(9,10),
+def draw_skeleton(frame, keypoints):
+height, width, _ = frame.shape
+keypoint_edges = [(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),(9,10),
 (11,12),(11,13),(13,15),(12,14),(14,16)]
 for person in keypoints:
-for edge in keypoint\_edges:
-p1 = person\[edge\[0]]
-p2 = person\[edge\[1]]
-if p1\[2] > 0.2 and p2\[2] > 0.2:
-x1, y1 = int(p1\[1]\*width), int(p1\[0]\*height)
-x2, y2 = int(p2\[1]\*width), int(p2\[0]\*height)
+for edge in keypoint_edges:
+p1 = person[edge[0]]
+p2 = person[edge[1]]
+if p1[2] > 0.2 and p2[2] > 0.2:
+x1, y1 = int(p1[1]*width), int(p1[0]*height)
+x2, y2 = int(p2[1]*width), int(p2[0]*height)
 cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 for idx, kp in enumerate(person):
-if kp\[2] > 0.2:
-x, y = int(kp\[1]\*width), int(kp\[0]\*height)
+if kp[2] > 0.2:
+x, y = int(kp[1]*width), int(kp[0]*height)
 cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
 return frame
 
 # Detect gloves from wrist keypoints
 
-def detect\_gloves(keypoints):
-gloves = \[]
+def detect_gloves(keypoints):
+gloves = []
 for person in keypoints:
-left\_wrist = person\[9]
-right\_wrist = person\[10]
-if left\_wrist\[2] > 0.3:
-gloves.append(('Left Glove', left\_wrist))
-if right\_wrist\[2] > 0.3:
-gloves.append(('Right Glove', right\_wrist))
+left_wrist = person[9]
+right_wrist = person[10]
+if left_wrist[2] > 0.3:
+gloves.append(('Left Glove', left_wrist))
+if right_wrist[2] > 0.3:
+gloves.append(('Right Glove', right_wrist))
 return gloves
 
 # Annotate detections
 
 def annotate(frame, gloves):
-height, width, \_ = frame.shape
+height, width, _ = frame.shape
 for name, (y, x, c) in gloves:
-cx, cy = int(x \* width), int(y \* height)
-cv2.putText(frame, name, (cx, cy - 10), cv2.FONT\_HERSHEY\_SIMPLEX, 0.5, (255, 0, 0), 2)
+cx, cy = int(x * width), int(y * height)
+cv2.putText(frame, name, (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 cv2.circle(frame, (cx, cy), 6, (255, 0, 0), -1)
 return frame
 
 # Process and annotate video
 
-def process\_video(input\_path, model):
-cap = cv2.VideoCapture(input\_path)
-width = int(cap.get(cv2.CAP\_PROP\_FRAME\_WIDTH))
-height = int(cap.get(cv2.CAP\_PROP\_FRAME\_HEIGHT))
-fps = int(cap.get(cv2.CAP\_PROP\_FPS))
-out\_path = tempfile.mktemp(suffix='.mp4')
-fourcc = cv2.VideoWriter\_fourcc(\*'mp4v')
-out = cv2.VideoWriter(out\_path, fourcc, fps, (width, height))
+def process_video(input_path, model):
+cap = cv2.VideoCapture(input_path)
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+out_path = tempfile.mktemp(suffix='.mp4')
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
 ```
 while cap.isOpened():
@@ -116,26 +116,26 @@ while cap.isOpened():
 cap.release()
 out.release()
 return out_path
-```
+
 
 # Streamlit UI
 
 st.title("Boxing Pose Estimator with Glove Detection")
-model = load\_model()
-video\_file = st.file\_uploader("Upload Boxing Video", type=\["mp4", "mov"])
+model = load_model()
+video_file = st.file_uploader("Upload Boxing Video", type=["mp4", "mov"])
 
-if video\_file:
+if video_file:
 tfile = tempfile.NamedTemporaryFile(delete=False)
-tfile.write(video\_file.read())
+tfile.write(video_file.read())
 st.video(tfile.name)
 with st.spinner("Processing video..."):
-annotated\_path = process\_video(tfile.name, model)
+annotated_path = process_video(tfile.name, model)
 st.success("Video processed!")
-st.video(annotated\_path)
-with open(annotated\_path, "rb") as f:
-st.download\_button("Download Annotated Video", f, file\_name="annotated\_output.mp4")
+st.video(annotated_path)
+with open(annotated_path, "rb") as f:
+st.download_button("Download Annotated Video", f, file_name="annotated_output.mp4")
 
-```
+
     df = pd.DataFrame(punch_log)
     st.dataframe(df)
 
