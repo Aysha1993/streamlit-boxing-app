@@ -6,6 +6,7 @@ import os
 import tempfile
 import ffmpeg
 import tensorflow as tf
+import tensorflow_hub as hub
 from joblib import dump, load
 import matplotlib.pyplot as plt
 from sklearn import svm
