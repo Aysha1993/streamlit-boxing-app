@@ -41,7 +41,7 @@ return keypoints
 def filter_top_two_persons(keypoints):
     scored = []
     for idx, kp in enumerate(keypoints):
-        score = np.mean([s for (, *, s) in kp])
+        score = np.mean([s for (_, _, s) in kp])
         scored.append((score, idx))
         top_two = sorted(scored, reverse=True)[:2]
     return [keypoints[i] for (*, i) in top_two]
