@@ -138,6 +138,8 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
 uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
 
 if uploaded_files:
+    all_logs = []  # Collect all logs here
+
     for uploaded_file in uploaded_files:
         st.subheader(f"Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
@@ -178,6 +180,7 @@ if uploaded_files:
             frame_id = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
             for i in range(len(punches)):
                 punch_log.append({
+                    "video": uploaded_file.name,
                     "frame": frame_id,
                     "person": i,
                     "punch": punches[i],
@@ -188,13 +191,11 @@ if uploaded_files:
         cap.release()
         out_writer.release()
 
-        # Encode video to final output
         final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
         ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
 
-        # Show video and logs
         st.video(final_output)
-        st.success("✅ Annotated video ready")
+        st.success(f"✅ Annotated video ready for {uploaded_file.name}")
 
         with open(final_output, "rb") as f:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
@@ -206,7 +207,9 @@ if uploaded_files:
         df.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
 
-        # Optional SVM training
+        all_logs.extend(punch_log)
+
+        # Optional: SVM training per file
         base_name = os.path.splitext(uploaded_file.name)[0]
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
 
@@ -217,4 +220,14 @@ if uploaded_files:
                 clf = svm.SVC()
                 clf.fit(X, y)
                 dump(clf, model_dest)
-                st.success("✅ SVM trained and saved")
+                st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
+
+    # Save consolidated CSV after all videos
+    if all_logs:
+        st.subheader("📦 All Video Logs Summary")
+        all_df = pd.DataFrame(all_logs)
+        st.dataframe(all_df)
+
+        full_csv = io.StringIO()
+        all_df.to_csv(full_csv, index=False)
+        st.download_button("📥 Download Combined CSV for All Videos", full_csv.getvalue(), file_name="combined_video_logs.csv", mime="text/csv")
