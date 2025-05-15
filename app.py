@@ -44,7 +44,9 @@ def filter_top_two_persons(keypoints):
         score = np.mean([s for (_, _, s) in kp])
         scored.append((score, idx))
         top_two = sorted(scored, reverse=True)[:2]
-    return [keypoints[i] for (*, i) in top_two]
+        
+    return [keypoints[i] for (_, i) in top_two]
+    
 
 # Draw skeleton on frame
 
