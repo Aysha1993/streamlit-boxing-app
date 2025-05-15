@@ -135,7 +135,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     return frame
 
 # Upload and process videos
-uploaded_videos = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
 if uploaded_files:
     all_logs = []  # Collect all logs here
