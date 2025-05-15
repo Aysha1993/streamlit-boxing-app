@@ -200,33 +200,40 @@ if uploaded_files:
         st.success(f"✅ Annotated video ready for {uploaded_file.name}")
 
         with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")     
-
+            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")    
+        #data frame    
         df = pd.DataFrame(punch_log)
-        
-        def expand_keypoints(keypoints):
-            #  Convert stringified list to actual list if needed
+        print("keypoints ",df['keypoints'].iloc[0])
+         if not df.empty:
+            st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
+     
+         def expand_keypoints(keypoints):
+            # - Decode JSON if needed
             if isinstance(keypoints, str):
-                keypoints = json.loads(keypoints)
-        
-            #  Sanity check
-            if not isinstance(keypoints, list):
-                return pd.Series()  # skip if not list
-        
-            try:      
-                x_coords = [kp['x'] for kp in keypoints]
-                y_coords = [kp['y'] for kp in keypoints]
-                scores   = [kp['score'] for kp in keypoints]         
+                try:
+                    keypoints = json.loads(keypoints)
+                except json.JSONDecodeError:
+                    return pd.Series()
+                    #  Must be a list of lists
+            if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
+                return pd.Series()        
+            try:
+                #- Extract x, y, score from nested lists
+                x_coords = [kp[0] for kp in keypoints]
+                y_coords = [kp[1] for kp in keypoints]
+                scores   = [kp[2] for kp in keypoints]        
+                #  Create labeled dict
                 data = {
                     f'x_{i}': x for i, x in enumerate(x_coords)
                 } | {
                     f'y_{i}': y for i, y in enumerate(y_coords)
                 } | {
                     f's_{i}': s for i, s in enumerate(scores)
-                }         
-                return pd.Series(data)    
-            except (KeyError, TypeError):
-                return pd.Series()  # return empty if malformed    
+                }               
+                return pd.Series(data)        
+            except Exception:
+                return pd.Series()
+     
         # Apply to expand each keypoint list to individual columns
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
