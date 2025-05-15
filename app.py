@@ -41,10 +41,10 @@ return keypoints
 def filter_top_two_persons(keypoints):
     scored = []
     for idx, kp in enumerate(keypoints):
-        score = np.mean([s for (_, *, s) in kp])
+        score = np.mean([s for (, *, s) in kp])
         scored.append((score, idx))
         top_two = sorted(scored, reverse=True)[:2]
-return [keypoints[i] for (*, i) in top_two]
+    return [keypoints[i] for (*, i) in top_two]
 
 # Draw skeleton on frame
 
@@ -53,10 +53,8 @@ def draw_skeleton(frame, keypoints):
     height, width, _ = frame.shape
     keypoint_edges = [(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,7),(7,8),(9,10),
     (11,12),(11,13),(13,15),(12,14),(14,16)]
-    for person in keypoints:
-        
-        for edge in keypoint_edges:
-            
+    for person in keypoints:   
+        for edge in keypoint_edges:            
             p1 = person[edge[0]]
             p2 = person[edge[1]]
             if p1[2] > 0.2 and p2[2] > 0.2:
@@ -67,20 +65,20 @@ def draw_skeleton(frame, keypoints):
                 if kp[2] > 0.2:
                     x, y = int(kp[1]*width), int(kp[0]*height)
                     cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
-return frame
+    return frame
 
 # Detect gloves from wrist keypoints
 
 def detect_gloves(keypoints):
-gloves = []
-for person in keypoints:
-left_wrist = person[9]
-right_wrist = person[10]
-if left_wrist[2] > 0.3:
-gloves.append(('Left Glove', left_wrist))
-if right_wrist[2] > 0.3:
-gloves.append(('Right Glove', right_wrist))
-return gloves
+    gloves = []
+    for person in keypoints:
+        left_wrist = person[9]
+        right_wrist = person[10]
+    if left_wrist[2] > 0.3:
+        gloves.append(('Left Glove', left_wrist))
+    if right_wrist[2] > 0.3:
+        gloves.append(('Right Glove', right_wrist))
+    return gloves
 
 # Annotate detections
 
@@ -90,7 +88,7 @@ def annotate(frame, gloves):
         cx, cy = int(x * width), int(y * height)
         cv2.putText(frame, name, (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
         cv2.circle(frame, (cx, cy), 6, (255, 0, 0), -1)
-return frame
+    return frame
 
 # Process and annotate video
 
@@ -108,17 +106,17 @@ while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    raw_keypoints = detect_poses(frame_rgb, model)
-    keypoints = filter_top_two_persons(raw_keypoints)  # Only top 2 confident persons assumed to be players
-    gloves = detect_gloves(keypoints)
-    frame = draw_skeleton(frame, keypoints)
-    frame = annotate(frame, gloves)
-    out.write(frame)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        raw_keypoints = detect_poses(frame_rgb, model)
+        keypoints = filter_top_two_persons(raw_keypoints)  # Only top 2 confident persons assumed to be players
+        gloves = detect_gloves(keypoints)
+        frame = draw_skeleton(frame, keypoints)
+        frame = annotate(frame, gloves)
+        out.write(frame)
 
-cap.release()
-out.release()
-return out_path
+    cap.release()
+    out.release()
+    return out_path
 
 
 # Streamlit UI
