@@ -168,27 +168,49 @@ if uploaded_files:
             resized = cv2.resize(frame, (256, 256))
             input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
+
             keypoints = extract_keypoints(results)
 
             if not keypoints:
                 out_writer.write(frame)
                 continue
-
-            punches = classify_punch(keypoints)
-            postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints)
-            annotated = draw_annotations(frame, keypoints, punches, postures, gloves)
+            
+            # Detect gloves for all detected people
+            gloves_all = detect_gloves(keypoints)
+            
+            # Filter to keep only people with gloves on at least one hand
+            keypoints_with_gloves = []
+            gloves_filtered = []
+            indices_with_gloves = []
+            for i, (kp, glove) in enumerate(zip(keypoints, gloves_all)):
+                if glove[0] == "yes" or glove[1] == "yes":
+                    keypoints_with_gloves.append(kp)
+                    gloves_filtered.append(glove)
+                    indices_with_gloves.append(i)
+            
+            if not keypoints_with_gloves:
+                # No players with gloves detected, write original frame
+                out_writer.write(frame)
+                continue
+            
+            # Now classify punches and postures only for filtered people
+            punches = classify_punch(keypoints_with_gloves)
+            postures = check_posture(keypoints_with_gloves)
+            
+            # Draw annotations for players with gloves only
+            annotated = draw_annotations(frame, keypoints_with_gloves, punches, postures, gloves_filtered)
             out_writer.write(annotated)
-
+            
+            # Log punches only for players with gloves
             for i in range(len(punches)):
                 punch_log.append({
                     "frame": int(cap.get(cv2.CAP_PROP_POS_FRAMES)),
-                    "person": i,
+                    "person": indices_with_gloves[i],  # original index in frame
                     "punch": punches[i],
                     "posture": postures[i],
-                    "gloves": gloves[i]
+                    "gloves": gloves_filtered[i]
                 })
-
+                
         cap.release()
         out_writer.release()
 
