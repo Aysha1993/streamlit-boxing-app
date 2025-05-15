@@ -33,7 +33,7 @@ keypoints = []
 for person in keypoints_with_scores:
     if np.mean(person[:, 2]) > 0.2:
         keypoints.append(person.tolist())
-return keypoints
+    return keypoints
 
 
 # Filter top 2 confident persons (assumed to be boxers)
@@ -43,8 +43,7 @@ def filter_top_two_persons(keypoints):
     for idx, kp in enumerate(keypoints):
         score = np.mean([s for (_, _, s) in kp])
         scored.append((score, idx))
-        top_two = sorted(scored, reverse=True)[:2]
-        
+        top_two = sorted(scored, reverse=True)[:2]        
     return [keypoints[i] for (_, i) in top_two]
     
 
