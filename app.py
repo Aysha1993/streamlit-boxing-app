@@ -199,14 +199,29 @@ if uploaded_files:
         st.success(f"✅ Annotated video ready for {uploaded_file.name}")
 
         with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")     
 
         df = pd.DataFrame(punch_log)
-        df['keypoints'] = df['keypoints'].apply(lambda x: np.array(x).flatten().tolist())
-        st.dataframe(df)
 
+        # Expand keypoints into separate columns
+        def expand_keypoints(row):
+            keypoints = np.array(row['keypoints'])  # shape (17, 3)
+            flattened = {}
+            for i, (y, x, score) in enumerate(keypoints):
+                flattened[f'kp_{i}_y'] = y
+                flattened[f'kp_{i}_x'] = x
+                flattened[f'kp_{i}_score'] = score
+            return pd.Series(flattened)
+        
+        # Split keypoints and concatenate with main DataFrame
+        keypoints_df = df['keypoints'].apply(expand_keypoints)
+        df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
+        
+        # Show table in Streamlit and allow download
+        st.dataframe(df_expanded)
+        
         csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
+        df_expanded.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
 
         all_logs.extend(punch_log)
