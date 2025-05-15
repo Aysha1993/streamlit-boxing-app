@@ -94,13 +94,20 @@ def process_video(input_path, model):
         ret, frame = cap.read()
         if not ret:
             break
+
+        # Convert to RGB for model
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         raw_keypoints = detect_poses(frame_rgb, model)
         keypoints = filter_top_two_persons(raw_keypoints)
         gloves = detect_gloves(keypoints)
-        frame = draw_skeleton(frame, keypoints)
-        frame = annotate(frame, gloves)
-        out.write(frame)
+
+        # Draw on RGB frame
+        frame_annotated = draw_skeleton(frame_rgb.copy(), keypoints)
+        frame_annotated = annotate(frame_annotated, gloves)
+
+        # Convert back to BGR for saving
+        frame_bgr = cv2.cvtColor(frame_annotated, cv2.COLOR_RGB2BGR)
+        out.write(frame_bgr)
 
     cap.release()
     out.release()
