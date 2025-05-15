@@ -10,6 +10,7 @@ import ffmpeg
 from sklearn import svm
 from joblib import dump
 import io
+from sklearn.model_selection import train_test_split
 
 # Streamlit setup
 st.set_option('client.showErrorDetails', True)
@@ -232,12 +233,25 @@ if uploaded_files:
 
         if st.button(f"Train SVM on {uploaded_file.name}"):
             if 'punch' in df.columns:
-                X = df[['frame', 'person']]
-                y = df['punch']
-                clf = svm.SVC()
-                clf.fit(X, y)
-                dump(clf, model_dest)
-                st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
+                # Example: Simple SVM using keypoints               
+                if all_logs:
+                    df_all = pd.DataFrame(all_logs)
+                    expanded = df_all['keypoints'].apply(expand_keypoints)
+                    df_full = pd.concat([df_all.drop(columns=['keypoints']), expanded], axis=1)
+                
+                    X = df_full[[col for col in df_full.columns if 'kp_' in col]]
+                    y = df_full['punch']
+                
+                    X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y)
+                    clf = svm.SVC()
+                    clf.fit(X_train, y_train)
+                
+                    acc = clf.score(X_test, y_test)
+                    st.info(f"Punch Classifier Accuracy: {acc:.2f}")
+                
+                    dump(clf, "punch_svm_model.joblib")
+                    st.download_button("📥 Download SVM Model", data=open("punch_svm_model.joblib", "rb"), file_name="svm_model.joblib")
+                    st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
 
     # Save consolidated CSV after all videos
     if all_logs:
