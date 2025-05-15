@@ -204,16 +204,22 @@ if uploaded_files:
 
         df = pd.DataFrame(punch_log)
 
-        # Expand keypoints into separate columns
-        def expand_keypoints(row):
-            keypoints = np.array(row['keypoints'])  # shape (17, 3)
-            flattened = {}
-            for i, (y, x, score) in enumerate(keypoints):
-                flattened[f'kp_{i}_y'] = y
-                flattened[f'kp_{i}_x'] = x
-                flattened[f'kp_{i}_score'] = score
-            return pd.Series(flattened)
+        def expand_keypoints(keypoints):
+            keypoints = np.array(keypoints)  # already the value
+            x_coords = keypoints[:, 0]
+            y_coords = keypoints[:, 1]
+            scores = keypoints[:, 2]
         
+            data = {
+                f'x_{i}': x for i, x in enumerate(x_coords)
+            } | {
+                f'y_{i}': y for i, y in enumerate(y_coords)
+            } | {
+                f's_{i}': s for i, s in enumerate(scores)
+            }
+        
+            return pd.Series(data)
+       
         # Split keypoints and concatenate with main DataFrame
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
