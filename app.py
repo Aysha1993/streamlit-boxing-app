@@ -135,99 +135,75 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     return frame
 
 # Upload and process videos
-uploaded_files = st.file_uploader("Upload boxing MP4 videos", type=["mp4"], accept_multiple_files=True)
+uploaded_videos = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
-if uploaded_files:
-    all_logs = []  # Collect all logs here
+if uploaded_videos:
+    model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 
-    for uploaded_file in uploaded_files:
-        st.subheader(f"Processing: {uploaded_file.name}")
-        temp_dir = tempfile.mkdtemp()
-        input_path = os.path.join(temp_dir, uploaded_file.name)
+    all_punch_logs = []
 
-        with open(input_path, 'wb') as f:
-            f.write(uploaded_file.read())
+    for video_file in uploaded_videos:
+        video_name = video_file.name
+        tfile = tempfile.NamedTemporaryFile(delete=False)
+        tfile.write(video_file.read())
 
-        cap = cv2.VideoCapture(input_path)
-        width, height = int(cap.get(3)), int(cap.get(4))
+        cap = cv2.VideoCapture(tfile.name)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        raw_output = os.path.join(temp_dir, "raw_output.mp4")
-        out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        output_path = f"annotated_{video_name}"
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-        punch_log = []
+        frame_number = 0
+        punch_logs = []
 
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            resized = cv2.resize(frame, (256, 256))
-            input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
-            results = model.signatures['serving_default'](input_tensor)
-            keypoints = extract_keypoints(results)
+            frame_number += 1
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            keypoints_with_scores = run_inference(model, image)
+            annotated_image = draw_keypoints(image.copy(), keypoints_with_scores)
+            punches = detect_punches(keypoints_with_scores)
+            gloves = detect_gloves(keypoints_with_scores)
+            posture = analyze_posture(keypoints_with_scores)
 
-            if not keypoints:
-                out_writer.write(frame)
-                continue
+            frame_log = {
+                "video": video_name,
+                "frame": frame_number,
+                "punches": punches,
+                "gloves": gloves,
+                "posture": posture
+            }
+            punch_logs.append(frame_log)
 
-            punches = classify_punch(keypoints)
-            postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints)
+            for person_id, punch in punches.items():
+                cv2.putText(annotated_image, f"Punch: {punch}", (10, 30 + person_id * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-            annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
-            out_writer.write(annotated)
+            for person_id, glove in gloves.items():
+                cv2.putText(annotated_image, f"Glove: {glove}", (10, 80 + person_id * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-            frame_id = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-            for i in range(len(punches)):
-                punch_log.append({
-                    "video": uploaded_file.name,
-                    "frame": frame_id,
-                    "person": i,
-                    "punch": punches[i],
-                    "posture": postures[i],
-                    "gloves": gloves[i]
-                })
+            for person_id, post in posture.items():
+                cv2.putText(annotated_image, f"Posture: {post}", (10, 130 + person_id * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+            annotated_image_bgr = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
+            out.write(annotated_image_bgr)
 
         cap.release()
-        out_writer.release()
+        out.release()
 
-        final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
-        ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+        df = pd.DataFrame(punch_logs)
+        all_punch_logs.extend(punch_logs)
 
-        st.video(final_output)
-        st.success(f"✅ Annotated video ready for {uploaded_file.name}")
+        st.video(output_path)
 
-        with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+    # Final combined CSV log
+    full_log_df = pd.DataFrame(all_punch_logs)
+    csv_path = "punch_log.csv"
+    full_log_df.to_csv(csv_path, index=False)
 
-        df = pd.DataFrame(punch_log)
-        st.dataframe(df)
-
-        csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
-        st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
-
-        all_logs.extend(punch_log)
-
-        # Optional: SVM training per file
-        base_name = os.path.splitext(uploaded_file.name)[0]
-        model_dest = f"/tmp/{base_name}_svm_model.joblib"
-
-        if st.button(f"Train SVM on {uploaded_file.name}"):
-            if 'punch' in df.columns:
-                X = df[['frame', 'person']]
-                y = df['punch']
-                clf = svm.SVC()
-                clf.fit(X, y)
-                dump(clf, model_dest)
-                st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
-
-    # Save consolidated CSV after all videos
-    if all_logs:
-        st.subheader("📦 All Video Logs Summary")
-        all_df = pd.DataFrame(all_logs)
-        st.dataframe(all_df)
-
-        full_csv = io.StringIO()
-        all_df.to_csv(full_csv, index=False)
-        st.download_button("📥 Download Combined CSV for All Videos", full_csv.getvalue(), file_name="combined_video_logs.csv", mime="text/csv")
+    st.download_button("Download Punch Log CSV", data=open(csv_path, 'rb'), file_name="punch_log.csv", mime="text/csv")
