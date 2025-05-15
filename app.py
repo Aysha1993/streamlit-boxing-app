@@ -6,7 +6,8 @@ import os
 import tempfile
 import ffmpeg
 import tensorflow as tf
-import joblib import dump
+import joblib 
+import dump
 import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.model_selection import train_test_split
