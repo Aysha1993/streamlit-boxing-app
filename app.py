@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import tempfile
 import ffmpeg
+import io
 import tensorflow as tf
 import tensorflow_hub as hub
 from joblib import dump, load
