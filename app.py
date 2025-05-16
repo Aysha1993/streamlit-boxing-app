@@ -14,6 +14,8 @@ from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, classification_report
 
 # Streamlit setup
 st.set_option('client.showErrorDetails', True)
@@ -274,13 +276,68 @@ if uploaded_files:
                     dump(clf, "punch_svm_model.joblib")
                     st.download_button("📥 Download SVM Model", data=open("punch_svm_model.joblib", "rb"), file_name="svm_model.joblib")
                     st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
+    # # Save consolidated CSV after all videos
+    # if all_logs:
+    #     st.subheader("📦 All Video Logs Summary")
+    #     all_df = pd.DataFrame(all_logs)
+    #     st.dataframe(all_df)
 
-    # Save consolidated CSV after all videos
-    if all_logs:
-        st.subheader("📦 All Video Logs Summary")
-        all_df = pd.DataFrame(all_logs)
-        st.dataframe(all_df)
+    #     full_csv = io.StringIO()
+    #     all_df.to_csv(full_csv, index=False)
+    #     st.download_button("📥 Download Combined CSV for All Videos", full_csv.getvalue(), file_name="combined_video_logs.csv", mime="text/csv")
 
-        full_csv = io.StringIO()
-        all_df.to_csv(full_csv, index=False)
-        st.download_button("📥 Download Combined CSV for All Videos", full_csv.getvalue(), file_name="combined_video_logs.csv", mime="text/csv")
+if not df.empty:
+    # Expand keypoints into flat columns
+    def flatten_keypoints(kps):
+        flat = []
+        for kp in kps:
+            flat.extend([kp[0], kp[1], kp[2]])  # y, x, score
+        return flat
+
+    df["flat_kp"] = df["keypoints"].apply(flatten_keypoints)
+
+    X = np.vstack(df["flat_kp"].values)
+    y = df["punch"].values
+
+    # Encode labels
+    le = LabelEncoder()
+    y_encoded = le.fit_transform(y)
+
+    # Split
+    X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+
+    # Train SVM
+    svm_model = svm.SVC(kernel='linear')
+    svm_model.fit(X_train, y_train)
+
+    # Train Decision Tree
+    tree_model = DecisionTreeClassifier(max_depth=5)
+    tree_model.fit(X_train, y_train)
+
+    # Predict
+    svm_preds = svm_model.predict(X_test)
+    tree_preds = tree_model.predict(X_test)
+
+    # Accuracy
+    st.write("### 📊 Model Evaluation")
+    st.write(f"🔹 SVM Accuracy: {accuracy_score(y_test, svm_preds):.2f}")
+    st.write(f"🔹 Decision Tree Accuracy: {accuracy_score(y_test, tree_preds):.2f}")
+
+    # Confusion Matrix
+    st.write("### 📌 Confusion Matrix (SVM)")
+    cm_svm = confusion_matrix(y_test, svm_preds)
+    fig_svm, ax_svm = plt.subplots()
+    ConfusionMatrixDisplay(cm_svm, display_labels=le.classes_).plot(ax=ax_svm)
+    st.pyplot(fig_svm)
+
+    st.write("### 📌 Confusion Matrix (Decision Tree)")
+    cm_tree = confusion_matrix(y_test, tree_preds)
+    fig_tree, ax_tree = plt.subplots()
+    ConfusionMatrixDisplay(cm_tree, display_labels=le.classes_).plot(ax=ax_tree)
+    st.pyplot(fig_tree)
+
+dump(svm_model, "svm_model.joblib")
+dump(tree_model, "tree_model.joblib")
+dump(le, "label_encoder.joblib")
+
+
