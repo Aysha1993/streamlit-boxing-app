@@ -337,8 +337,8 @@ if uploaded_files:
         ConfusionMatrixDisplay(cm_tree, display_labels=le.classes_).plot(ax=ax_tree)
         st.pyplot(fig_tree)
 
-dump(svm_model, "svm_model.joblib")
-dump(tree_model, "tree_model.joblib")
-dump(le, "label_encoder.joblib")
+        dump(svm_model, "svm_model.joblib")
+        dump(tree_model, "tree_model.joblib")
+        dump(le, "label_encoder.joblib")
 
 
