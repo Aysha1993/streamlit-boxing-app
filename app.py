@@ -272,8 +272,9 @@ if uploaded_files:
         base_name = os.path.splitext(uploaded_file.name)[0]
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
 
-    if not df.empty:
-        # Expand keypoints into flat columns
+
+
+      # Expand keypoints into flat columns
         def flatten_keypoints(kps):
             flat = []
             for kp in kps:
@@ -325,6 +326,10 @@ if uploaded_files:
         dump(svm_model, "svm_model.joblib")
         dump(tree_model, "tree_model.joblib")
         dump(le, "label_encoder.joblib")
+
+
+    
+        
 
 
 requirements = '''streamlit
