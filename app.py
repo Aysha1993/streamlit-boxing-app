@@ -245,6 +245,7 @@ if uploaded_files:
                 return pd.Series(data)"""
             except Exception:
                 return pd.Series()
+        st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
 
         expanded_df = df.copy()
         keypoint_cols = df['keypoints'].apply(expand_keypoints)
@@ -285,6 +286,7 @@ if uploaded_files:
 
         X = np.vstack(df["flat_kp"].values)
         y = df["punch"].values
+        print("length",len(X))
 
         # Encode labels
         le = LabelEncoder()
@@ -326,6 +328,71 @@ if uploaded_files:
         dump(svm_model, "svm_model.joblib")
         dump(tree_model, "tree_model.joblib")
         dump(le, "label_encoder.joblib")
+        st.write("### 🎥 Prediction Visualization on Clip")
+
+# Upload a test clip
+video_file = st.file_uploader("Upload a test video for prediction", type=["mp4", "mov", "avi"])
+if video_file is not None:
+    # Save uploaded file
+    with open("test_video.mp4", "wb") as f:
+        f.write(video_file.read())
+
+    # Read and process the video
+    cap = cv2.VideoCapture("test_video.mp4")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter("annotated_output.mp4", fourcc, cap.get(cv2.CAP_PROP_FPS), 
+                          (int(cap.get(3)), int(cap.get(4))))
+    
+   
+
+    stframe = st.empty()
+    frame_count = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        
+        # Pose estimation model (replace with actual keypoint extraction)
+        keypoints = extract_keypoints(frame)  # → should return 17 keypoints (y, x, score)
+
+        if keypoints is not None:
+            flat_kp = flatten_keypoints(keypoints)
+            X_input = np.array(flat_kp).reshape(1, -1)
+
+            # Predict using trained SVM model
+            pred_class = svm_model.predict(X_input)[0]
+            label = le.inverse_transform([pred_class])[0]
+
+            # Overlay prediction text on frame
+            cv2.putText(frame, f"Predicted: {label}", (30, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2, cv2.LINE_AA)
+
+        out.write(frame)
+        frame_count += 1
+
+        # Display frame in Streamlit
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        stframe.image(frame_rgb, caption=f"Frame {frame_count}", use_column_width=True)
+
+        temp_dir = tempfile.mkdtemp()
+        final_output = os.path.join(temp_dir, f"final_{video_file.name}")
+        ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+
+        st.video(final_output)
+        st.success(f"✅ Annotated video ready for {video_file.name}")
+
+        with open(final_output, "rb") as f:
+            st.download_button("📥 Download Annotated clip", f, file_name=f"annotated_{video_file.name}", mime="video/mp4")
+
+    cap.release()
+    out.release()
+
+    st.success("✅ Annotated clip saved as `annotated_clip.mp4`")
+
+    # Display annotated video
+    st.video("annotated_clip.mp4")
 
 
     
