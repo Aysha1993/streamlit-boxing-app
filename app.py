@@ -314,12 +314,13 @@ requirements = '''streamlit
 tensorflow
 tensorflow_hub
 opencv-python-headless
-numpy
 pandas
-matplotlib
+numpy
 scikit-learn
 joblib
 ffmpeg-python
+tqdm
+matplotlib
 '''
 
 with open("requirements.txt", "w") as f:
