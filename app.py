@@ -328,7 +328,7 @@ if uploaded_files:
         dump(svm_model, "svm_model.joblib")
         dump(tree_model, "tree_model.joblib")
         dump(le, "label_encoder.joblib")
-        st.write("### 🎥 Prediction Visualization on Clip")
+st.write("### 🎥 Prediction Visualization on Clip")
 
 # Upload a test clip
 video_file = st.file_uploader("Upload a test video for prediction", type=["mp4", "mov", "avi"])
@@ -343,7 +343,7 @@ if video_file is not None:
     out = cv2.VideoWriter("annotated_output.mp4", fourcc, cap.get(cv2.CAP_PROP_FPS), 
                           (int(cap.get(3)), int(cap.get(4))))
     
-   
+  
 
     stframe = st.empty()
     frame_count = 0
