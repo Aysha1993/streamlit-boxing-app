@@ -20,7 +20,7 @@ from sklearn.metrics import accuracy_score, classification_report
 
 # Streamlit setup
 st.set_option('client.showErrorDetails', True)
-st.title("🥊 Boxing Analyzer with Punches, Posture & Gloves")
+st.title("🥊 Boxing Analyzer App")
 
 # Load MoveNet MultiPose model from TFHub
 @st.cache_resource
