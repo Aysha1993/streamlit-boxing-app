@@ -205,13 +205,13 @@ if uploaded_files:
         st.success(f"✅ Annotated video ready for {uploaded_file.name}")
 
         with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")    
-        #data frame    
+            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+        #data frame
         df = pd.DataFrame(punch_log)
         print("keypoints ",df['keypoints'].iloc[0])
         if not df.empty:
             st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
-     
+
         def expand_keypoints(keypoints):
             # - Decode JSON if needed
             if isinstance(keypoints, str):
@@ -221,12 +221,12 @@ if uploaded_files:
                     return pd.Series()
                     #  Must be a list of lists
             if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
-                return pd.Series()        
+                return pd.Series()
             try:
                 #- Extract x, y, score from nested lists
                 x_coords = [kp[0] for kp in keypoints]
                 y_coords = [kp[1] for kp in keypoints]
-                scores   = [kp[2] for kp in keypoints]        
+                scores   = [kp[2] for kp in keypoints]
                 #  Create labeled dict
                 data = {
                     f'x_{i}': x for i, x in enumerate(x_coords)
@@ -234,18 +234,17 @@ if uploaded_files:
                     f'y_{i}': y for i, y in enumerate(y_coords)
                 } | {
                     f's_{i}': s for i, s in enumerate(scores)
-                }               
-                return pd.Series(data)        
+                }
+                return pd.Series(data)
             except Exception:
                 return pd.Series()
-     
         # Apply to expand each keypoint list to individual columns
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
-        
+
         # Show table in Streamlit and allow download
         st.dataframe(df_expanded)
-        
+
         csv_buffer = io.StringIO()
         df_expanded.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
@@ -256,37 +255,6 @@ if uploaded_files:
         base_name = os.path.splitext(uploaded_file.name)[0]
         model_dest = f"/tmp/{base_name}_svm_model.joblib"
 
-        if st.button(f"Train SVM on {uploaded_file.name}"):
-            if 'punch' in df.columns:
-                # Example: Simple SVM using keypoints               
-                if all_logs:
-                    df_all = pd.DataFrame(all_logs)
-                    expanded = df_all['keypoints'].apply(expand_keypoints)
-                    df_full = pd.concat([df_all.drop(columns=['keypoints']), expanded], axis=1)
-                
-                    X = df_full[[col for col in df_full.columns if 'kp_' in col]]
-                    y = df_full['punch']
-                
-                    X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y)
-                    clf = svm.SVC()
-                    clf.fit(X_train, y_train)
-                
-                    acc = clf.score(X_test, y_test)
-                    st.info(f"Punch Classifier Accuracy: {acc:.2f}")
-                
-                    dump(clf, "punch_svm_model.joblib")
-                    st.download_button("📥 Download SVM Model", data=open("punch_svm_model.joblib", "rb"), file_name="svm_model.joblib")
-                    st.success(f"✅ SVM trained and saved for {uploaded_file.name}")
-    # # Save consolidated CSV after all videos
-    # if all_logs:
-    #     st.subheader("📦 All Video Logs Summary")
-    #     all_df = pd.DataFrame(all_logs)
-    #     st.dataframe(all_df)
-
-    #     full_csv = io.StringIO()
-    #     all_df.to_csv(full_csv, index=False)
-    #     st.download_button("📥 Download Combined CSV for All Videos", full_csv.getvalue(), file_name="combined_video_logs.csv", mime="text/csv")
-
     if not df.empty:
         # Expand keypoints into flat columns
         def flatten_keypoints(kps):
@@ -294,43 +262,43 @@ if uploaded_files:
             for kp in kps:
                 flat.extend([kp[0], kp[1], kp[2]])  # y, x, score
             return flat
-    
+
         df["flat_kp"] = df["keypoints"].apply(flatten_keypoints)
-    
+
         X = np.vstack(df["flat_kp"].values)
         y = df["punch"].values
-    
+
         # Encode labels
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)
-    
+
         # Split
         X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
-    
+
         # Train SVM
         svm_model = svm.SVC(kernel='linear')
         svm_model.fit(X_train, y_train)
-    
+
         # Train Decision Tree
         tree_model = DecisionTreeClassifier(max_depth=5)
         tree_model.fit(X_train, y_train)
-    
+
         # Predict
         svm_preds = svm_model.predict(X_test)
         tree_preds = tree_model.predict(X_test)
-    
+
         # Accuracy
         st.write("### 📊 Model Evaluation")
         st.write(f"🔹 SVM Accuracy: {accuracy_score(y_test, svm_preds):.2f}")
         st.write(f"🔹 Decision Tree Accuracy: {accuracy_score(y_test, tree_preds):.2f}")
-    
+
         # Confusion Matrix
         st.write("### 📌 Confusion Matrix (SVM)")
         cm_svm = confusion_matrix(y_test, svm_preds)
         fig_svm, ax_svm = plt.subplots()
         ConfusionMatrixDisplay(cm_svm, display_labels=le.classes_).plot(ax=ax_svm)
         st.pyplot(fig_svm)
-    
+
         st.write("### 📌 Confusion Matrix (Decision Tree)")
         cm_tree = confusion_matrix(y_test, tree_preds)
         fig_tree, ax_tree = plt.subplots()
@@ -342,3 +310,18 @@ if uploaded_files:
         dump(le, "label_encoder.joblib")
 
 
+requirements = '''streamlit
+tensorflow
+tensorflow_hub
+opencv-python-headless
+numpy
+pandas
+matplotlib
+scikit-learn
+joblib
+ffmpeg-python
+'''
+
+with open("requirements.txt", "w") as f:
+    f.write(requirements)
+print("✅ requirements.txt saved")
