@@ -228,17 +228,34 @@ if uploaded_files:
                 y_coords = [kp[1] for kp in keypoints]
                 scores   = [kp[2] for kp in keypoints]
                 #  Create labeled dict
-                data = {
+
+                data = {}
+                for i in range(17):
+                    data[f'x_{i}'] = x_coords[i]
+                    data[f'y_{i}'] = y_coords[i]
+                    data[f's_{i}'] = scores[i]
+                return pd.Series(data)
+                """data = {
                     f'x_{i}': x for i, x in enumerate(x_coords)
                 } | {
                     f'y_{i}': y for i, y in enumerate(y_coords)
                 } | {
                     f's_{i}': s for i, s in enumerate(scores)
                 }
-                return pd.Series(data)
+                return pd.Series(data)"""
             except Exception:
                 return pd.Series()
-        # Apply to expand each keypoint list to individual columns
+
+        expanded_df = df.copy()
+        keypoint_cols = df['keypoints'].apply(expand_keypoints)
+        if not keypoint_cols.empty:
+            expanded_df = pd.concat([df.drop(columns=['keypoints']), keypoint_cols], axis=1)
+            st.dataframe(expanded_df.head())
+            st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+        else:
+            st.warning("⚠️ Failed to extract keypoints properly.")
+        
+        """# Apply to expand each keypoint list to individual columns
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
 
@@ -247,7 +264,7 @@ if uploaded_files:
 
         csv_buffer = io.StringIO()
         df_expanded.to_csv(csv_buffer, index=False)
-        st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")
+        st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")"""
 
         all_logs.extend(punch_log)
 
