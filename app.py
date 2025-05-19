@@ -18,6 +18,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
 
+
 # Streamlit setup
 st.set_option('client.showErrorDetails', True)
 st.title("🥊 Boxing Analyzer App")
@@ -140,14 +141,48 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
-# Upload and process videos
+
+
+
+
+
+
+
+st.set_option('deprecation.showfileUploaderEncoding', False)
+
+def expand_keypoints(keypoints):
+    if isinstance(keypoints, str):
+        try:
+            keypoints = json.loads(keypoints)
+        except json.JSONDecodeError:
+            return pd.Series()
+    if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
+        return pd.Series()
+    try:
+        return pd.Series({
+            f'x_{i}': kp[0],
+            f'y_{i}': kp[1],
+            f's_{i}': kp[2]
+            for i, kp in enumerate(keypoints)
+        })
+    except Exception:
+        return pd.Series()
+
+def flatten_keypoints(kps):
+    return [v for kp in kps for v in kp] if isinstance(kps, list) else []
+
+# File uploader
 uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
 if uploaded_files:
-    all_logs = []  # Collect all logs here
+    model = load_model()
+    #model = tf.saved_model.load("PATH_TO_YOUR_MOVENET_MODEL")  # Preload model once
 
-    for uploaded_file in uploaded_files:
-        st.subheader(f"Processing: {uploaded_file.name}")
+    all_logs = []
+    progress_bar = st.progress(0)
+    
+    for idx, uploaded_file in enumerate(uploaded_files):
+        st.subheader(f"📦 Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
         input_path = os.path.join(temp_dir, uploaded_file.name)
 
@@ -157,16 +192,18 @@ if uploaded_files:
         cap = cv2.VideoCapture(input_path)
         width, height = int(cap.get(3)), int(cap.get(4))
         fps = cap.get(cv2.CAP_PROP_FPS)
-
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
         punch_log = []
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_idx = 0
 
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
+
             resized = cv2.resize(frame, (256, 256))
             input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
@@ -183,11 +220,10 @@ if uploaded_files:
             annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
             out_writer.write(annotated)
 
-            frame_id = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
             for i in range(len(punches)):
                 punch_log.append({
                     "video": uploaded_file.name,
-                    "frame": frame_id,
+                    "frame": frame_idx,
                     "person": i,
                     "punch": punches[i],
                     "posture": postures[i],
@@ -195,57 +231,28 @@ if uploaded_files:
                     "keypoints": keypoints[i]
                 })
 
+            frame_idx += 1
+            if frame_idx % 5 == 0:
+                progress_bar.progress(min((idx + frame_idx / total_frames) / len(uploaded_files), 1.0))
+
         cap.release()
         out_writer.release()
 
+        # FFmpeg encode
         final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
         ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
 
         st.video(final_output)
-        st.success(f"✅ Annotated video ready for {uploaded_file.name}")
-
         with open(final_output, "rb") as f:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
-        #data frame
+
         df = pd.DataFrame(punch_log)
-        print("keypoints ",df['keypoints'].iloc[0])
-        if not df.empty:
-            st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
+        if df.empty:
+            st.warning("⚠️ No punch data found.")
+            continue
 
-        def expand_keypoints(keypoints):
-            # - Decode JSON if needed
-            if isinstance(keypoints, str):
-                try:
-                    keypoints = json.loads(keypoints)
-                except json.JSONDecodeError:
-                    return pd.Series()
-                    #  Must be a list of lists
-            if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
-                return pd.Series()
-            try:
-                #- Extract x, y, score from nested lists
-                x_coords = [kp[0] for kp in keypoints]
-                y_coords = [kp[1] for kp in keypoints]
-                scores   = [kp[2] for kp in keypoints]
-                #  Create labeled dict
-
-                data = {}
-                for i in range(17):
-                    data[f'x_{i}'] = x_coords[i]
-                    data[f'y_{i}'] = y_coords[i]
-                    data[f's_{i}'] = scores[i]
-                return pd.Series(data)
-                """data = {
-                    f'x_{i}': x for i, x in enumerate(x_coords)
-                } | {
-                    f'y_{i}': y for i, y in enumerate(y_coords)
-                } | {
-                    f's_{i}': s for i, s in enumerate(scores)
-                }
-                return pd.Series(data)"""
-            except Exception:
-                return pd.Series()
-        st.success(f"🔍 Keypoints Sample: {df['keypoints'].iloc[0]}")
+        st.write("### 🔍 Keypoints Sample")
+        st.json(df['keypoints'].iloc[0])
 
         expanded_df = df.copy()
         keypoint_cols = df['keypoints'].apply(expand_keypoints)
@@ -253,81 +260,50 @@ if uploaded_files:
             expanded_df = pd.concat([df.drop(columns=['keypoints']), keypoint_cols], axis=1)
             st.dataframe(expanded_df.head())
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
-        else:
-            st.warning("⚠️ Failed to extract keypoints properly.")
-
-        """# Apply to expand each keypoint list to individual columns
-        keypoints_df = df['keypoints'].apply(expand_keypoints)
-        df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
-
-        # Show table in Streamlit and allow download
-        st.dataframe(df_expanded)
-
-        csv_buffer = io.StringIO()
-        df_expanded.to_csv(csv_buffer, index=False)
-        st.download_button("📥 Download CSV", csv_buffer.getvalue(), file_name=f"{uploaded_file.name}_log.csv", mime="text/csv")"""
 
         all_logs.extend(punch_log)
 
-        # Optional: SVM training per file
-        base_name = os.path.splitext(uploaded_file.name)[0]
-        model_dest = f"/tmp/{base_name}_svm_model.joblib"
-
-
-
-      # Expand keypoints into flat columns
-        def flatten_keypoints(kps):
-            flat = []
-            for kp in kps:
-                flat.extend([kp[0], kp[1], kp[2]])  # y, x, score
-            return flat
-
+        # Training
         df["flat_kp"] = df["keypoints"].apply(flatten_keypoints)
-
         X = np.vstack(df["flat_kp"].values)
         y = df["punch"].values
-        print("length",len(X))
 
-        # Encode labels
         le = LabelEncoder()
         y_encoded = le.fit_transform(y)
 
-        # Split
         X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
 
-        # Train SVM
         svm_model = svm.SVC(kernel='linear')
         svm_model.fit(X_train, y_train)
 
-        # Train Decision Tree
         tree_model = DecisionTreeClassifier(max_depth=5)
         tree_model.fit(X_train, y_train)
 
-        # Predict
         svm_preds = svm_model.predict(X_test)
         tree_preds = tree_model.predict(X_test)
 
-        # Accuracy
         st.write("### 📊 Model Evaluation")
         st.write(f"🔹 SVM Accuracy: {accuracy_score(y_test, svm_preds):.2f}")
         st.write(f"🔹 Decision Tree Accuracy: {accuracy_score(y_test, tree_preds):.2f}")
 
-        # Confusion Matrix
-        st.write("### 📌 Confusion Matrix (SVM)")
-        cm_svm = confusion_matrix(y_test, svm_preds)
-        fig_svm, ax_svm = plt.subplots()
-        ConfusionMatrixDisplay(cm_svm, display_labels=le.classes_).plot(ax=ax_svm)
-        st.pyplot(fig_svm)
+        st.write("### Confusion Matrix (SVM)")
+        fig1, ax1 = plt.subplots()
+        ConfusionMatrixDisplay(confusion_matrix(y_test, svm_preds), display_labels=le.classes_).plot(ax=ax1)
+        st.pyplot(fig1)
 
-        st.write("### 📌 Confusion Matrix (Decision Tree)")
-        cm_tree = confusion_matrix(y_test, tree_preds)
-        fig_tree, ax_tree = plt.subplots()
-        ConfusionMatrixDisplay(cm_tree, display_labels=le.classes_).plot(ax=ax_tree)
-        st.pyplot(fig_tree)
+        st.write("### Confusion Matrix (Decision Tree)")
+        fig2, ax2 = plt.subplots()
+        ConfusionMatrixDisplay(confusion_matrix(y_test, tree_preds), display_labels=le.classes_).plot(ax=ax2)
+        st.pyplot(fig2)
 
-        dump(svm_model, "svm_model.joblib")
-        dump(tree_model, "tree_model.joblib")
-        dump(le, "label_encoder.joblib")
+        # Save models
+        base_name = os.path.splitext(uploaded_file.name)[0]
+        dump(svm_model, f"/tmp/{base_name}_svm_model.joblib")
+        dump(tree_model, f"/tmp/{base_name}_tree_model.joblib")
+        dump(le, f"/tmp/{base_name}_label_encoder.joblib")
+
+    progress_bar.empty()
+
 
 
 #st.write("### 🎥 Prediction Visualization on Clip")
