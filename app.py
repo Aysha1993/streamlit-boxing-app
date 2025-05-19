@@ -162,8 +162,13 @@ def expand_keypoints(keypoints):
     except Exception:
         return pd.Series()
 
-def flatten_keypoints(kps):
-    return [v for kp in kps for v in kp] if isinstance(kps, list) else []
+def flatten_keypoints(keypoints):
+    if keypoints is None or len(keypoints.shape) != 2 or keypoints.shape[1] != 3:
+        return None
+    return keypoints.flatten()  # Shape becomes (51,)
+
+"""def flatten_keypoints(kps):
+    return [v for kp in kps for v in kp] if isinstance(kps, list) else []"""
 
 # File uploader
 uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -359,38 +364,6 @@ if video_file is not None:
                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
         except Exception as e:
             st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
-
-        
-        """try:
-            keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
-
-            if keypoints is not None:         
-              flat_kp = flatten_keypoints(keypoints)
-              st.text(f"DEBUG: flat_kp type = {type(flat_kp)}, shape = {np.shape(flat_kp)}")
-
-              X_input = np.array(flat_kp).reshape(1, -1)
-              st.text(f"DEBUG: X_input shape = {X_input.shape}, dtype = {X_input.dtype}")
-
-
-              # SVM returns array, take first element
-              pred_class = svm_model.predict(X_input)  # returns array
-              pred_class_val = pred_class[0]  # scalar int
-              label = le.inverse_transform([pred_class_val])[0]
-
-              #pred_class = svm_model.predict(X_input)[0]
-              #label = le.inverse_transform(np.array([pred_class]))[0]
-
-              st.text(f"DEBUG: pred_class_val = {pred_class_val}, type = {type(pred_class_val)}")
-              st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
-
-
-              # Overlay label
-              cv2.putText(frame, f"Predicted: {label}", (30, 40),
-                          cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
-        except Exception as e:
-            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")"""
-
-
 
 
         out.write(frame)
