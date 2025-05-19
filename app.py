@@ -255,7 +255,7 @@ if uploaded_files:
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
         else:
             st.warning("⚠️ Failed to extract keypoints properly.")
-        
+
         """# Apply to expand each keypoint list to individual columns
         keypoints_df = df['keypoints'].apply(expand_keypoints)
         df_expanded = pd.concat([df.drop(columns=['keypoints']), keypoints_df], axis=1)
@@ -328,12 +328,9 @@ if uploaded_files:
         dump(svm_model, "svm_model.joblib")
         dump(tree_model, "tree_model.joblib")
         dump(le, "label_encoder.joblib")
-st.write("### 🎥 Prediction Visualization on Clip")
 
 
-
-
-st.write("### 🎥 Prediction Visualization on Clip")
+#st.write("### 🎥 Prediction Visualization on Clip")
 
 # Upload a test clip
 video_file = st.file_uploader("Upload a test video for prediction", type=["mp4", "mov", "avi"])
@@ -395,18 +392,6 @@ if video_file is not None:
     # Download button
     with open(final_output_path, "rb") as f:
         st.download_button("📥 Download Annotated Clip", f, file_name=f"annotated_{video_file.name}", mime="video/mp4")
-
-
-
-
-
-
-
-
-
-
-    
-        
 
 
 requirements = '''streamlit
