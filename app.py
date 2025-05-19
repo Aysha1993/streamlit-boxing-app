@@ -357,7 +357,6 @@ if video_file is not None:
         ret, frame = cap.read()
         if not ret:
             break
-
         try:
             keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
 
@@ -366,7 +365,7 @@ if video_file is not None:
                 X_input = np.array(flat_kp).reshape(1, -1)
 
                 pred_class = svm_model.predict(X_input)[0]
-                label = le.inverse_transform([pred_class])[0]
+                label = le.inverse_transform(np.array([pred_class]))[0]
 
                 # Overlay label
                 cv2.putText(frame, f"Predicted: {label}", (30, 40),
