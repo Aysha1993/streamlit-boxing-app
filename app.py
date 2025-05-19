@@ -163,9 +163,12 @@ def expand_keypoints(keypoints):
         return pd.Series()
 
 def flatten_keypoints(keypoints):
-    if keypoints is None or len(keypoints.shape) != 2 or keypoints.shape[1] != 3:
+    if keypoints is None:
         return None
-    return keypoints.flatten()  # Shape becomes (51,)
+    keypoints = np.array(keypoints)  # ✅ Ensure it's a NumPy array
+    if keypoints.ndim != 2 or keypoints.shape[1] != 3:
+        return None
+    return keypoints.flatten()
 
 """def flatten_keypoints(kps):
     return [v for kp in kps for v in kp] if isinstance(kps, list) else []"""
