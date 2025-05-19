@@ -154,12 +154,12 @@ def expand_keypoints(keypoints):
     if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
         return pd.Series()
     try:
-        return pd.Series({
-            f'x_{i}': kp[0],
-            f'y_{i}': kp[1],
-            f's_{i}': kp[2]
-            for i, kp in enumerate(keypoints):
-        })
+        data = {}
+        for i, kp in enumerate(keypoints):
+            data[f'x_{i}'] = kp[0]
+            data[f'y_{i}'] = kp[1]
+            data[f's_{i}'] = kp[2]
+        return pd.Series(data)
     except Exception:
         return pd.Series()
 
