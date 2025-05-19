@@ -327,7 +327,33 @@ if video_file is not None:
         ret, frame = cap.read()
         if not ret:
             break
-        try:
+
+        try:       
+          keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
+
+          if keypoints is not None:
+              flat_kp = flatten_keypoints(keypoints)
+              if flat_kp is None:
+                  raise ValueError("⚠️ flatten_keypoints returned None")
+
+              X_input = np.array(flat_kp).reshape(1, -1)
+
+              # Predict and decode label
+              pred_class = svm_model.predict(X_input)
+              pred_class_int = int(pred_class[0])
+              label = le.inverse_transform([pred_class_int])[0]
+
+              # Debugging output
+              st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
+
+              # Overlay label
+              cv2.putText(frame, f"Predicted: {label}", (30, 40),
+                          cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+        except Exception as e:
+            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
+
+        
+        """try:
             keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
 
             if keypoints is not None:         
@@ -354,7 +380,10 @@ if video_file is not None:
               cv2.putText(frame, f"Predicted: {label}", (30, 40),
                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
         except Exception as e:
-            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
+            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")"""
+
+
+
 
         out.write(frame)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
