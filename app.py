@@ -162,16 +162,16 @@ def expand_keypoints(keypoints):
     except Exception:
         return pd.Series()
 
-def flatten_keypoints(keypoints):
-    if keypoints is None:
-        return None
-    keypoints = np.array(keypoints)  # ✅ Ensure it's a NumPy array
-    if keypoints.ndim != 2 or keypoints.shape[1] != 3:
-        return None
-    return keypoints.flatten()
+# def flatten_keypoints(keypoints):
+#     if keypoints is None:
+#         return None
+#     keypoints = np.array(keypoints)  # ✅ Ensure it's a NumPy array
+#     if keypoints.ndim != 2 or keypoints.shape[1] != 3:
+#         return None
+#     return keypoints.flatten()
 
-"""def flatten_keypoints(kps):
-    return [v for kp in kps for v in kp] if isinstance(kps, list) else []"""
+def flatten_keypoints(kps):
+    return [v for kp in kps for v in kp] if isinstance(kps, list) else []
 
 # File uploader
 uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
