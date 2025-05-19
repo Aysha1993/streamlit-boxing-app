@@ -360,16 +360,29 @@ if video_file is not None:
         try:
             keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
 
-            if keypoints is not None:
-                flat_kp = flatten_keypoints(keypoints)
-                X_input = np.array(flat_kp).reshape(1, -1)
+            if keypoints is not None:         
+              flat_kp = flatten_keypoints(keypoints)
+              st.text(f"DEBUG: flat_kp type = {type(flat_kp)}, shape = {np.shape(flat_kp)}")
 
-                pred_class = svm_model.predict(X_input)[0]
-                label = le.inverse_transform(np.array([pred_class]))[0]
+              X_input = np.array(flat_kp).reshape(1, -1)
+              st.text(f"DEBUG: X_input shape = {X_input.shape}, dtype = {X_input.dtype}")
 
-                # Overlay label
-                cv2.putText(frame, f"Predicted: {label}", (30, 40),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+
+              # SVM returns array, take first element
+              pred_class = svm_model.predict(X_input)  # returns array
+              pred_class_val = pred_class[0]  # scalar int
+              label = le.inverse_transform([pred_class_val])[0]
+
+              #pred_class = svm_model.predict(X_input)[0]
+              #label = le.inverse_transform(np.array([pred_class]))[0]
+
+              st.text(f"DEBUG: pred_class_val = {pred_class_val}, type = {type(pred_class_val)}")
+              st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
+
+
+              # Overlay label
+              cv2.putText(frame, f"Predicted: {label}", (30, 40),
+                          cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
         except Exception as e:
             st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
 
