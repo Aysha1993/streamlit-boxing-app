@@ -326,8 +326,7 @@ if video_file is not None:
     while True:
         ret, frame = cap.read()
         if not ret:
-            break
-
+            break      
         try:       
           keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
 
@@ -338,10 +337,15 @@ if video_file is not None:
 
               X_input = np.array(flat_kp).reshape(1, -1)
 
-              # Predict and decode label
+              # Predict and decode label          
               pred_class = svm_model.predict(X_input)
-              pred_class_int = int(pred_class[0])
-              label = le.inverse_transform([pred_class_int])[0]
+              pred_class_val = pred_class[0]
+              if isinstance(pred_class_val, (np.integer, int)):
+                label = le.inverse_transform([pred_class_val])[0]
+              else:
+                raise ValueError(f"Unexpected prediction output: {pred_class_val} ({type(pred_class_val)})")
+
+              #label = le.inverse_transform([pred_class_int])[0]
 
               # Debugging output
               st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
