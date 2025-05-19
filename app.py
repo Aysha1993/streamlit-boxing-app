@@ -335,7 +335,8 @@ if video_file is not None:
         ret, frame = cap.read()
         if not ret:
             break      
-        try:       
+
+        try:
           keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
 
           if keypoints is not None:
@@ -345,16 +346,10 @@ if video_file is not None:
 
               X_input = np.array(flat_kp).reshape(1, -1)
 
-              # Predict and decode label          
               pred_class = svm_model.predict(X_input)
-              pred_class_val = pred_class[0]
-              if isinstance(pred_class_val, (np.integer, int)):
-                label = le.inverse_transform([pred_class_val])[0]
-              else:
-                raise ValueError(f"Unexpected prediction output: {pred_class_val} ({type(pred_class_val)})")
 
-              #label = le.inverse_transform([pred_class_int])[0]
-
+              st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
+              st.text(f"DEBUG: pred_class[0] = {pred_class[0]}, type = {type(pred_class[0])}")
               # Debugging output
               st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
               st.text(f"keypoints shape: {np.shape(keypoints)}")
@@ -362,12 +357,17 @@ if video_file is not None:
               st.text(f"X_input shape: {X_input.shape}")
               st.text(f"predicted class: {pred_class}")
 
-              # Overlay label
+
+              pred_class_int = int(pred_class[0])  # Ensure it's a scalar int
+
+              label = le.inverse_transform([pred_class_int])[0]
+
+              st.text(f"DEBUG: label = {label}")
+
               cv2.putText(frame, f"Predicted: {label}", (30, 40),
                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
         except Exception as e:
-            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
-
+              st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
 
         out.write(frame)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
