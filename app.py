@@ -375,7 +375,7 @@ if video_file is not None:
 
         out.write(frame)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb, caption=f"Frame {frame_count + 1}", use_column_width=True)
+        stframe.image(frame_rgb, caption=f"Frame {frame_count + 1}", use_container_width =True)
         frame_count += 1
 
     cap.release()
