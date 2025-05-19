@@ -143,11 +143,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     return frame
 
 
-
-
-
-
-
 st.set_option('deprecation.showfileUploaderEncoding', False)
 
 def expand_keypoints(keypoints):
@@ -163,7 +158,7 @@ def expand_keypoints(keypoints):
             f'x_{i}': kp[0],
             f'y_{i}': kp[1],
             f's_{i}': kp[2]
-            for i, kp in enumerate(keypoints)
+            for i, kp in enumerate(keypoints):
         })
     except Exception:
         return pd.Series()
