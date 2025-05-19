@@ -350,6 +350,8 @@ if video_file is not None:
             keypoints = extract_keypoints(results)
 
             if keypoints is not None:
+                keypoints = np.zeros((17, 3))  # 17 keypoints with x, y, conf = 0
+                st.text(f"DEBUG: Keypoint confidences22 = {keypoints[:, 2]}")
                 flat_kp = flatten_keypoints(keypoints)
 
                 # ✅ Check length
@@ -373,6 +375,9 @@ if video_file is not None:
                 # st.text(f"flattened keypoints: {np.shape(flat_kp)}")
                 # st.text(f"X_input shape: {X_input.shape}")
                 # st.text(f"predicted class: {pred_class}")
+                avg_conf = np.mean(keypoints[:, 2])
+                cv2.putText(frame, f"Pose Confidence: {avg_conf:.2f}", (30, 70),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
 
                 # ✅ Annotate frame
