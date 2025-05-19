@@ -384,6 +384,7 @@ if video_file is not None:
                 raise ValueError("No keypoints found.")
         except Exception as e:
             st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
+            st.text(f"DEBUG: Keypoint confidences = {keypoints[:, 2]}")
          
         out.write(frame)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
