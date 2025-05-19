@@ -340,9 +340,8 @@ if video_file is not None:
         if not ret:
             break      
 
+        # Prediction block (corrected)
         try:
-
-          # Prediction block (corrected)
           resized = cv2.resize(frame, (256, 256))
           input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
           results = model.signatures['serving_default'](input_tensor)
@@ -350,59 +349,36 @@ if video_file is not None:
 
           if keypoints:
               flat_kp = flatten_keypoints(keypoints)
+
+              # ✅ Check length of input
+              if len(flat_kp) != X_train.shape[1]:
+                  raise ValueError(f"Invalid number of features: got {len(flat_kp)}, expected {X_train.shape[1]}")
+
               X_input = np.array(flat_kp).reshape(1, -1)
               pred_class = svm_model.predict(X_input)
               pred_class_int = int(pred_class[0])
               label = le.inverse_transform([pred_class_int])[0]
 
+              #Now you can print safely
+              st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
+
+
+              st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
+              st.text(f"DEBUG: pred_class[0] = {pred_class[0]}, type = {type(pred_class[0])}")
+              # Debugging output
+              st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
+              st.text(f"keypoints shape: {np.shape(keypoints)}")
+              st.text(f"flattened keypoints: {np.shape(flat_kp)}")
+              st.text(f"X_input shape: {X_input.shape}")
+              st.text(f"predicted class: {pred_class}")
+
               cv2.putText(frame, f"Predicted: {label}", (30, 40),
                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
-
               st.text(f"DEBUG: predicted class = {label}")
-
-
-
-
-
-          
-          # keypoints = extract_keypoints(frame)  # Should return shape (17, 3)
-
-          # if keypoints is not None:
-          #     flat_kp = flatten_keypoints(keypoints)
-          #     if flat_kp is None:
-          #         raise ValueError("⚠️ flatten_keypoints returned None")
-
-          #     X_input = np.array(flat_kp).reshape(1, -1)
-
-          #     pred_class = svm_model.predict(X_input)
-
-          #     pred_class_int = int(pred_class[0])  # Ensure it's a scalar int
-          #     label = le.inverse_transform([pred_class_int])[0]
-
-          #     # Now you can print safely
-          #     st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
-
-
-          #     st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
-          #     st.text(f"DEBUG: pred_class[0] = {pred_class[0]}, type = {type(pred_class[0])}")
-          #     # Debugging output
-          #     st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
-          #     st.text(f"keypoints shape: {np.shape(keypoints)}")
-          #     st.text(f"flattened keypoints: {np.shape(flat_kp)}")
-          #     st.text(f"X_input shape: {X_input.shape}")
-          #     st.text(f"predicted class: {pred_class}")
-
-
-          #     pred_class_int = int(pred_class[0])  # Ensure it's a scalar int
-
-          #     label = le.inverse_transform([pred_class_int])[0]
-
-          #     st.text(f"DEBUG: label = {label}")
-
-          #     cv2.putText(frame, f"Predicted: {label}", (30, 40),
-          #                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+          else:
+              raise ValueError("No keypoints found.")
         except Exception as e:
-              st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
+            st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")  
 
         out.write(frame)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
