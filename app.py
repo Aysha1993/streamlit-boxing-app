@@ -143,7 +143,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     return frame
 
 
-st.set_option('deprecation.showfileUploaderEncoding', False)
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
