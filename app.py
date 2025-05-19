@@ -345,6 +345,10 @@ if video_file is not None:
 
               # Debugging output
               st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
+              st.text(f"keypoints shape: {np.shape(keypoints)}")
+              st.text(f"flattened keypoints: {np.shape(flat_kp)}")
+              st.text(f"X_input shape: {X_input.shape}")
+              st.text(f"predicted class: {pred_class}")
 
               # Overlay label
               cv2.putText(frame, f"Predicted: {label}", (30, 40),
