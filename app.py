@@ -1,4 +1,3 @@
-%%writefile /content/app.py
 import streamlit as st
 import cv2
 import numpy as np
@@ -456,20 +455,4 @@ if uploaded_files:
     progress_bar.empty()
 
 
-requirements = '''streamlit
-tensorflow
-tensorflow_hub
-opencv-python-headless
-pandas
-numpy
-scikit-learn
-joblib
-ffmpeg-python
-tqdm
-seaborn
-matplotlib
-'''
 
-with open("requirements.txt", "w") as f:
-    f.write(requirements)
-print("✅ requirements.txt saved")
