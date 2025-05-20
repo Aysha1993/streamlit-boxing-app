@@ -313,6 +313,60 @@ if uploaded_files:
         for row in sample_preds:
             st.write(row)
 
+
+        # ---- Performance Metrics ----
+        st.header("📈 Performance Metrics")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Punches", len(df_log))
+        with col2:
+            st.metric("Average Speed", f"{df_log['speed (approx)'].mean():.2f} punches/sec")
+        with col3:
+            most_common = df_log["punch_type"].value_counts().idxmax()
+            st.metric("Most Frequent Punch", most_common)
+        with col4:
+            st.metric("Dummy Accuracy", "95%")  # Placeholder
+
+        # ---- Punch Count Table ----
+        st.subheader("🔢 Punch Type Count")
+        counts = df_log["punch_type"].value_counts().reset_index()
+        counts.columns = ["Punch Type", "Count"]
+        st.dataframe(counts)
+
+        # ---- Charts ----
+        st.subheader("📊 Visual Analysis")
+
+        tab1, tab2, tab3 = st.tabs(["Bar Chart", "Pie Chart", "Line Chart"])
+
+        with tab1:
+            st.write("### Punch Type Distribution")
+            fig1, ax1 = plt.subplots()
+            sns.barplot(x="Count", y="Punch Type", data=counts, ax=ax1, palette="viridis")
+            st.pyplot(fig1)
+
+        with tab2:
+            st.write("### Punch Frequency Share")
+            fig2, ax2 = plt.subplots()
+            ax2.pie(counts["Count"], labels=counts["Punch Type"], autopct="%1.1f%%", startangle=90, colors=sns.color_palette("pastel"))
+            ax2.axis("equal")
+            st.pyplot(fig2)
+
+        with tab3:
+            st.write("### Punches Over Time")
+            time_df = df_log.groupby(df_log["timestamp"].dt.floor("10s")).size().reset_index(name="Punch Count")
+            fig3, ax3 = plt.subplots()
+            ax3.plot(time_df["timestamp"], time_df["Punch Count"], marker="o")
+            ax3.set_xlabel("Time")
+            ax3.set_ylabel("Punch Count")
+            st.pyplot(fig3)
+
+        # ---- Download CSV ----
+        st.subheader("📥 Download Log")
+        csv_buffer = io.StringIO()
+        df_log.to_csv(csv_buffer, index=False)
+        st.download_button("Download CSV", data=csv_buffer.getvalue(), file_name="df_log.csv", mime="text/csv")
+
     progress_bar.empty()
 
 
