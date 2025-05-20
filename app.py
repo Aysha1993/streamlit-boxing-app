@@ -67,7 +67,7 @@ def classify_punch(keypoints, frame_idx):
     global person_states
     results = []
 
-    for person_id, kpts in enumerate(keypoints_all_people):
+    for person_id, kpts in enumerate(keypoints):
         state = person_states.get(person_id, {
             "prev_kpts": kpts,
             "in_motion": {"left": False, "right": False},
@@ -269,9 +269,9 @@ if uploaded_files:
                     "video": uploaded_file.name,
                     "frame": frame_idx,
                     "person": i,
-                    "punch": punch_info["label"],
-                    "frame_start": punch_info["frame_start"],
-                    "frame_end": punch_info["frame_end"],
+                    "punch": punches["label"],
+                    "frame_start": punches["frame_start"],
+                    "frame_end": punches["frame_end"],
                     "posture": postures[i],
                     "gloves": gloves[i],
                     "keypoints": keypoints[i]
