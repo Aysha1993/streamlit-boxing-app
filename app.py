@@ -1,3 +1,4 @@
+%%writefile /content/app.py
 import streamlit as st
 import cv2
 import numpy as np
@@ -17,7 +18,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
-import seaborn as sns
+#import seaborn as sns
 
 
 # Streamlit setup
@@ -170,16 +171,19 @@ SKELETON_EDGES = [
     (11, 13), (13, 15), (12, 14), (14, 16)
 ]
 
+
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
-    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures))
+    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
 
-    for i, kp in enumerate(keypoints):
+    for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
+        # Draw keypoints
         for (y, x, s) in kp:
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
+        # Draw skeleton
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -188,6 +192,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
+        # Draw gloves (based on wrists)
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             if s > 0.2:
@@ -197,51 +202,21 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
+        # Draw punch and posture label
         visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
         if visible_points:
             y_coords, x_coords = zip(*visible_points)
             min_x = int(min(x_coords) * w)
             max_y = int(max(y_coords) * h)
-            cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
+            cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
 
-def draw_annotations(frame, keypoints, punches, postures, gloves):
-    h, w = frame.shape[:2]
 
-    for i, kp in enumerate(keypoints):
-        for (y, x, s) in kp:
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
-        for (p1, p2) in SKELETON_EDGES:
-            y1, x1, s1 = kp[p1]
-            y2, x2, s2 = kp[p2]
-            if s1 > 0.2 and s2 > 0.2:
-                pt1 = int(x1 * w), int(y1 * h)
-                pt2 = int(x2 * w), int(y2 * h)
-                cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                pad = 15
-                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
-        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        if visible_points:
-            y_coords, x_coords = zip(*visible_points)
-            min_x = int(min(x_coords) * w)
-            max_y = int(max(y_coords) * h)
-            cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-    return frame
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
