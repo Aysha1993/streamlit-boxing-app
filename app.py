@@ -171,6 +171,43 @@ SKELETON_EDGES = [
 
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
+    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures))
+
+    for i, kp in enumerate(keypoints):
+        for (y, x, s) in kp:
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+
+        for (p1, p2) in SKELETON_EDGES:
+            y1, x1, s1 = kp[p1]
+            y2, x2, s2 = kp[p2]
+            if s1 > 0.2 and s2 > 0.2:
+                pt1 = int(x1 * w), int(y1 * h)
+                pt2 = int(x2 * w), int(y2 * h)
+                cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                pad = 15
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+
+        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        if visible_points:
+            y_coords, x_coords = zip(*visible_points)
+            min_x = int(min(x_coords) * w)
+            max_y = int(max(y_coords) * h)
+            cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    return frame
+
+def draw_annotations(frame, keypoints, punches, postures, gloves):
+    h, w = frame.shape[:2]
 
     for i, kp in enumerate(keypoints):
         for (y, x, s) in kp:
@@ -224,7 +261,7 @@ def expand_keypoints(keypoints):
         return pd.Series()
 
 # File uploader
-uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
 if uploaded_files:
     model = load_model()
@@ -277,9 +314,9 @@ if uploaded_files:
                     "video": uploaded_file.name,
                     "frame": frame_idx,
                     "person": i,
-                    "punch": punches["label"],
-                    "frame_start": punches["frame_start"],
-                    "frame_end": punches["frame_end"],
+                    "punch": i["label"],
+                    "frame_start": i["frame_start"],
+                    "frame_end": i["frame_end"],
                     "posture": postures[i],
                     "gloves": gloves[i],
                     "keypoints": keypoints[i]
