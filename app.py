@@ -221,8 +221,9 @@ if uploaded_files:
                 })
 
             frame_idx += 1
-            if frame_idx % 5 == 0:
-                progress_bar.progress(min((idx + frame_idx / total_frames) / len(uploaded_files), 1.0))
+            if frame_idx % 5 == 0:              
+              total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
+              progress_bar.progress(min(total_progress, 1.0))
 
         cap.release()
         out_writer.release()
@@ -251,6 +252,66 @@ if uploaded_files:
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
 
         all_logs.extend(punch_log)
+
+
+        # Flatten punch_log to DataFrame
+        df_log = pd.DataFrame(punch_log)
+
+        # Expand keypoints into flat features
+        df_features = df_log['keypoints'].apply(expand_keypoints)
+        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
+
+        st.success("✅ Extracted keypoints and labels for ML training.")
+
+
+        # Label encode target
+        label_encoder = LabelEncoder()
+        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
+
+        # Feature/target split
+        X = df_full[[col for col in df_full.columns if col.startswith(('x_', 'y_', 's_'))]]
+        y = df_full['label']
+
+        # Train/test split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+
+        # Train classifiers
+        svm_model = svm.SVC(kernel='rbf')
+        tree_model = DecisionTreeClassifier(max_depth=5)
+
+        svm_model.fit(X_train, y_train)
+        tree_model.fit(X_train, y_train)
+
+        # Evaluate
+        y_pred_svm = svm_model.predict(X_test)
+        y_pred_tree = tree_model.predict(X_test)
+
+        acc_svm = accuracy_score(y_test, y_pred_svm)
+        acc_tree = accuracy_score(y_test, y_pred_tree)
+
+        st.subheader("📈 Model Evaluation")
+        st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
+        st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+
+        # Confusion Matrix
+        st.write("### Confusion Matrix (SVM)")
+        cm = confusion_matrix(y_test, y_pred_svm)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
+
+        st.subheader("🎬 Visualize Predictions")
+
+        # Run classifier on a few frames
+        sample_preds = []
+        for i in range(min(10, len(X_test))):
+            pred_label = label_encoder.inverse_transform([svm_model.predict([X_test.iloc[i]])[0]])[0]
+            actual_label = label_encoder.inverse_transform([y_test.iloc[i]])[0]
+            sample_preds.append(f"✅ Predicted: {pred_label} | 🏷️ Actual: {actual_label}")
+
+        for row in sample_preds:
+            st.write(row)
 
     progress_bar.empty()
 
