@@ -238,7 +238,7 @@ if uploaded_files:
                 else: # Sufficient overall class diversity initially assumed here, specific class counts checked next
                     le = LabelEncoder()
                     y_encoded = le.fit_transform(y)
-                    
+
                     unique_classes_encoded, class_counts_encoded = np.unique(y_encoded, return_counts=True)
                     min_samples_in_any_class = 0
                     problematic_class_name_str = "N/A"
@@ -264,13 +264,13 @@ if uploaded_files:
                         can_stratify = False
                         if len(unique_classes_encoded) == 1:
                              st.info("Only one class present in the data. Stratification is not applicable for train/test split.")
-                    
+
                     # Ensure X and y_encoded are not empty before splitting
                     if X.shape[0] > 0 and y_encoded.shape[0] > 0 and X.shape[0] == y_encoded.shape[0]:
                         X_train, X_test, y_train, y_test = train_test_split(
-                            X, y_encoded, 
-                            test_size=0.2, 
-                            random_state=42, 
+                            X, y_encoded,
+                            test_size=0.2,
+                            random_state=42,
                             stratify=y_encoded if can_stratify else None
                         )
 
@@ -293,7 +293,7 @@ if uploaded_files:
                             st.session_state.svm_model = svm_model_trained
                             st.session_state.label_encoder = le
                             st.session_state.model_ready = True
-                            st.session_state.expected_features = X_train.shape[1] 
+                            st.session_state.expected_features = X_train.shape[1]
                             st.success("✅ SVM and Decision Tree models trained and ready for prediction.")
                     else:
                         st.error("Not enough data to perform train/test split (X or y is empty, or lengths mismatch).")
