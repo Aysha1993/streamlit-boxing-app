@@ -241,6 +241,13 @@ if uploaded_files:
             st.warning("⚠️ No punch data found.")
             continue
 
+        # Speed calculation block
+        df['timestamp'] = df['frame'] / fps
+
+        # Group by video or person if needed
+        df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+
+
         st.write("### 🔍 Keypoints Sample")
         st.json(df['keypoints'].iloc[0])
 
