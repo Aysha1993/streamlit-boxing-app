@@ -490,6 +490,7 @@ scikit-learn
 joblib
 ffmpeg-python
 tqdm
+seaborn
 matplotlib
 '''
 
