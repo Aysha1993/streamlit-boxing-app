@@ -17,6 +17,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
+import seaborn as sns
 
 
 # Streamlit setup
@@ -314,9 +315,9 @@ if uploaded_files:
                     "video": uploaded_file.name,
                     "frame": frame_idx,
                     "person": i,
-                    "punch": i["label"],
-                    "frame_start": i["frame_start"],
-                    "frame_end": i["frame_end"],
+                    "punch": punches[i]["label"],
+                    "frame_start": punches[i]["frame_start"],
+                    "frame_end": punches[i]["frame_end"],
                     "posture": postures[i],
                     "gloves": gloves[i],
                     "keypoints": keypoints[i]
@@ -421,71 +422,60 @@ if uploaded_files:
 
         for row in sample_preds:
             st.write(row)
+        st.markdown("## 🥊 Punch Performance Dashboard")
 
+        if 'punch_log' in locals() and len(punch_log) > 0:
+            df = pd.DataFrame(punch_log)
 
-        # Calculate speed (approx) if not present
-        if 'speed (approx)' not in df_log.columns and 'frame_start' in df_log.columns and 'frame_end' in df_log.columns:
-            df_log["duration_frames"] = df_log["frame_end"] - df_log["frame_start"]
-            df_log["duration_frames"] = df_log["duration_frames"].replace(0, 1)
-            df_log["speed (approx)"] = 30 / df_log["duration_frames"]  # Assuming 30 FPS
-        #st.metric("Average Speed", f"{df_log['speed (approx)'].mean():.2f} punches/sec")
+            # Count Punch Types
+            type_counts = df['punch'].value_counts().to_dict()
+            st.subheader("🔢 Punch Type Count")
+            cols = st.columns(len(type_counts))
+            for i, (ptype, count) in enumerate(type_counts.items()):
+                cols[i].metric(label=ptype, value=count)
 
-        if 'frame_start' not in df_log.columns or 'frame_end' not in df_log.columns:
-          st.warning("Missing 'frame_start' or 'frame_end' in punch log. Speed cannot be calculated.")
+            # Approximate Punch Frequency
+            if 'frame_end' in df.columns:
+                duration_frames = df['frame_end'].max() - df['frame_start'].min()
+                fps = 30  # adjust this to your actual FPS
+                duration_sec = duration_frames / fps if fps else 1
+                punch_speed = len(df) / duration_sec if duration_sec > 0 else 0
+                st.subheader("⚡ Speed Approximation")
+                st.metric("Punches per Second", f"{punch_speed:.2f}")
+            else:
+                st.warning("Frame timing info missing — can't compute speed.")
 
+            # Time-bucketed Frequency Chart
+            if 'frame_start' in df.columns:
+                df['time_sec'] = df['frame_start'] // 30  # adjust for your FPS
+                time_counts = df.groupby('time_sec')['punch'].count()
+                st.subheader("📈 Punch Frequency Over Time")
+                fig1, ax1 = plt.subplots()
+                time_counts.plot(kind='line', marker='o', ax=ax1)
+                ax1.set_xlabel("Time (s)")
+                ax1.set_ylabel("Punches")
+                ax1.set_title("Punches Per Second")
+                st.pyplot(fig1)
 
-        # ---- Performance Metrics ----
-        st.header("📈 Performance Metrics")
-
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Punches", len(df_log))
-        with col2:
-            st.metric("Average Speed", f"{df_log['speed (approx)'].mean():.2f} punches/sec")
-        with col3:
-            most_common = df_log["punch_type"].value_counts().idxmax()
-            st.metric("Most Frequent Punch", most_common)
-        with col4:
-            st.metric("Dummy Accuracy", "95%")  # Placeholder
-
-        # ---- Punch Count Table ----
-        st.subheader("🔢 Punch Type Count")
-        counts = df_log["punch_type"].value_counts().reset_index()
-        counts.columns = ["Punch Type", "Count"]
-        st.dataframe(counts)
-
-        # ---- Charts ----
-        st.subheader("📊 Visual Analysis")
-
-        tab1, tab2, tab3 = st.tabs(["Bar Chart", "Pie Chart", "Line Chart"])
-
-        with tab1:
-            st.write("### Punch Type Distribution")
-            fig1, ax1 = plt.subplots()
-            sns.barplot(x="Count", y="Punch Type", data=counts, ax=ax1, palette="viridis")
-            st.pyplot(fig1)
-
-        with tab2:
-            st.write("### Punch Frequency Share")
+            # Bar Chart of Punch Types
+            st.subheader("📊 Punch Type Distribution")
             fig2, ax2 = plt.subplots()
-            ax2.pie(counts["Count"], labels=counts["Punch Type"], autopct="%1.1f%%", startangle=90, colors=sns.color_palette("pastel"))
-            ax2.axis("equal")
+            sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
+            ax2.set_ylabel("Count")
+            ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
             st.pyplot(fig2)
 
-        with tab3:
-            st.write("### Punches Over Time")
-            time_df = df_log.groupby(df_log["timestamp"].dt.floor("10s")).size().reset_index(name="Punch Count")
+            # Pie Chart of Punch Types
+            st.subheader("🥧 Punch Share - Pie Chart")
             fig3, ax3 = plt.subplots()
-            ax3.plot(time_df["timestamp"], time_df["Punch Count"], marker="o")
-            ax3.set_xlabel("Time")
-            ax3.set_ylabel("Punch Count")
+            ax3.pie(type_counts.values(), labels=type_counts.keys(), autopct='%1.1f%%', startangle=90)
+            ax3.axis('equal')
             st.pyplot(fig3)
 
-        # ---- Download CSV ----
-        st.subheader("📥 Download Log")
-        csv_buffer = io.StringIO()
-        df_log.to_csv(csv_buffer, index=False)
-        st.download_button("Download CSV", data=csv_buffer.getvalue(), file_name="df_log.csv", mime="text/csv")
+        else:
+            st.info("🔍 No punch data found. Upload and process a video to see metrics.")
+
+        
 
     progress_bar.empty()
 
