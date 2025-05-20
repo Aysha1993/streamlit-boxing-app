@@ -142,6 +142,24 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
 
     return frame
 
+def expand_keypoints(keypoints):
+    if isinstance(keypoints, str):
+        try:
+            keypoints = json.loads(keypoints)
+        except json.JSONDecodeError:
+            return pd.Series()
+    if not isinstance(keypoints, list) or not all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in keypoints):
+        return pd.Series()
+    try:
+        data = {}
+        for i, kp in enumerate(keypoints):
+            data[f'x_{i}'] = kp[0]
+            data[f'y_{i}'] = kp[1]
+            data[f's_{i}'] = kp[2]
+        return pd.Series(data)
+    except Exception:
+        return pd.Series()
+
 # File uploader
 uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
