@@ -63,11 +63,23 @@ def calculate_elbow_angle(shoulder, elbow, wrist):
     angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
     return np.degrees(angle)
 
-def classify_punch(keypoints, frame_idx):
+
+# Map from joint name to index in MoveNet
+keypoint_index = {
+    "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
+    "left_shoulder": 5, "right_shoulder": 6,
+    "left_elbow": 7, "right_elbow": 8,
+    "left_wrist": 9, "right_wrist": 10,
+    "left_hip": 11, "right_hip": 12,
+    "left_knee": 13, "right_knee": 14,
+    "left_ankle": 15, "right_ankle": 16,
+}
+
+def classify_punch(keypoints_all_people, frame_idx):
     global person_states
     results = []
 
-    for person_id, kpts in enumerate(keypoints):
+    for person_id, kpts in enumerate(keypoints_all_people):
         state = person_states.get(person_id, {
             "prev_kpts": kpts,
             "in_motion": {"left": False, "right": False},
@@ -75,14 +87,13 @@ def classify_punch(keypoints, frame_idx):
         })
 
         for side in ["left", "right"]:
-            wrist = kpts.get(f"{side}_wrist")
-            elbow = kpts.get(f"{side}_elbow")
-            shoulder = kpts.get(f"{side}_shoulder")
-
-            prev_wrist = state["prev_kpts"].get(f"{side}_wrist", wrist)
-
-            if wrist is None or elbow is None or shoulder is None:
-                continue
+            try:
+                wrist = kpts[keypoint_index[f"{side}_wrist"]][:2]
+                elbow = kpts[keypoint_index[f"{side}_elbow"]][:2]
+                shoulder = kpts[keypoint_index[f"{side}_shoulder"]][:2]
+                prev_wrist = state["prev_kpts"][keypoint_index[f"{side}_wrist"]][:2]
+            except:
+                continue  # skip this side if missing keypoints
 
             velocity = calculate_velocity(prev_wrist, wrist)
             elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
@@ -101,10 +112,7 @@ def classify_punch(keypoints, frame_idx):
                 if elbow_angle < HOOK_ANGLE_THRESHOLD:
                     punch_type = "Hook"
                 else:
-                    if side == "left":
-                        punch_type = "Jab"
-                    else:
-                        punch_type = "Cross"
+                    punch_type = "Jab" if side == "left" else "Cross"
 
                 results.append({
                     "label": f"{side.capitalize()} {punch_type}",
