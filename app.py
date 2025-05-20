@@ -460,7 +460,8 @@ if uploaded_files:
             # Bar Chart of Punch Types
             st.subheader("📊 Punch Type Distribution")
             fig2, ax2 = plt.subplots()
-            sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
+            ax2.bar(type_counts.keys(), type_counts.values(), color='skyblue')
+            #sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
             ax2.set_ylabel("Count")
             ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
             st.pyplot(fig2)
