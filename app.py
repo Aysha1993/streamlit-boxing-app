@@ -237,10 +237,6 @@ if uploaded_files:
     progress_bar.empty()
 
 
-
-
-
-
 requirements = '''streamlit
 tensorflow
 tensorflow_hub
