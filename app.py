@@ -326,7 +326,7 @@ if uploaded_files:
             df_log["duration_frames"] = df_log["frame_end"] - df_log["frame_start"]
             df_log["duration_frames"] = df_log["duration_frames"].replace(0, 1)
             df_log["speed (approx)"] = 30 / df_log["duration_frames"]  # Assuming 30 FPS
-        st.metric("Average Speed", f"{df_log['speed (approx)'].mean():.2f} punches/sec")
+        #st.metric("Average Speed", f"{df_log['speed (approx)'].mean():.2f} punches/sec")
 
         if 'frame_start' not in df_log.columns or 'frame_end' not in df_log.columns:
           st.warning("Missing 'frame_start' or 'frame_end' in punch log. Speed cannot be calculated.")
