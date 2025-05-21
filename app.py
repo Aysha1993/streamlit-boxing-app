@@ -213,10 +213,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     return frame
 
 
-
-
-
-
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
         try:
@@ -298,7 +294,7 @@ if uploaded_files:
                 })
 
             frame_idx += 1
-            if frame_idx % 5 == 0:              
+            if frame_idx % 5 == 0:
               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
               progress_bar.progress(min(total_progress, 1.0))
 
@@ -450,9 +446,25 @@ if uploaded_files:
         else:
             st.info("🔍 No punch data found. Upload and process a video to see metrics.")
 
-        
+
 
     progress_bar.empty()
 
 
+requirements = '''streamlit
+tensorflow
+tensorflow_hub
+opencv-python-headless
+pandas
+numpy
+scikit-learn
+joblib
+ffmpeg-python
+tqdm
+seaborn
+matplotlib
+'''
 
+with open("requirements.txt", "w") as f:
+    f.write(requirements)
+print("✅ requirements.txt saved")
