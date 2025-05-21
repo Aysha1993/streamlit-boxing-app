@@ -17,6 +17,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
+#import seaborn as sns
 
 
 # Streamlit setup
@@ -41,29 +42,92 @@ def extract_keypoints(results):
         if score > 0.2 and np.mean(keypoints[:, 2]) > 0.2:
             people.append(keypoints.tolist())
     return people
+import numpy as np
 
-def classify_punch(keypoints):
-    result = []
-    for kp in keypoints:
-        lw, rw = kp[9], kp[10]
-        ls, rs = kp[5], kp[6]
-        le, re = kp[7], kp[8]
+# Global state: person_id -> punch state tracker
+person_states = {}
 
-        if lw[2] > 0.2 and ls[2] > 0.2 and lw[0] < ls[0]:
-            result.append("Left Jab")
-        elif rw[2] > 0.2 and rs[2] > 0.2 and rw[0] < rs[0]:
-            result.append("Right Jab")
-        elif lw[2] > 0.2 and ls[2] > 0.2 and abs(lw[0] - ls[0]) > 0.1:
-            result.append("Left Cross")
-        elif rw[2] > 0.2 and rs[2] > 0.2 and abs(rw[0] - rs[0]) > 0.1:
-            result.append("Right Cross")
-        elif le[2] > 0.2 and abs(le[1] - lw[1]) > 0.1:
-            result.append("Left Hook")
-        elif re[2] > 0.2 and abs(re[1] - rw[1]) > 0.1:
-            result.append("Right Hook")
-        else:
-            result.append("Guard")
-    return result
+# Tunable thresholds
+VELOCITY_THRESHOLD = 15  # adjust based on pixel movement per frame
+HOOK_ANGLE_THRESHOLD = 60  # elbow angle in degrees for hook detection
+
+def calculate_velocity(prev_point, curr_point):
+    return np.linalg.norm(np.array(curr_point) - np.array(prev_point))
+
+def calculate_elbow_angle(shoulder, elbow, wrist):
+    a = np.array(shoulder)
+    b = np.array(elbow)
+    c = np.array(wrist)
+    ab = a - b
+    cb = c - b
+    cosine_angle = np.dot(ab, cb) / (np.linalg.norm(ab) * np.linalg.norm(cb) + 1e-6)
+    angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+    return np.degrees(angle)
+
+
+# Map from joint name to index in MoveNet
+keypoint_index = {
+    "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
+    "left_shoulder": 5, "right_shoulder": 6,
+    "left_elbow": 7, "right_elbow": 8,
+    "left_wrist": 9, "right_wrist": 10,
+    "left_hip": 11, "right_hip": 12,
+    "left_knee": 13, "right_knee": 14,
+    "left_ankle": 15, "right_ankle": 16,
+}
+
+def classify_punch(keypoints_all_people, frame_idx):
+    global person_states
+    results = []
+
+    for person_id, kpts in enumerate(keypoints_all_people):
+        state = person_states.get(person_id, {
+            "prev_kpts": kpts,
+            "in_motion": {"left": False, "right": False},
+            "frame_start": {"left": None, "right": None},
+        })
+
+        for side in ["left", "right"]:
+            try:
+                wrist = kpts[keypoint_index[f"{side}_wrist"]][:2]
+                elbow = kpts[keypoint_index[f"{side}_elbow"]][:2]
+                shoulder = kpts[keypoint_index[f"{side}_shoulder"]][:2]
+                prev_wrist = state["prev_kpts"][keypoint_index[f"{side}_wrist"]][:2]
+            except:
+                continue  # skip this side if missing keypoints
+
+            velocity = calculate_velocity(prev_wrist, wrist)
+            elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
+
+            # Start of punch
+            if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
+                state["in_motion"][side] = True
+                state["frame_start"][side] = frame_idx
+
+            # End of punch
+            elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
+                frame_start = state["frame_start"][side]
+                frame_end = frame_idx
+                punch_type = ""
+
+                if elbow_angle < HOOK_ANGLE_THRESHOLD:
+                    punch_type = "Hook"
+                else:
+                    punch_type = "Jab" if side == "left" else "Cross"
+
+                results.append({
+                    "label": f"{side.capitalize()} {punch_type}",
+                    "frame_start": frame_start,
+                    "frame_end": frame_end
+                })
+
+                state["in_motion"][side] = False
+                state["frame_start"][side] = None
+
+        state["prev_kpts"] = kpts
+        person_states[person_id] = state
+
+    return results
 
 def check_posture(keypoints):
     feedback = []
@@ -106,15 +170,19 @@ SKELETON_EDGES = [
     (11, 13), (13, 15), (12, 14), (14, 16)
 ]
 
+
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
+    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
 
-    for i, kp in enumerate(keypoints):
+    for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
+        # Draw keypoints
         for (y, x, s) in kp:
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
+        # Draw skeleton
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -123,6 +191,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
+        # Draw gloves (based on wrists)
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             if s > 0.2:
@@ -132,16 +201,16 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
-        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        if visible_points:
-            y_coords, x_coords = zip(*visible_points)
-            min_x = int(min(x_coords) * w)
-            max_y = int(max(y_coords) * h)
-            cv2.putText(frame, f"{punches[i]}, {postures[i]}", (min_x, max_y + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # # Draw punch and posture label
+        # visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        # if visible_points:
+        #     y_coords, x_coords = zip(*visible_points)
+        #     min_x = int(min(x_coords) * w)
+        #     max_y = int(max(y_coords) * h)
+        #     cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
+        #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
-
 
 
 def expand_keypoints(keypoints):
@@ -162,23 +231,8 @@ def expand_keypoints(keypoints):
     except Exception:
         return pd.Series()
 
-# def flatten_keypoints(keypoints):
-#     if keypoints is None:
-#         return None
-#     keypoints = np.array(keypoints)  # ✅ Ensure it's a NumPy array
-#     if keypoints.ndim != 2 or keypoints.shape[1] != 3:
-#         return None
-#     return keypoints.flatten()
-def flatten_keypoints(kps):
-    if isinstance(kps, list) and all(isinstance(kp, (list, tuple)) and len(kp) == 3 for kp in kps):
-        return [v for kp in kps for v in kp]
-    return []
-
-# def flatten_keypoints(kps):
-#     return [v for kp in kps for v in kp] if isinstance(kps, list) else []
-
 # File uploader
-uploaded_files = st.file_uploader("Upload multiple boxing videos", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
 if uploaded_files:
     model = load_model()
@@ -219,7 +273,7 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
 
-            punches = classify_punch(keypoints)
+            punches = classify_punch(keypoints,frame_idx)
             postures = check_posture(keypoints)
             gloves = detect_gloves(keypoints)
 
@@ -231,7 +285,9 @@ if uploaded_files:
                     "video": uploaded_file.name,
                     "frame": frame_idx,
                     "person": i,
-                    "punch": punches[i],
+                    "punch": punches[i]["label"],
+                    "frame_start": punches[i]["frame_start"],
+                    "frame_end": punches[i]["frame_end"],
                     "posture": postures[i],
                     "gloves": gloves[i],
                     "keypoints": keypoints[i]
@@ -239,7 +295,8 @@ if uploaded_files:
 
             frame_idx += 1
             if frame_idx % 5 == 0:
-                progress_bar.progress(min((idx + frame_idx / total_frames) / len(uploaded_files), 1.0))
+              total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
+              progress_bar.progress(min(total_progress, 1.0))
 
         cap.release()
         out_writer.release()
@@ -257,6 +314,13 @@ if uploaded_files:
             st.warning("⚠️ No punch data found.")
             continue
 
+        # Speed calculation block
+        df['timestamp'] = df['frame'] / fps
+
+        # Group by video or person if needed
+        df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+
+
         st.write("### 🔍 Keypoints Sample")
         st.json(df['keypoints'].iloc[0])
 
@@ -269,139 +333,69 @@ if uploaded_files:
 
         all_logs.extend(punch_log)
 
-        # Training
-        df["flat_kp"] = df["keypoints"].apply(flatten_keypoints)
-        X = np.vstack(df["flat_kp"].values)
-        y = df["punch"].values
 
-        le = LabelEncoder()
-        y_encoded = le.fit_transform(y)
+        # Flatten punch_log to DataFrame
+        df_log = pd.DataFrame(punch_log)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+        # Expand keypoints into flat features
+        df_features = df_log['keypoints'].apply(expand_keypoints)
+        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
 
-        svm_model = svm.SVC(kernel='linear')
-        svm_model.fit(X_train, y_train)
+        st.success("✅ Extracted keypoints and labels for ML training.")
 
+
+        # Label encode target
+        label_encoder = LabelEncoder()
+        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
+
+        # Feature/target split
+        X = df_full[[col for col in df_full.columns if col.startswith(('x_', 'y_', 's_'))]]
+        y = df_full['label']
+
+        # Train/test split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+
+        # Train classifiers
+        svm_model = svm.SVC(kernel='rbf')
         tree_model = DecisionTreeClassifier(max_depth=5)
+
+        svm_model.fit(X_train, y_train)
         tree_model.fit(X_train, y_train)
 
-        svm_preds = svm_model.predict(X_test)
-        tree_preds = tree_model.predict(X_test)
+        # Evaluate
+        y_pred_svm = svm_model.predict(X_test)
+        y_pred_tree = tree_model.predict(X_test)
 
-        st.write("### 📊 Model Evaluation")
-        st.write(f"🔹 SVM Accuracy: {accuracy_score(y_test, svm_preds):.2f}")
-        st.write(f"🔹 Decision Tree Accuracy: {accuracy_score(y_test, tree_preds):.2f}")
+        acc_svm = accuracy_score(y_test, y_pred_svm)
+        acc_tree = accuracy_score(y_test, y_pred_tree)
 
+        st.subheader("📈 Model Evaluation")
+        st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
+        st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+
+        # Confusion Matrix
         st.write("### Confusion Matrix (SVM)")
-        fig1, ax1 = plt.subplots()
-        ConfusionMatrixDisplay(confusion_matrix(y_test, svm_preds), display_labels=le.classes_).plot(ax=ax1)
-        st.pyplot(fig1)
+        cm = confusion_matrix(y_test, y_pred_svm)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
 
-        st.write("### Confusion Matrix (Decision Tree)")
-        fig2, ax2 = plt.subplots()
-        ConfusionMatrixDisplay(confusion_matrix(y_test, tree_preds), display_labels=le.classes_).plot(ax=ax2)
-        st.pyplot(fig2)
+        st.subheader("🎬 Visualize Predictions")
 
-        # Save models
-        base_name = os.path.splitext(uploaded_file.name)[0]
-        dump(svm_model, f"/tmp/{base_name}_svm_model.joblib")
-        dump(tree_model, f"/tmp/{base_name}_tree_model.joblib")
-        dump(le, f"/tmp/{base_name}_label_encoder.joblib")
+        # Run classifier on a few frames
+        sample_preds = []
+        for i in range(min(10, len(X_test))):
+            pred_label = label_encoder.inverse_transform([svm_model.predict([X_test.iloc[i]])[0]])[0]
+            actual_label = label_encoder.inverse_transform([y_test.iloc[i]])[0]
+            sample_preds.append(f"✅ Predicted: {pred_label} | 🏷️ Actual: {actual_label}")
 
+        for row in sample_preds:
+            st.write(row)
+        st.markdown("## 🥊 Punch Performance Dashboard")
+
+        
     progress_bar.empty()
-
-
-
-#st.write("### 🎥 Prediction Visualization on Clip")
-
-# Upload a test clip
-video_file = st.file_uploader("Upload a test video for prediction", type=["mp4", "mov", "avi"])
-if video_file is not None:
-    with open("test_video.mp4", "wb") as f:
-        f.write(video_file.read())
-
-    cap = cv2.VideoCapture("test_video.mp4")
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-
-    # Save annotated video to temp path
-    temp_dir = tempfile.mkdtemp()
-    raw_output_path = os.path.join(temp_dir, "raw_output.mp4")
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(raw_output_path, fourcc, fps, (width, height))
-
-    stframe = st.empty()
-    frame_count = 0
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        # Prediction block (corrected)
-        try:
-            resized = cv2.resize(frame, (256, 256))
-            input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
-            # ✅ Inference
-            results = model.signatures['serving_default'](input_tensor)
-            keypoints = extract_keypoints(results)
-
-            if keypoints is not None:
-              #keypoints = np.zeros((17, 3))  # 17 keypoints with x, y, conf = 0
-              st.text(f"DEBUG: Keypoint confidences22 = {keypoints[:, 2]}")
-              flat_kp = flatten_keypoints(keypoints)
-              # ✅ Check length
-              if len(flat_kp) != X_train.shape[1]:
-                  raise ValueError(f"Invalid number of features: got {len(flat_kp)}, expected {X_train.shape[1]}")
-
-              X_input = np.array(flat_kp).reshape(1, -1)
-              pred_class = svm_model.predict(X_input)
-              pred_class_int = int(pred_class[0])
-              label = le.inverse_transform([pred_class_int])[0]
-              # #Now you can print safely
-              # st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
-              # st.text(f"DEBUG: pred_class = {pred_class}, type = {type(pred_class)}")
-              # st.text(f"DEBUG: pred_class[0] = {pred_class[0]}, type = {type(pred_class[0])}")
-              # # Debugging output
-              # st.text(f"DEBUG: pred_class = {pred_class}, int = {pred_class_int}, label = {label}")
-              # st.text(f"keypoints shape: {np.shape(keypoints)}")
-              # st.text(f"flattened keypoints: {np.shape(flat_kp)}")
-              # st.text(f"X_input shape: {X_input.shape}")
-              # st.text(f"predicted class: {pred_class}")
-              avg_conf = np.mean(keypoints[:, 2])
-              cv2.putText(frame, f"Pose Confidence: {avg_conf:.2f}", (30, 70),
-                          cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
-
-              # ✅ Annotate frame
-              cv2.putText(frame, f"Predicted: {label}", (30, 40),
-                          cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
-            else:
-              cv2.putText(frame, "No keypoints detected", (30, 40),
-                          cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 2)
-              raise ValueError("No keypoints found.")
-        except Exception as e:
-          st.warning(f"⚠️ Frame {frame_count} prediction error: {e}")
-          st.text(f"DEBUG: Keypoint confidences = {keypoints[:, 2]}")
-
-        out.write(frame)
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb, caption=f"Frame {frame_count + 1}", use_container_width =True)
-        frame_count += 1
-
-    cap.release()
-    out.release()
-
-    # Encode to final output using ffmpeg
-    final_output_path = os.path.join(temp_dir, f"annotated_{video_file.name}")
-    ffmpeg.input(raw_output_path).output(final_output_path, vcodec='libx264', acodec='aac').run(overwrite_output=True)
-
-    st.success(f"✅ Annotated video ready: {video_file.name}")
-    st.video(final_output_path)
-
-    # Download button
-    with open(final_output_path, "rb") as f:
-        st.download_button("📥 Download Annotated Clip", f, file_name=f"annotated_{video_file.name}", mime="video/mp4")
 
 
 requirements = '''streamlit
@@ -414,6 +408,7 @@ scikit-learn
 joblib
 ffmpeg-python
 tqdm
+seaborn
 matplotlib
 '''
 
