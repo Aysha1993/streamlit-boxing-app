@@ -436,6 +436,56 @@ if uploaded_files:
             st.write(row)
         st.markdown("## 🥊 Punch Performance Dashboard")
 
+        if 'punch_log' in locals() and len(punch_log) > 0:
+            df = pd.DataFrame(punch_log)
+
+            # Count Punch Types
+            type_counts = df['punch'].value_counts().to_dict()
+            st.subheader("🔢 Punch Type Count")
+            cols = st.columns(len(type_counts))
+            for i, (ptype, count) in enumerate(type_counts.items()):
+                cols[i].metric(label=ptype, value=count)
+
+            # Approximate Punch Frequency
+            if 'frame_end' in df.columns:
+                duration_frames = df['frame_end'].max() - df['frame_start'].min()
+                fps = 30  # adjust this to your actual FPS
+                duration_sec = duration_frames / fps if fps else 1
+                punch_speed = len(df) / duration_sec if duration_sec > 0 else 0
+                st.subheader("⚡ Speed Approximation")
+                st.metric("Punches per Second", f"{punch_speed:.2f}")
+            else:
+                st.warning("Frame timing info missing — can't compute speed.")
+
+            # Time-bucketed Frequency Chart
+            if 'frame_start' in df.columns:
+                df['time_sec'] = df['frame_start'] // 30  # adjust for your FPS
+                time_counts = df.groupby('time_sec')['punch'].count()
+                st.subheader("📈 Punch Frequency Over Time")
+                fig1, ax1 = plt.subplots()
+                time_counts.plot(kind='line', marker='o', ax=ax1)
+                ax1.set_xlabel("Time (s)")
+                ax1.set_ylabel("Punches")
+                ax1.set_title("Punches Per Second")
+                st.pyplot(fig1)
+
+            # Bar Chart of Punch Types
+            st.subheader("📊 Punch Type Distribution")
+            fig2, ax2 = plt.subplots()
+            ax2.bar(type_counts.keys(), type_counts.values(), color='skyblue')
+            #sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
+            ax2.set_ylabel("Count")
+            ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
+            st.pyplot(fig2)
+
+            # Pie Chart of Punch Types
+            st.subheader("🥧 Punch Share - Pie Chart")
+            fig3, ax3 = plt.subplots()
+            ax3.pie(type_counts.values(), labels=type_counts.keys(), autopct='%1.1f%%', startangle=90)
+            ax3.axis('equal')
+            st.pyplot(fig3)
+        else:
+            st.info("🔍 No punch data found. Upload and process a video to see metrics.")
         
     progress_bar.empty()
 
