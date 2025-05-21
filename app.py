@@ -35,13 +35,14 @@ model = load_model()
 # Utility functions
 def extract_keypoints(results):
     people = []
-    raw = results['output_0'].numpy()[0]  # shape (6, 56)
-    for person_data in raw:
+    raw = results['output_0'].numpy()  # shape (1, 6, 56)
+    for person_data in raw[0]:
         keypoints = np.array(person_data[:51]).reshape(17, 3)
         score = person_data[55]
         if score > 0.2 and np.mean(keypoints[:, 2]) > 0.2:
             people.append(keypoints.tolist())
     return people
+
 import numpy as np
 
 # Global state: person_id -> punch state tracker
@@ -175,6 +176,12 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
 
+    max_people = len(keypoints)
+    punches = punches + [""] * (max_people - len(punches))
+    postures = postures + [""] * (max_people - len(postures))
+    gloves = gloves + [""] * (max_people - len(gloves))
+
+
     for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
         # Draw keypoints
         for (y, x, s) in kp:
@@ -201,14 +208,14 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
-        # # Draw punch and posture label
-        # visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        # if visible_points:
-        #     y_coords, x_coords = zip(*visible_points)
-        #     min_x = int(min(x_coords) * w)
-        #     max_y = int(max(y_coords) * h)
-        #     cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
-        #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # Draw punch and posture label
+        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        if visible_points:
+            y_coords, x_coords = zip(*visible_points)
+            min_x = int(min(x_coords) * w)
+            max_y = int(max(y_coords) * h)
+            cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
 
@@ -263,9 +270,13 @@ if uploaded_files:
             ret, frame = cap.read()
             if not ret:
                 break
+            # resized = cv2.resize(frame, (256, 256))
+            # input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
+            # results = model.signatures['serving_default'](input_tensor)
 
-            resized = cv2.resize(frame, (256, 256))
-            input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
+            input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
 
@@ -280,18 +291,22 @@ if uploaded_files:
             annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
             out_writer.write(annotated)
 
+
             for i in range(len(punches)):
-                punch_log.append({
-                    "video": uploaded_file.name,
-                    "frame": frame_idx,
-                    "person": i,
-                    "punch": punches[i]["label"],
-                    "frame_start": punches[i]["frame_start"],
-                    "frame_end": punches[i]["frame_end"],
-                    "posture": postures[i],
-                    "gloves": gloves[i],
-                    "keypoints": keypoints[i]
-                })
+              punch_label = punches[i]["label"] if punches[i] else "None"
+              frame_start = punches[i]["frame_start"] if punches[i] else None
+              frame_end = punches[i]["frame_end"] if punches[i] else None
+              punch_log.append({
+                  "video": uploaded_file.name,
+                  "frame": frame_idx,
+                  "person": i,
+                  "punch": punch_label,
+                  "frame_start": frame_start,
+                  "frame_end": frame_end,
+                  "posture": postures[i] if i < len(postures) else "N/A",
+                  "gloves": gloves[i] if i < len(gloves) else "N/A",
+                  "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+              })
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -303,7 +318,13 @@ if uploaded_files:
 
         # FFmpeg encode
         final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
-        ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+        try:
+          ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+        except ffmpeg.Error as e:
+          st.error("FFmpeg failed: " + str(e))
+
+        #ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+        st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
 
         st.video(final_output)
         with open(final_output, "rb") as f:
