@@ -291,7 +291,6 @@ if uploaded_files:
             annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
             out_writer.write(annotated)
 
-
             for i in range(len(punches)):
               punch_label = punches[i]["label"] if punches[i] else "None"
               frame_start = punches[i]["frame_start"] if punches[i] else None
