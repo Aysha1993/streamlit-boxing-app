@@ -356,16 +356,16 @@ else:
 
 requirements = '''streamlit
 tensorflow
-tensorflow_hub
-opencv-python-headless
-pandas
+tensorflow-hub
 numpy
+pandas
+opencv-python-headless
+av
 scikit-learn
-joblib
-ffmpeg-python
-tqdm
-seaborn
 matplotlib
+seaborn
+joblib
+Pillow
 '''
 
 with open("requirements.txt", "w") as f:
