@@ -49,7 +49,7 @@ import numpy as np
 person_states = {}
 
 # Tunable thresholds
-VELOCITY_THRESHOLD = 15  # adjust based on pixel movement per frame
+VELOCITY_THRESHOLD = 0.1  # adjust based on pixel movement per frame
 HOOK_ANGLE_THRESHOLD = 60  # elbow angle in degrees for hook detection
 
 def calculate_velocity(prev_point, curr_point):
@@ -82,6 +82,7 @@ def classify_punch(keypoints_all_people, frame_idx):
     results = []
 
     for person_id, kpts in enumerate(keypoints_all_people):
+        # Initialize or retrieve previous state
         state = person_states.get(person_id, {
             "prev_kpts": kpts,
             "in_motion": {"left": False, "right": False},
@@ -90,41 +91,63 @@ def classify_punch(keypoints_all_people, frame_idx):
 
         for side in ["left", "right"]:
             try:
-                wrist = kpts[keypoint_index[f"{side}_wrist"]][:2]
-                elbow = kpts[keypoint_index[f"{side}_elbow"]][:2]
-                shoulder = kpts[keypoint_index[f"{side}_shoulder"]][:2]
-                prev_wrist = state["prev_kpts"][keypoint_index[f"{side}_wrist"]][:2]
-            except:
-                continue  # skip this side if missing keypoints
+                wrist_idx = keypoint_index[f"{side}_wrist"]
+                elbow_idx = keypoint_index[f"{side}_elbow"]
+                shoulder_idx = keypoint_index[f"{side}_shoulder"]
 
-            velocity = calculate_velocity(prev_wrist, wrist)
-            elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
+                wrist = kpts[wrist_idx][:2]
+                elbow = kpts[elbow_idx][:2]
+                shoulder = kpts[shoulder_idx][:2]
+                prev_wrist = state["prev_kpts"][wrist_idx][:2]
 
-            # Start of punch
-            if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
-                state["in_motion"][side] = True
-                state["frame_start"][side] = frame_idx
+                # Sanity check for missing data
+                if not all(map(lambda x: isinstance(x, (int, float)), wrist + elbow + shoulder + prev_wrist)):
+                    continue
 
-            # End of punch
-            elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
-                frame_start = state["frame_start"][side]
-                frame_end = frame_idx
-                punch_type = ""
+                velocity = calculate_velocity(prev_wrist, wrist)
+                elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
 
-                if elbow_angle < HOOK_ANGLE_THRESHOLD:
-                    punch_type = "Hook"
-                else:
-                    punch_type = "Jab" if side == "left" else "Cross"
+                # Start of punch
+                if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
+                    state["in_motion"][side] = True
+                    state["frame_start"][side] = frame_idx
 
-                results.append({
-                    "label": f"{side.capitalize()} {punch_type}",
-                    "frame_start": frame_start,
-                    "frame_end": frame_end
-                })
+                # End of punch
+                elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
+                    frame_start = state["frame_start"][side]
+                    frame_end = frame_idx
+                    punch_type = None
 
-                state["in_motion"][side] = False
-                state["frame_start"][side] = None
+                    # Classify punch type based on elbow angle
+                    if elbow_angle < HOOK_ANGLE_THRESHOLD:
+                        punch_type = "Hook"
+                    elif side == "left":
+                        punch_type = "Jab"
+                    else:
+                        punch_type = "Cross"
 
+                    if punch_type:
+                        results.append({
+                            "label": f"{side.capitalize()} {punch_type}",
+                            "frame_start": frame_start,
+                            "frame_end": frame_end
+                        })
+
+                    # Reset motion state
+                    state["in_motion"][side] = False
+                    state["frame_start"][side] = None
+
+            except KeyError as e:
+                print(f"Missing keypoint index: {e}")
+                continue
+            except IndexError as e:
+                print(f"Keypoint index out of range: {e}")
+                continue
+            except Exception as e:
+                print(f"Unexpected error in punch detection: {e}")
+                continue
+
+        # Update previous keypoints for next frame
         state["prev_kpts"] = kpts
         person_states[person_id] = state
 
@@ -339,7 +362,6 @@ if uploaded_files:
 
         # Group by video or person if needed
         df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
-
 
         st.write("### 🔍 Keypoints Sample")
         st.json(df['keypoints'].iloc[0])
