@@ -173,8 +173,8 @@ def check_posture(keypoints):
 def detect_gloves(keypoints, distance_thresh=0.1):
     gloves = []
     for kp in keypoints:
-        lw, le = kp[9], kp[7]
-        rw, re = kp[10], kp[8]
+        lw, le = kp[9], kp[7]   # left wrist, left elbow
+        rw, re = kp[10], kp[8]  # right wrist, right elbow
 
         def is_glove_present(wrist, elbow):
             if wrist[2] > 0.2 and elbow[2] > 0.2:
@@ -182,10 +182,29 @@ def detect_gloves(keypoints, distance_thresh=0.1):
                 return dist > distance_thresh
             return False
 
-        left_glove = "yes" if is_glove_present(lw, le) else "no"
-        right_glove = "yes" if is_glove_present(rw, re) else "no"
-        gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
+        gloves.append({
+            "left": is_glove_present(lw, le),
+            "right": is_glove_present(rw, re)
+        })
+
     return gloves
+
+# def detect_gloves(keypoints, distance_thresh=0.1):
+#     gloves = []
+#     for kp in keypoints:
+#         lw, le = kp[9], kp[7]
+#         rw, re = kp[10], kp[8]
+
+#         def is_glove_present(wrist, elbow):
+#             if wrist[2] > 0.2 and elbow[2] > 0.2:
+#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
+#                 return dist > distance_thresh
+#             return False
+
+#         left_glove = "yes" if is_glove_present(lw, le) else "no"
+#         right_glove = "yes" if is_glove_present(rw, re) else "no"
+#         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
+#     return gloves
 
 
 # 17 keypoints (based on MoveNet/COCO order)
@@ -284,20 +303,21 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw glove bounding boxes
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.3 and 0 <= x <= 1 and 0 <= y <= 1:
+        # Draw glove indicator as colored circle at wrist
+        for side, idx_wrist in zip(['left', 'right'], [9, 10]):
+            y, x, s = kp[idx_wrist]
+            if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
-                box_size = 20
-                color = (0, 0, 255) if side == "L" else (0, 165, 255)
-                cv2.rectangle(frame, (cx - box_size, cy - box_size), (cx + box_size, cy + box_size), color, 2)
-                cv2.putText(frame, f"{side} Glove", (cx - box_size, cy - box_size - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                if glove.get(side):
+                    color = (0, 255, 255)  # yellow = glove present
+                else:
+                    color = (0, 0, 255)    # red = no glove
+                cv2.circle(frame, (cx, cy), 6, color, 2)
 
-        # Punch/Posture label
-        left_label = f"Person {idx+1}: {punch}, {posture}"
-        cv2.putText(frame, left_label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+        # Punch/Posture/Glove label
+        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+        cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
 
