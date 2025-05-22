@@ -187,15 +187,6 @@ def detect_gloves(keypoints, distance_thresh=0.1):
         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
     return gloves
 
-SKELETON_EDGES = [
-    (0, 1), (0, 2), (1, 3), (2, 4),
-    (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),
-    (5, 11), (6, 12), (11, 12),
-    (11, 13), (13, 15), (12, 14), (14, 16)
-]
-
-
-import cv2
 
 # 17 keypoints (based on MoveNet/COCO order)
 KEYPOINT_NAMES = [
@@ -224,7 +215,7 @@ def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
         for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
             cx = int(x * w)
             cy = int(y * h)
-            color = (0, 255, 0) if score > threshold else (0, 0, 255)
+            color = (0, 255, 255) if score > threshold else (255, 0, 255)
             cv2.circle(frame, (cx, cy), 4, color, -1)
             cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
