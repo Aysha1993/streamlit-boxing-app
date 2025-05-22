@@ -197,7 +197,7 @@ SKELETON_EDGES = [
 def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
     h, w, _ = frame.shape
 
-    # Define body connections (based on MoveNet 17-keypoint format)
+    # MoveNet 17-keypoint skeleton edges
     SKELETON_EDGES = [
         (0, 1), (1, 3), (0, 2), (2, 4),       # head
         (5, 7), (7, 9), (6, 8), (8, 10),      # arms
@@ -208,25 +208,29 @@ def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
     ]
 
     for person in keypoints_with_scores:
-        kp = person[:17]  # x, y, confidence per point
+        keypoints = person[:17]
 
         # Draw keypoints
-        for i, (x, y, score) in enumerate(kp):
-            cx, cy = int(x * w), int(y * h)
-            color = (0, 255, 0) if score > threshold else (0, 0, 255)
-            cv2.circle(frame, (cx, cy), 4, color, -1)
+        for i, (x, y, score) in enumerate(keypoints):
+            if score > threshold:
+                cx = int(x * w)
+                cy = int(y * h)
+                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+            else:
+                cx = int(x * w)
+                cy = int(y * h)
+                cv2.circle(frame, (cx, cy), 4, (0, 0, 255), -1)
 
         # Draw skeleton connections
         for p1, p2 in SKELETON_EDGES:
-            x1, y1, s1 = kp[p1]
-            x2, y2, s2 = kp[p2]
+            x1, y1, s1 = keypoints[p1]
+            x2, y2, s2 = keypoints[p2]
             if s1 > threshold and s2 > threshold:
-                pt1 = int(x1 * w), int(y1 * h)
-                pt2 = int(x2 * w), int(y2 * h)
+                pt1 = (int(x1 * w), int(y1 * h))
+                pt2 = (int(x2 * w), int(y2 * h))
                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
     return frame
-
 
 # def draw_annotations(frame, keypoints, punches, postures, gloves):
 #     h, w = frame.shape[:2]
