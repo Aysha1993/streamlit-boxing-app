@@ -417,11 +417,11 @@ if uploaded_files:
             keypoints = extract_keypoints(results)
             # 🚫 Filter out likely coaches
             keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
-            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            
             if not keypoints:
                 out_writer.write(frame)
                 continue
-        
+            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
             punches = classify_punch(rescaledkeypoints,frame_idx)
             postures = check_posture(rescaledkeypoints)
             gloves = detect_gloves(rescaledkeypoints)
