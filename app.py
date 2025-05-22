@@ -249,6 +249,19 @@ SKELETON_EDGES = [
 #                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
+def is_likely_coach(keypoints, min_avg_conf=0.3, min_bbox_height_ratio=0.2):
+    # Calculate average keypoint confidence
+    avg_conf = np.mean([kp[2] for kp in keypoints])
+    if avg_conf < min_avg_conf:
+        return True  # likely background / coach
+
+    # Estimate bounding box height (y range)
+    ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
+    if ys:
+        bbox_height = max(ys) - min(ys)
+        if bbox_height < min_bbox_height_ratio:
+            return True  # very small pose in normalized space = far away
+    return False
 
 
 KEYPOINT_NAMES = [
@@ -283,6 +296,8 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+        if is_likely_coach(kp):
+          continue  # skip this person
         # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
@@ -400,11 +415,13 @@ if uploaded_files:
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
+            # 🚫 Filter out likely coaches
+            keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
             if not keypoints:
                 out_writer.write(frame)
                 continue
-
+        
             punches = classify_punch(rescaledkeypoints,frame_idx)
             postures = check_posture(rescaledkeypoints)
             gloves = detect_gloves(rescaledkeypoints)
