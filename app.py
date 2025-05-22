@@ -249,6 +249,7 @@ SKELETON_EDGES = [
 
 import cv2
 
+
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
@@ -266,9 +267,10 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
-                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
+                if 0 <= cx < w and 0 <= cy < h:
+                    cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                    cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
 
         # --- Draw Skeleton ---
         for (p1, p2) in SKELETON_EDGES:
@@ -277,37 +279,32 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
             if s1 > 0.2 and s2 > 0.2:
                 pt1 = int(x1 * w), int(y1 * h)
                 pt2 = int(x2 * w), int(y2 * h)
-                cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+                if all(0 <= val < w for val in [pt1[0], pt2[0]]) and all(0 <= val < h for val in [pt1[1], pt2[1]]):
+                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
         # --- Draw Glove Boxes on Wrists ---
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
-          y, x, s = kp[wrist_idx]
-          st.info(f"side {side} -  wrist x: {x:2f},  wrist y: {y:2f},score : {s:2f}")
-          #st.info(f"📦 wrist -x : {side}, y: {y:.2f}, score: {s:.2f}")
-          if s > 0.2 and 0 <= x <= 1 and 0 <= y <= 1:
-              cx, cy = int(x * w), int(y * h)
-              pad = 15
-              cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-              cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                          cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-              cv2.putText(frame, f"{s:.2f}", (cx - pad, cy + pad + 15),
-                          cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-        # for side, wrist_idx in zip(["L", "R"], [9, 10]):
-        #     y, x, s = kp[wrist_idx]
-        #     if s > 0.2:
-        #         cx, cy = int(x * w), int(y * h)
-        #         pad = 15
-        #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-        #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-        #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+            y, x, s = kp[wrist_idx]
+            if s > 0.5 and 0 <= x <= 1 and 0 <= y <= 1:
+                cx, cy = int(x * w), int(y * h)
+                if 0 <= cx < w and 0 <= cy < h:
+                    pad = 15
+                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                    cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                    # Debug score label
+                    cv2.putText(frame, f"{s:.2f}", (cx + 5, cy + 5), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.4, (255, 255, 255), 1)
 
-        # --- Draw Punch and Posture on Left of Frame ---
+        # --- Draw Punch and Posture Labels on Left of Frame ---
         left_label = f"Person {idx+1}: {punch}, {posture}"
         cv2.putText(frame, left_label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1, cv2.LINE_AA)
         y_offset += line_height
 
     return frame
+
+
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
