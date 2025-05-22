@@ -194,31 +194,42 @@ SKELETON_EDGES = [
     (11, 13), (13, 15), (12, 14), (14, 16)
 ]
 
+
+import cv2
+
+# 17 keypoints (based on MoveNet/COCO order)
+KEYPOINT_NAMES = [
+    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+    "left_wrist", "right_wrist", "left_hip", "right_hip",
+    "left_knee", "right_knee", "left_ankle", "right_ankle"
+]
+
+# Skeleton edges between keypoints
+SKELETON_EDGES = [
+    (0, 1), (1, 3), (0, 2), (2, 4),         # Face
+    (5, 7), (7, 9), (6, 8), (8, 10),        # Arms
+    (5, 6), (5, 11), (6, 12),               # Torso
+    (11, 13), (13, 15), (12, 14), (14, 16), # Legs
+    (11, 12)                                # Hip line
+]
+
 def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
     h, w, _ = frame.shape
-
-    SKELETON_EDGES = [
-        (0, 1), (1, 3), (0, 2), (2, 4),
-        (5, 7), (7, 9), (6, 8), (8, 10),
-        (5, 6), (5, 11), (6, 12),
-        (11, 13), (13, 15),
-        (12, 14), (14, 16),
-        (11, 12)
-    ]
 
     for person in keypoints_with_scores:
         keypoints = person[:17]
 
-        for i, (y, x, score) in enumerate(keypoints):  # CORRECT: (y, x, score)
-            if score > threshold:
-                cx = int(x * w)
-                cy = int(y * h)
-                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-            else:
-                cx = int(x * w)
-                cy = int(y * h)
-                cv2.circle(frame, (cx, cy), 4, (0, 0, 255), -1)
+        # Draw keypoints with names
+        for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
+            cx = int(x * w)
+            cy = int(y * h)
+            color = (0, 255, 0) if score > threshold else (0, 0, 255)
+            cv2.circle(frame, (cx, cy), 4, color, -1)
+            cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
 
+        # Draw skeleton connections
         for p1, p2 in SKELETON_EDGES:
             y1, x1, s1 = keypoints[p1]
             y2, x2, s2 = keypoints[p2]
