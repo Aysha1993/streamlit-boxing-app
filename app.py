@@ -284,19 +284,16 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw gloves only if wrist confidence is high enough
+        # Draw glove bounding boxes
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
-            #st.info(f"{side} wrist score: {s:.2f} at x={x:.2f}, y={y:.2f}")
-            if s > 0.2:  # tightened from 0.5 to 0.65
+            if s > 0.3 and 0 <= x <= 1 and 0 <= y <= 1:
                 cx, cy = int(x * w), int(y * h)
-                if 0 <= cx < w and 0 <= cy < h:
-                    pad = 15
-                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-                    cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-                    cv2.putText(frame, f"{s:.2f}", (cx + 5, cy + 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                box_size = 20
+                color = (0, 0, 255) if side == "L" else (0, 165, 255)
+                cv2.rectangle(frame, (cx - box_size, cy - box_size), (cx + box_size, cy + box_size), color, 2)
+                cv2.putText(frame, f"{side} Glove", (cx - box_size, cy - box_size - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
         # Punch/Posture label
         left_label = f"Person {idx+1}: {punch}, {posture}"
