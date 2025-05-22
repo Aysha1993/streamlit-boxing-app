@@ -252,7 +252,7 @@ import cv2
 
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
-    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
+    st.info("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
     
 
     max_people = len(keypoints)
@@ -286,7 +286,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         # Draw gloves only if wrist confidence is high enough
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
-            st.info(f"{side} wrist score: {s:.2f} at x={x:.2f}, y={y:.2f}")
+            #st.info(f"{side} wrist score: {s:.2f} at x={x:.2f}, y={y:.2f}")
             if s > 0.2:  # tightened from 0.5 to 0.65
                 cx, cy = int(x * w), int(y * h)
                 if 0 <= cx < w and 0 <= cy < h:
