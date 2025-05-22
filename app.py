@@ -282,8 +282,9 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         # --- Draw Glove Boxes on Wrists ---
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
           y, x, s = kp[wrist_idx]
-          st.info(f"📦 wrist -x : {side}, y: {y:.2f}, score: {s:.2f}")
-          if s > 0.5 and 0 <= x <= 1 and 0 <= y <= 1:
+          st.info(f"Person {side} - Left wrist: {x:2f}, Right wrist: {y:2f},score : {s:2f}")
+          #st.info(f"📦 wrist -x : {side}, y: {y:.2f}, score: {s:.2f}")
+          if s > 0.2 and 0 <= x <= 1 and 0 <= y <= 1:
               cx, cy = int(x * w), int(y * h)
               pad = 15
               cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
