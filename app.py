@@ -287,7 +287,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             st.info(f"{side} wrist score: {s:.2f} at x={x:.2f}, y={y:.2f}")
-            if s > 0.65:  # tightened from 0.5 to 0.65
+            if s > 0.2:  # tightened from 0.5 to 0.65
                 cx, cy = int(x * w), int(y * h)
                 if 0 <= cx < w and 0 <= cy < h:
                     pad = 15
