@@ -386,18 +386,18 @@ if uploaded_files:
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
-
+            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
             if not keypoints:
                 out_writer.write(frame)
                 continue
 
-            punches = classify_punch(keypoints,frame_idx)
-            postures = check_posture(keypoints)
-            gloves = detect_gloves(keypoints)
+            punches = classify_punch(rescaledkeypoints,frame_idx)
+            postures = check_posture(rescaledkeypoints)
+            gloves = detect_gloves(rescaledkeypoints)
 
             h, w = frame.shape[:2]
             
-            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             
             out_writer.write(annotated)
