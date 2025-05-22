@@ -253,6 +253,7 @@ import cv2
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
+    
 
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
@@ -263,46 +264,47 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-        # --- Draw Keypoints and Their Names ---
+        # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 if 0 <= cx < w and 0 <= cy < h:
                     cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-        # --- Draw Skeleton ---
+        # Draw skeleton
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
             if s1 > 0.2 and s2 > 0.2:
                 pt1 = int(x1 * w), int(y1 * h)
                 pt2 = int(x2 * w), int(y2 * h)
-                if all(0 <= val < w for val in [pt1[0], pt2[0]]) and all(0 <= val < h for val in [pt1[1], pt2[1]]):
+                if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # --- Draw Glove Boxes on Wrists ---
+        # Draw gloves only if wrist confidence is high enough
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
-            if s > 0.5 and 0 <= x <= 1 and 0 <= y <= 1:
+            st.info(f"{side} wrist score: {s:.2f} at x={x:.2f}, y={y:.2f}")
+            if s > 0.65:  # tightened from 0.5 to 0.65
                 cx, cy = int(x * w), int(y * h)
                 if 0 <= cx < w and 0 <= cy < h:
                     pad = 15
                     cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
                     cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-                    # Debug score label
-                    cv2.putText(frame, f"{s:.2f}", (cx + 5, cy + 5), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.4, (255, 255, 255), 1)
+                    cv2.putText(frame, f"{s:.2f}", (cx + 5, cy + 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
 
-        # --- Draw Punch and Posture Labels on Left of Frame ---
+        # Punch/Posture label
         left_label = f"Person {idx+1}: {punch}, {posture}"
         cv2.putText(frame, left_label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5, (255, 255, 0), 1, cv2.LINE_AA)
+                    0.5, (255, 255, 0), 1)
         y_offset += line_height
 
     return frame
+
 
 
 
