@@ -486,7 +486,7 @@ if uploaded_files:
             st.pyplot(fig3)
         else:
             st.info("🔍 No punch data found. Upload and process a video to see metrics.")
-        
+
     progress_bar.empty()
 
 
