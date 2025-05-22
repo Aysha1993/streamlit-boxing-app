@@ -272,9 +272,8 @@ import cv2
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     
-    st.info(f"keypoints {len(keypoints)}punches: {len(punches)} at postures={len(postures)}, gloves={len(gloves)}")
+    #st.info(f"keypoints {len(keypoints)}punches: {len(punches)} at postures={len(postures)}, gloves={len(gloves)}")
     
-
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
     postures = postures + [""] * (max_people - len(postures))
@@ -322,9 +321,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
         y_offset += line_height
 
     return frame
-
-
-
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
