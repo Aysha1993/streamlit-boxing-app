@@ -205,80 +205,80 @@ SKELETON_EDGES = [
     (11, 12)                                # Hip line
 ]
 
-def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
-    h, w, _ = frame.shape
+# def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
+#     h, w, _ = frame.shape
 
-    for person in keypoints_with_scores:
-        keypoints = person[:17]
+#     for person in keypoints_with_scores:
+#         keypoints = person[:17]
 
-        # Draw keypoints with names
-        for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
-            cx = int(x * w)
-            cy = int(y * h)
-            color = (0, 255, 255) if score > threshold else (255, 0, 255)
-            cv2.circle(frame, (cx, cy), 4, color, -1)
-            cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
+#         # Draw keypoints with names
+#         for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
+#             cx = int(x * w)
+#             cy = int(y * h)
+#             color = (0, 255, 255) if score > threshold else (255, 0, 255)
+#             cv2.circle(frame, (cx, cy), 4, color, -1)
+#             cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+#                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
 
-        # Draw skeleton connections
-        for p1, p2 in SKELETON_EDGES:
-            y1, x1, s1 = keypoints[p1]
-            y2, x2, s2 = keypoints[p2]
-            if s1 > threshold and s2 > threshold:
-                pt1 = (int(x1 * w), int(y1 * h))
-                pt2 = (int(x2 * w), int(y2 * h))
-                cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
-
-    return frame
-
-# def draw_annotations(frame, keypoints, punches, postures, gloves):
-#     h, w = frame.shape[:2]
-#     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
-
-#     max_people = len(keypoints)
-#     punches = punches + [""] * (max_people - len(punches))
-#     postures = postures + [""] * (max_people - len(postures))
-#     gloves = gloves + [""] * (max_people - len(gloves))
-
-
-#     for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
-#         # Draw keypoints
-
-#         for i, (x, y, s) in enumerate(kp):
-#           if s < 0.2:
-#               print(f"Keypoint {i} below threshold: score={s}")
-#               cx, cy = int(x * w), int(y * h)
-#               cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-
-#         # Draw skeleton
-#         for (p1, p2) in SKELETON_EDGES:            
-#             x1, y1, s1 = kp[p1]
-#             x2, y2, s2 = kp[p2]
-#             if s1 > 0.2 and s2 > 0.2:
-#                 pt1 = int(x1 * w), int(y1 * h)
-#                 pt2 = int(x2 * w), int(y2 * h)
-#                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-#         # Draw gloves (based on wrists)
-#         for side, wrist_idx in zip(["L", "R"], [9, 10]):
-#             y, x, s = kp[wrist_idx]
-#             if s > 0.2:
-#                 cx, cy = int(x * w), int(y * h)
-#                 pad = 15
-#                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
-#                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-#                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
-
-#         # Draw punch and posture label
-#         visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-#         if visible_points:
-#             y_coords, x_coords = zip(*visible_points)
-#             min_x = int(min(x_coords) * w)
-#             max_y = int(max(y_coords) * h)
-#             cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
-#                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+#         # Draw skeleton connections
+#         for p1, p2 in SKELETON_EDGES:
+#             y1, x1, s1 = keypoints[p1]
+#             y2, x2, s2 = keypoints[p2]
+#             if s1 > threshold and s2 > threshold:
+#                 pt1 = (int(x1 * w), int(y1 * h))
+#                 pt2 = (int(x2 * w), int(y2 * h))
+#                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
+
+def draw_annotations(frame, keypoints, punches, postures, gloves):
+    h, w = frame.shape[:2]
+    print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
+
+    max_people = len(keypoints)
+    punches = punches + [""] * (max_people - len(punches))
+    postures = postures + [""] * (max_people - len(postures))
+    gloves = gloves + [""] * (max_people - len(gloves))
+
+
+    for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
+        # Draw keypoints
+
+        for i, (x, y, s) in enumerate(kp):
+          if s < 0.2:
+              print(f"Keypoint {i} below threshold: score={s}")
+              cx, cy = int(x * w), int(y * h)
+              cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+
+        # Draw skeleton
+        for (p1, p2) in SKELETON_EDGES:            
+            x1, y1, s1 = kp[p1]
+            x2, y2, s2 = kp[p2]
+            if s1 > 0.2 and s2 > 0.2:
+                pt1 = int(x1 * w), int(y1 * h)
+                pt2 = int(x2 * w), int(y2 * h)
+                cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+        # Draw gloves (based on wrists)
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                pad = 15
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+
+        # Draw punch and posture label
+        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
+        if visible_points:
+            y_coords, x_coords = zip(*visible_points)
+            min_x = int(min(x_coords) * w)
+            max_y = int(max(y_coords) * h)
+            cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    return frame
 
 
 def expand_keypoints(keypoints):
@@ -349,8 +349,8 @@ if uploaded_files:
             postures = check_posture(keypoints)
             gloves = detect_gloves(keypoints)
 
-            #annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
-            annotated = draw_annotations(frame.copy(), keypoints,0.2 )
+            annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
+            #annotated = draw_annotations(frame.copy(), keypoints,0.2)
             out_writer.write(annotated)
 
             for i in range(len(punches)):
