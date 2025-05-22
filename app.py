@@ -296,8 +296,8 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-        if is_likely_coach(kp):
-          continue  # skip this person
+        # if is_likely_coach(kp):
+        #   continue  # skip this person
         # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
