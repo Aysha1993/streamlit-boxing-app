@@ -230,7 +230,6 @@ SKELETON_EDGES = [
 #                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
-
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
@@ -243,17 +242,15 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
 
     for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
         # Draw keypoints
-
-        for i, (x, y, s) in enumerate(kp):
-          if s < 0.2:
-              print(f"Keypoint {i} below threshold: score={s}")
-              cx, cy = int(x * w), int(y * h)
-              cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+        for (y, x, s) in kp:
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
 
         # Draw skeleton
-        for (p1, p2) in SKELETON_EDGES:            
-            x1, y1, s1 = kp[p1]
-            x2, y2, s2 = kp[p2]
+        for (p1, p2) in SKELETON_EDGES:
+            y1, x1, s1 = kp[p1]
+            y2, x2, s2 = kp[p2]
             if s1 > 0.2 and s2 > 0.2:
                 pt1 = int(x1 * w), int(y1 * h)
                 pt2 = int(x2 * w), int(y2 * h)
@@ -279,7 +276,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return frame
-
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
