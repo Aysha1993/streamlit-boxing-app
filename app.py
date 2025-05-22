@@ -314,6 +314,25 @@ def expand_keypoints(keypoints):
         return pd.Series(data)
     except Exception:
         return pd.Series()
+def rescale_keypoints(keypoints, input_size, original_size):
+    input_height, input_width = input_size
+    orig_height, orig_width = original_size
+
+    # Compute scale and padding from resize_with_pad
+    scale = min(input_width / orig_width, input_height / orig_height)
+    pad_x = (input_width - orig_width * scale) / 2
+    pad_y = (input_height - orig_height * scale) / 2
+
+    rescaled = []
+    for person in keypoints:
+        kp_person = []
+        for y, x, s in person:
+            # Undo padding and scaling
+            x_unpad = (x * input_width - pad_x) / scale
+            y_unpad = (y * input_height - pad_y) / scale
+            kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
+        rescaled.append(kp_person)
+    return rescaled
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -365,8 +384,11 @@ if uploaded_files:
             postures = check_posture(keypoints)
             gloves = detect_gloves(keypoints)
 
-            annotated = draw_annotations(frame.copy(), keypoints, punches, postures, gloves)
-            #annotated = draw_annotations(frame.copy(), keypoints,0.2)
+            h, w = frame.shape[:2]
+            
+            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
+            
             out_writer.write(annotated)
 
             for i in range(len(punches)):
