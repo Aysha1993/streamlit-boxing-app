@@ -230,6 +230,25 @@ SKELETON_EDGES = [
 #                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
+
+
+KEYPOINT_NAMES = [
+    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+    "left_wrist", "right_wrist", "left_hip", "right_hip",
+    "left_knee", "right_knee", "left_ankle", "right_ankle"
+]
+
+SKELETON_EDGES = [
+    (0, 1), (1, 3), (0, 2), (2, 4),         # Face
+    (5, 7), (7, 9), (6, 8), (8, 10),        # Arms
+    (5, 6), (5, 11), (6, 12),               # Torso
+    (11, 13), (13, 15), (12, 14), (14, 16), # Legs
+    (11, 12)                                # Hip line
+]
+
+import cv2
+
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
     print("keypoints:", len(keypoints), "punches:", len(punches), "postures:", len(postures), "gloves:", len(gloves))
@@ -239,15 +258,19 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     postures = postures + [""] * (max_people - len(postures))
     gloves = gloves + [""] * (max_people - len(gloves))
 
+    y_offset = 30
+    line_height = 20
 
-    for kp, punch, posture, glove in zip(keypoints, punches, postures, gloves):
-        # Draw keypoints
-        for (y, x, s) in kp:
+    for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+        # --- Draw Keypoints and Their Names ---
+        for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1, cv2.LINE_AA)
 
-        # Draw skeleton
+        # --- Draw Skeleton ---
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -256,7 +279,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 pt2 = int(x2 * w), int(y2 * h)
                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw gloves (based on wrists)
+        # --- Draw Glove Boxes on Wrists ---
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             if s > 0.2:
@@ -266,14 +289,11 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
-        # Draw punch and posture label
-        visible_points = [(y, x) for (y, x, s) in kp if s > 0.2]
-        if visible_points:
-            y_coords, x_coords = zip(*visible_points)
-            min_x = int(min(x_coords) * w)
-            max_y = int(max(y_coords) * h)
-            cv2.putText(frame, f"{punch}, {posture}", (min_x, max_y + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # --- Draw Punch and Posture on Left of Frame ---
+        left_label = f"Person {idx+1}: {punch}, {posture}"
+        cv2.putText(frame, left_label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (255, 255, 0), 1, cv2.LINE_AA)
+        y_offset += line_height
 
     return frame
 
