@@ -186,51 +186,25 @@ def detect_gloves(keypoints, distance_thresh=0.1):
             "left": is_glove_present(lw, le),
             "right": is_glove_present(rw, re)
         })
+
     return gloves
 
-import cv2
+# def detect_gloves(keypoints, distance_thresh=0.1):
+#     gloves = []
+#     for kp in keypoints:
+#         lw, le = kp[9], kp[7]
+#         rw, re = kp[10], kp[8]
 
-def get_midhip(kps):
-    try:
-        lhip = kps[11]
-        rhip = kps[12]
-        if lhip[2] > 0.1 and rhip[2] > 0.1:
-            return ((lhip[0] + rhip[0]) / 2, (lhip[1] + rhip[1]) / 2)
-    except:
-        pass
-    return None
+#         def is_glove_present(wrist, elbow):
+#             if wrist[2] > 0.2 and elbow[2] > 0.2:
+#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
+#                 return dist > distance_thresh
+#             return False
 
-def get_motion_speed(history):
-    if len(history) < 2:
-        return 0.0
-    dx = history[-1][0] - history[0][0]
-    dy = history[-1][1] - history[0][1]
-    return np.sqrt(dx**2 + dy**2)
-
-def get_pose_shape_score(kps):
-    if len(kps) < 17:
-        return 0.0
-    try:
-        lh, rh = kps[11], kps[12]
-        ls, rs = kps[5], kps[6]
-        le, re = kps[7], kps[8]
-        torso = abs(ls[1] - lh[1]) + abs(rs[1] - rh[1])
-        arms_down = abs(le[1] - ls[1]) + abs(re[1] - rs[1])
-        return arms_down / (torso + 1e-6)
-    except:
-        return 0.0
-
-def is_inside_ring(midhip, zone):
-    if not midhip:
-        return False
-    x, y = midhip
-    x1, y1, x2, y2 = zone
-    return x1 <= x <= x2 and y1 <= y <= y2
-
-
-import cv2
-import numpy as np
-from collections import defaultdict
+#         left_glove = "yes" if is_glove_present(lw, le) else "no"
+#         right_glove = "yes" if is_glove_present(rw, re) else "no"
+#         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
+#     return gloves
 
 
 # 17 keypoints (based on MoveNet/COCO order)
@@ -250,104 +224,137 @@ SKELETON_EDGES = [
     (11, 12)                                # Hip line
 ]
 
-motion_history = defaultdict(list)  # store per person motion history (midhip)
+# def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
+#     h, w, _ = frame.shape
 
-def draw_annotations(frame, people, ring_zone=(0.3, 0.3, 0.7, 0.7)):
-    h, w, _ = frame.shape
+#     for person in keypoints_with_scores:
+#         keypoints = person[:17]
 
-    for pid, (keypoints, bbox) in enumerate(people):
-        # Get mid-hip for motion tracking
-        midhip = get_midhip(keypoints)
-        if midhip:
-            motion_history[pid].append(midhip)
-            if len(motion_history[pid]) > 10:
-                motion_history[pid].pop(0)
+#         # Draw keypoints with names
+#         for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
+#             cx = int(x * w)
+#             cy = int(y * h)
+#             color = (0, 255, 255) if score > threshold else (255, 0, 255)
+#             cv2.circle(frame, (cx, cy), 4, color, -1)
+#             cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+#                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
 
-        # Compute coach likelihood
-        speed = get_motion_speed(motion_history[pid])
-        pose_score = get_pose_shape_score(keypoints)
-        bbox_height = bbox[3] - bbox[1]
-        in_ring = is_inside_ring(midhip, ring_zone)
-
-        is_coach = (speed < 0.02 and pose_score > 0.7) or (in_ring and pose_score > 0.8)
-
-        # Annotate
-        color = (0, 255, 0) if is_coach else (0, 0, 255)
-        label = "Coach" if is_coach else "Boxer"
-
-        x1, y1, x2, y2 = [int(p * w if i % 2 == 0 else p * h) for i, p in enumerate(bbox)]
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(frame, f"{label} [{pid}]", (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
-        # Debug Info
-        debug_text = f"Spd:{speed:.2f} Pose:{pose_score:.2f} H:{bbox_height:.2f}"
-        cv2.putText(frame, debug_text, (x1, y2 + 15),
-                    cv2.FONT_HERSHEY_PLAIN, 1.0, (255, 255, 0), 1)
-
-    return frame
-
-
-# def draw_annotations(frame, keypoints, punches, postures, gloves):
-#     h, w = frame.shape[:2]
-#     st.info(f"[DEBUG] CoachCheck → keypoints={keypoints}")
-
-#     max_people = len(keypoints)
-#     punches = punches + [""] * (max_people - len(punches))
-#     postures = postures + [""] * (max_people - len(postures))
-#     gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
-
-#     y_offset = 30
-#     line_height = 20
-
-#     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-#         # # From flat list (length 51) to list of 17 [y, x, confidence]
-#         # kp = np.array(kp).reshape(-1, 3).tolist()
-
-#         # # Normalize keypoints (if not already normalized)
-#         # kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-#         # if is_likely_coach(kp_norm):
-#         #     continue
-
-#         # Draw keypoints
-#         for i, (y, x, s) in enumerate(kp):
-#             if s > 0.2:
-#                 cx, cy = int(x * w), int(y * h)
-#                 if 0 <= cx < w and 0 <= cy < h:
-#                     cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-#                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-#                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
-#         # Draw skeleton
-#         for (p1, p2) in SKELETON_EDGES:
-#             y1, x1, s1 = kp[p1]
-#             y2, x2, s2 = kp[p2]
-#             if s1 > 0.2 and s2 > 0.2:
-#                 pt1 = int(x1 * w), int(y1 * h)
-#                 pt2 = int(x2 * w), int(y2 * h)
-#                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-#                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-#         # Draw gloves (based on wrists)
-#         for side, wrist_idx in zip(["L", "R"], [9, 10]):
-#             y, x, s = kp[wrist_idx]
-#             if s > 0.2:
-#                 cx, cy = int(x * w), int(y * h)
-#                 pad = 15
-#                 # Check glove presence safely
-#                 has_glove = glove.get('left' if side == 'L' else 'right', False)
-#                 color = (0, 255, 255) if has_glove else (0, 0, 255)
-#                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-#                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-#                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-#         glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-#         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-#         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-#                     0.5, (255, 255, 0), 1)
-#         y_offset += line_height
+#         # Draw skeleton connections
+#         for p1, p2 in SKELETON_EDGES:
+#             y1, x1, s1 = keypoints[p1]
+#             y2, x2, s2 = keypoints[p2]
+#             if s1 > threshold and s2 > threshold:
+#                 pt1 = (int(x1 * w), int(y1 * h))
+#                 pt2 = (int(x2 * w), int(y2 * h))
+#                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
+
+import numpy as np
+
+def is_likely_coach(keypoints, 
+                    min_avg_conf=0.5,          
+                    min_bbox_height_ratio=0.3, 
+                    min_keypoints_detected=8):
+    """
+    Determine if a detected person is likely a coach or irrelevant detection.
+    """
+    confidences = [kp[2] for kp in keypoints]
+    st.info("testing")
+    st.info(f"{confidences}")
+    avg_conf = np.mean(confidences)
+    num_valid_kps = sum(c > 0.2 for c in confidences)
+    ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
+    bbox_height = max(ys) - min(ys) if ys else 0
+
+    is_coach = (
+        avg_conf < min_avg_conf or
+        num_valid_kps < min_keypoints_detected or
+        bbox_height < min_bbox_height_ratio
+    )
+
+    # Debug info
+    st.info(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={num_valid_kps}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
+    
+    return is_coach
+
+
+KEYPOINT_NAMES = [
+    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+    "left_wrist", "right_wrist", "left_hip", "right_hip",
+    "left_knee", "right_knee", "left_ankle", "right_ankle"
+]
+
+SKELETON_EDGES = [
+    (0, 1), (1, 3), (0, 2), (2, 4),         # Face
+    (5, 7), (7, 9), (6, 8), (8, 10),        # Arms
+    (5, 6), (5, 11), (6, 12),               # Torso
+    (11, 13), (13, 15), (12, 14), (14, 16), # Legs
+    (11, 12)                                # Hip line
+]
+
+import cv2
+
+def draw_annotations(frame, keypoints, punches, postures, gloves):
+    h, w = frame.shape[:2]
+
+    max_people = len(keypoints)
+    punches = punches + [""] * (max_people - len(punches))
+    postures = postures + [""] * (max_people - len(postures))
+    gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
+
+    y_offset = 30
+    line_height = 20
+
+    for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+        # From flat list (length 51) to list of 17 [y, x, confidence]
+        kp = np.array(kp).reshape(-1, 3).tolist()
+
+        # Normalize keypoints (if not already normalized)
+        kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+        if is_likely_coach(kp_norm):
+            continue
+
+        # Draw keypoints
+        for i, (y, x, s) in enumerate(kp):
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                if 0 <= cx < w and 0 <= cy < h:
+                    cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                    cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
+        # Draw skeleton
+        for (p1, p2) in SKELETON_EDGES:
+            y1, x1, s1 = kp[p1]
+            y2, x2, s2 = kp[p2]
+            if s1 > 0.2 and s2 > 0.2:
+                pt1 = int(x1 * w), int(y1 * h)
+                pt2 = int(x2 * w), int(y2 * h)
+                if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
+                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+        # Draw gloves (based on wrists)
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                pad = 15
+                # Check glove presence safely
+                has_glove = glove.get('left' if side == 'L' else 'right', False)
+                color = (0, 255, 255) if has_glove else (0, 0, 255)
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+        cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (255, 255, 0), 1)
+        y_offset += line_height
+
+    return frame
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
@@ -385,62 +392,6 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
-import numpy as np
-import tensorflow as tf
-import cv2
-
-def detect_people_with_keypoints_and_boxes(frame, model, input_size=256, score_threshold=0.3):
-    """
-    Detect people using MoveNet Multipose model and return list of (keypoints, bbox) for each person.
-
-    Args:
-        frame: input frame in BGR format (as from OpenCV)
-        model: MoveNet MultiPose model loaded with hub.load(...)
-        input_size: size to which frame is resized for model input
-        score_threshold: minimum confidence to include a keypoint
-
-    Returns:
-        List of (keypoints, bbox) for each person.
-            keypoints: List of (x, y, confidence) in normalized coordinates
-            bbox: Tuple (x1, y1, x2, y2) in normalized coordinates
-    """
-    h, w, _ = frame.shape
-    input_frame = cv2.resize(frame, (input_size, input_size))
-    input_image = tf.convert_to_tensor(input_frame, dtype=tf.uint8)
-    input_image = tf.expand_dims(input_image, axis=0)
-
-    # Run detection
-    outputs = model.signatures["serving_default"](input_image)
-    keypoints_with_scores = outputs['output_0'].numpy()[0]  # shape: (6, 56)
-
-    people = []
-    for person in keypoints_with_scores:
-        person_score = person[55]
-        if person_score < 0.2:
-            continue  # Skip very low-score detections
-
-        keypoints = []
-        xs = []
-        ys = []
-        for i in range(17):
-            y, x, confidence = person[i*3:(i+1)*3]
-            keypoints.append((x, y, confidence))
-            xs.append(x)
-            ys.append(y)
-
-        # Bounding box from valid keypoints
-        valid = [(x, y) for x, y, c in keypoints if c > score_threshold]
-        if len(valid) < 4:
-            continue
-        xs = [x for x, y in valid]
-        ys = [y for x, y in valid]
-        x1, y1 = max(min(xs), 0), max(min(ys), 0)
-        x2, y2 = min(max(xs), 1), min(max(ys), 1)
-        bbox = (x1, y1, x2, y2)
-
-        people.append((keypoints, bbox))
-
-    return people
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -496,13 +447,8 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
 
-             # Your person detection system should return these
-            people = detect_people_with_keypoints_and_boxes(frame,model,256,0.3)  # custom function
 
-            # Annotate with coach detection
-            annotated = draw_annotations(frame.copy(), people, ring_zone=(0.3, 0.3, 0.7, 0.7))
-
-            # annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
 
             out_writer.write(annotated)
 
