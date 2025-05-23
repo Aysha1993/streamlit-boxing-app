@@ -251,7 +251,7 @@ def is_likely_coach(keypoints, confidence_threshold=0.3, min_bbox_height=0.05):
 
     is_coach = bbox_height < min_bbox_height or avg_conf < 0.3
 
-    print(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={len(valid_kps)}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
+    st.info(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={len(valid_kps)}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
 
     return is_coach
 
