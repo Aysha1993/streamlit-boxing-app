@@ -497,7 +497,7 @@ if uploaded_files:
             h, w = frame.shape[:2]
 
              # Your person detection system should return these
-            people = detect_people_with_keypoints_and_boxes(frame)  # custom function
+            people = detect_people_with_keypoints_and_boxes(frame,model,256,0.3)  # custom function
 
             # Annotate with coach detection
             annotated = draw_annotations(frame.copy(), people, ring_zone=(0.3, 0.3, 0.7, 0.7))
