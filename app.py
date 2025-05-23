@@ -308,6 +308,9 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+        # From flat list (length 51) to list of 17 [y, x, confidence]
+        kp = np.array(kp).reshape(-1, 3).tolist()
+
         # Normalize keypoints (if not already normalized)
         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
         if is_likely_coach(kp_norm):
