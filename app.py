@@ -416,7 +416,7 @@ if uploaded_files:
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
             # 🚫 Filter out likely coaches
-            keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
+            #keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
 
             if not keypoints:
                 out_writer.write(frame)
