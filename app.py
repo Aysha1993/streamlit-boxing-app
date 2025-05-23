@@ -253,9 +253,9 @@ SKELETON_EDGES = [
 import numpy as np
 
 def is_likely_coach(keypoints, 
-                    min_avg_conf=0.3,          # minimum average confidence to consider valid person
-                    min_bbox_height_ratio=0.2, # minimum normalized bbox height to consider valid person
-                    min_keypoints_detected=5): # minimum number of keypoints with confidence > 0.2
+                    min_avg_conf=0.4,          # minimum average confidence to consider valid person
+                    min_bbox_height_ratio=0.25, # minimum normalized bbox height to consider valid person
+                    min_keypoints_detected=6): # minimum number of keypoints with confidence > 0.2
     """
     Determine if a detected person is likely a coach or background by:
     - Checking average confidence of keypoints
@@ -308,14 +308,14 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
     postures = postures + [""] * (max_people - len(postures))
-    gloves = gloves + [{}] * (max_people - len(gloves))  # default empty dict for gloves
+    gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
 
     y_offset = 30
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
         if is_likely_coach(kp):
-            continue  # Skip drawing for likely coaches/backgrounds
+            continue  # Skip coaches or invalid poses
 
         # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
@@ -342,23 +342,20 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 pad = 15
-                color = (0, 0, 255)  # default red no glove
-                # Only draw glove box if glove info present and True
-                if isinstance(glove, dict) and glove.get(side.lower()):
-                    color = (0, 255, 255)  # yellow = glove present
+                # Check glove presence safely
+                has_glove = glove.get('left' if side == 'L' else 'right', False)
+                color = (0, 255, 255) if has_glove else (0, 0, 255)
                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        # Compose label for person
-        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}" if isinstance(glove, dict) else "No glove info"
-        label = f"Person {idx + 1}: {punch}, {posture}, Gloves: {glove_str}"
+        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
 
     return frame
-
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
