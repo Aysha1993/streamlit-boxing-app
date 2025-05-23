@@ -303,7 +303,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
         # kp_norm = [[y / h, x / w, s] for y, x, s in kp] 
 
-        if is_likely_coach(kp):
+        if not is_likely_coach(kp):
             avg_conf = np.mean([p[2] for p in kp])
             ys = [p[0] for p in kp if p[2] > 0.2]
             bbox_height = max(ys) - min(ys) if ys else 0
