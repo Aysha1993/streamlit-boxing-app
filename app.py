@@ -410,7 +410,7 @@ def detect_people_with_keypoints_and_boxes(frame, model, input_size=256, score_t
     input_image = tf.expand_dims(input_image, axis=0)
 
     # Run detection
-    outputs = model(input_image)
+    outputs = model.signatures["serving_default"](input_image)
     keypoints_with_scores = outputs['output_0'].numpy()[0]  # shape: (6, 56)
 
     people = []
