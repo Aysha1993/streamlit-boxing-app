@@ -186,26 +186,7 @@ def detect_gloves(keypoints, distance_thresh=0.1):
             "left": is_glove_present(lw, le),
             "right": is_glove_present(rw, re)
         })
-
     return gloves
-
-# def detect_gloves(keypoints, distance_thresh=0.1):
-#     gloves = []
-#     for kp in keypoints:
-#         lw, le = kp[9], kp[7]
-#         rw, re = kp[10], kp[8]
-
-#         def is_glove_present(wrist, elbow):
-#             if wrist[2] > 0.2 and elbow[2] > 0.2:
-#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
-#                 return dist > distance_thresh
-#             return False
-
-#         left_glove = "yes" if is_glove_present(lw, le) else "no"
-#         right_glove = "yes" if is_glove_present(rw, re) else "no"
-#         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
-#     return gloves
-
 
 # 17 keypoints (based on MoveNet/COCO order)
 KEYPOINT_NAMES = [
@@ -298,6 +279,7 @@ import cv2
 
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
+    st.info(f"[DEBUG] CoachCheck → keypoints={keypoints}")
 
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
