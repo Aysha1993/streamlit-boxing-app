@@ -313,7 +313,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
 
         # Normalize keypoints (if not already normalized)
         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-        if is_likely_coach(kp_norm):
+        if is_likely_coach(kp):
             continue
 
         # Draw keypoints
