@@ -233,30 +233,26 @@ SKELETON_EDGES = [
 
 import numpy as np
 
-def is_likely_coach(keypoints, 
-                    min_avg_conf=0.5,          
-                    min_bbox_height_ratio=0.3, 
-                    min_keypoints_detected=8):
+def is_likely_coach(keypoints, confidence_threshold=0.3, min_bbox_height=0.05):
     """
-    Determine if a detected person is likely a coach or irrelevant detection.
+    Heuristically determine if a person is a coach based on keypoints.
+    - If the bbox height is too small (standing still), consider as coach.
+    - If average keypoint confidence is low, consider as coach.
     """
-    confidences = [kp[2] for kp in keypoints]
-    st.info("testing")
-    st.info(f"{confidences}")
-    avg_conf = np.mean(confidences)
-    num_valid_kps = sum(c > 0.2 for c in confidences)
-    ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
-    bbox_height = max(ys) - min(ys) if ys else 0
-
-    is_coach = (
-        avg_conf < min_avg_conf or
-        num_valid_kps < min_keypoints_detected or
-        bbox_height < min_bbox_height_ratio
-    )
-
-    # Debug info
-    st.info(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={num_valid_kps}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
+    valid_kps = [kp for kp in keypoints if kp[2] > confidence_threshold]
     
+    if len(valid_kps) < 5:
+        return True  # Not enough keypoints to be a boxer
+
+    ys = [kp[0] for kp in valid_kps]  # y is vertical in normalized coords
+    bbox_height = max(ys) - min(ys)
+    
+    avg_conf = sum([kp[2] for kp in valid_kps]) / len(valid_kps)
+
+    is_coach = bbox_height < min_bbox_height or avg_conf < 0.3
+
+    print(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={len(valid_kps)}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
+
     return is_coach
 
 
@@ -277,66 +273,98 @@ SKELETON_EDGES = [
 
 import cv2
 
-def draw_annotations(frame, keypoints, punches, postures, gloves):
+def draw_annotations(frame, keypoints_list, confidence_threshold=0.3, debug=False):
+    """
+    Draw skeleton and optional bounding boxes for each person.
+    """
     h, w = frame.shape[:2]
-    st.info(f"[DEBUG] CoachCheck → keypoints={keypoints}")
 
-    max_people = len(keypoints)
-    punches = punches + [""] * (max_people - len(punches))
-    postures = postures + [""] * (max_people - len(postures))
-    gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
-
-    y_offset = 30
-    line_height = 20
-
-    for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-        # From flat list (length 51) to list of 17 [y, x, confidence]
-        kp = np.array(kp).reshape(-1, 3).tolist()
-
-        # Normalize keypoints (if not already normalized)
-        kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-        if is_likely_coach(kp_norm):
-            continue
-
-        # Draw keypoints
-        for i, (y, x, s) in enumerate(kp):
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                if 0 <= cx < w and 0 <= cy < h:
-                    cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                    cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+    for keypoints in keypoints_list:
+        #keypoints = np.array(keypoints).reshape(-1, 3).tolist()
+        if is_likely_coach(keypoints, confidence_threshold):
+            continue  # Skip drawing coach
 
         # Draw skeleton
-        for (p1, p2) in SKELETON_EDGES:
-            y1, x1, s1 = kp[p1]
-            y2, x2, s2 = kp[p2]
-            if s1 > 0.2 and s2 > 0.2:
-                pt1 = int(x1 * w), int(y1 * h)
-                pt2 = int(x2 * w), int(y2 * h)
-                if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-        # Draw gloves (based on wrists)
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.2:
+        for idx, (y, x, conf) in enumerate(keypoints):
+            if conf > confidence_threshold:
                 cx, cy = int(x * w), int(y * h)
-                pad = 15
-                # Check glove presence safely
-                has_glove = glove.get('left' if side == 'L' else 'right', False)
-                color = (0, 255, 255) if has_glove else (0, 0, 255)
-                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                cv2.putText(frame, str(idx), (cx+3, cy-3), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
-        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-        cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5, (255, 255, 0), 1)
-        y_offset += line_height
+        if debug:
+            # Bounding box debug visualization
+            valid_kps = [kp for kp in keypoints if kp[2] > confidence_threshold]
+            if valid_kps:
+                ys = [kp[0] for kp in valid_kps]
+                xs = [kp[1] for kp in valid_kps]
+                min_y, max_y = min(ys), max(ys)
+                min_x, max_x = min(xs), max(xs)
+                pt1 = (int(min_x * w), int(min_y * h))
+                pt2 = (int(max_x * w), int(max_y * h))
+                cv2.rectangle(frame, pt1, pt2, (0, 255, 255), 2)
+                cv2.putText(frame, "Boxer", (pt1[0], pt1[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
 
-    return frame
+
+# def draw_annotations(frame, keypoints, punches, postures, gloves):
+#     h, w = frame.shape[:2]
+#     st.info(f"[DEBUG] CoachCheck → keypoints={keypoints}")
+
+#     max_people = len(keypoints)
+#     punches = punches + [""] * (max_people - len(punches))
+#     postures = postures + [""] * (max_people - len(postures))
+#     gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
+
+#     y_offset = 30
+#     line_height = 20
+
+#     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+#         # From flat list (length 51) to list of 17 [y, x, confidence]
+#         kp = np.array(kp).reshape(-1, 3).tolist()
+
+#         # Normalize keypoints (if not already normalized)
+#         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+#         if is_likely_coach(kp_norm):
+#             continue
+
+#         # Draw keypoints
+#         for i, (y, x, s) in enumerate(kp):
+#             if s > 0.2:
+#                 cx, cy = int(x * w), int(y * h)
+#                 if 0 <= cx < w and 0 <= cy < h:
+#                     cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+#                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+#                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
+#         # Draw skeleton
+#         for (p1, p2) in SKELETON_EDGES:
+#             y1, x1, s1 = kp[p1]
+#             y2, x2, s2 = kp[p2]
+#             if s1 > 0.2 and s2 > 0.2:
+#                 pt1 = int(x1 * w), int(y1 * h)
+#                 pt2 = int(x2 * w), int(y2 * h)
+#                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
+#                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+#         # Draw gloves (based on wrists)
+#         for side, wrist_idx in zip(["L", "R"], [9, 10]):
+#             y, x, s = kp[wrist_idx]
+#             if s > 0.2:
+#                 cx, cy = int(x * w), int(y * h)
+#                 pad = 15
+#                 # Check glove presence safely
+#                 has_glove = glove.get('left' if side == 'L' else 'right', False)
+#                 color = (0, 255, 255) if has_glove else (0, 0, 255)
+#                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+#                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+#                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+#         glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+#         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+#         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+#                     0.5, (255, 255, 0), 1)
+#         y_offset += line_height
+
+#     return frame
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
