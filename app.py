@@ -457,8 +457,8 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
 
-
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
+            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, 0.3,False)
 
             out_writer.write(annotated)
 
