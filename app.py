@@ -260,8 +260,7 @@ def is_likely_coach(keypoints,
     Determine if a detected person is likely a coach or irrelevant detection.
     """
     confidences = [kp[2] for kp in keypoints]
-    st.info("testing")
-    st.info(f"{confidences}")
+    # st.info(f"{confidences}")
     avg_conf = np.mean(confidences)
     num_valid_kps = sum(c > 0.2 for c in confidences)
     ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
@@ -310,10 +309,10 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
         # From flat list (length 51) to list of 17 [y, x, confidence]
         kp = np.array(kp).reshape(-1, 3).tolist()
-
+        st.info(f"keypoints={kp}")
         # Normalize keypoints (if not already normalized)
         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-        if not is_likely_coach(kp):
+        if is_likely_coach(kp):
             # Draw keypoints
             for i, (y, x, s) in enumerate(kp):
                 if s > 0.2:
