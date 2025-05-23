@@ -249,20 +249,41 @@ SKELETON_EDGES = [
 #                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
 
 #     return frame
-def is_likely_coach(keypoints, min_avg_conf=0.3, min_bbox_height_ratio=0.2):
-    # Calculate average keypoint confidence
-    avg_conf = np.mean([kp[2] for kp in keypoints])
+
+import numpy as np
+
+def is_likely_coach(keypoints, 
+                    min_avg_conf=0.3,          # minimum average confidence to consider valid person
+                    min_bbox_height_ratio=0.2, # minimum normalized bbox height to consider valid person
+                    min_keypoints_detected=5): # minimum number of keypoints with confidence > 0.2
+    """
+    Determine if a detected person is likely a coach or background by:
+    - Checking average confidence of keypoints
+    - Checking bounding box height in normalized coordinates
+    - Checking number of confidently detected keypoints
+    """
+    confidences = [kp[2] for kp in keypoints]
+    avg_conf = np.mean(confidences)
+
+    # Too low confidence overall? Probably not a valid player
     if avg_conf < min_avg_conf:
-        return True  # likely background / coach
+        return True
 
-    # Estimate bounding box height (y range)
+    # Count keypoints with decent confidence
+    num_valid_kps = sum(c > 0.2 for c in confidences)
+    if num_valid_kps < min_keypoints_detected:
+        return True
+
+    # Bounding box height in normalized y (vertical)
     ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
-    if ys:
-        bbox_height = max(ys) - min(ys)
-        if bbox_height < min_bbox_height_ratio:
-            return True  # very small pose in normalized space = far away
-    return False
+    if not ys:
+        return True  # no valid points at all
 
+    bbox_height = max(ys) - min(ys)
+    if bbox_height < min_bbox_height_ratio:
+        return True
+
+    return False
 
 KEYPOINT_NAMES = [
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -281,23 +302,21 @@ SKELETON_EDGES = [
 
 import cv2
 
-
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
-
-    #st.info(f"keypoints {len(keypoints)}punches: {len(punches)} at postures={len(postures)}, gloves={len(gloves)}")
 
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
     postures = postures + [""] * (max_people - len(postures))
-    gloves = gloves + [""] * (max_people - len(gloves))
+    gloves = gloves + [{}] * (max_people - len(gloves))  # default empty dict for gloves
 
     y_offset = 30
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-        # if is_likely_coach(kp):
-        #   continue  # skip this person
+        if is_likely_coach(kp):
+            continue  # Skip drawing for likely coaches/backgrounds
+
         # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
@@ -317,35 +336,29 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # # Draw glove indicator as colored circle at wrist
-        # for side, idx_wrist in zip(['left', 'right'], [9, 10]):
-        #     y, x, s = kp[idx_wrist]
-        #     if s > 0.2:
-        #         cx, cy = int(x * w), int(y * h)
-        #         if glove.get(side):
-        #             color = (0, 255, 255)  # yellow = glove present
-        #         else:
-        #             color = (0, 0, 255)    # red = no glove
-        #         cv2.circle(frame, (cx, cy), 6, color, 2)
-
         # Draw gloves (based on wrists)
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
                 pad = 15
-                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                color = (0, 0, 255)  # default red no glove
+                # Only draw glove box if glove info present and True
+                if isinstance(glove, dict) and glove.get(side.lower()):
+                    color = (0, 255, 255)  # yellow = glove present
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        # Punch/Posture/Glove label
-        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+        # Compose label for person
+        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}" if isinstance(glove, dict) else "No glove info"
+        label = f"Person {idx + 1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
 
     return frame
+
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
