@@ -317,16 +317,26 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw glove indicator as colored circle at wrist
-        for side, idx_wrist in zip(['left', 'right'], [9, 10]):
-            y, x, s = kp[idx_wrist]
+        # # Draw glove indicator as colored circle at wrist
+        # for side, idx_wrist in zip(['left', 'right'], [9, 10]):
+        #     y, x, s = kp[idx_wrist]
+        #     if s > 0.2:
+        #         cx, cy = int(x * w), int(y * h)
+        #         if glove.get(side):
+        #             color = (0, 255, 255)  # yellow = glove present
+        #         else:
+        #             color = (0, 0, 255)    # red = no glove
+        #         cv2.circle(frame, (cx, cy), 6, color, 2)
+
+        # Draw gloves (based on wrists)
+        for side, wrist_idx in zip(["L", "R"], [9, 10]):
+            y, x, s = kp[wrist_idx]
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
-                if glove.get(side):
-                    color = (0, 255, 255)  # yellow = glove present
-                else:
-                    color = (0, 0, 255)    # red = no glove
-                cv2.circle(frame, (cx, cy), 6, color, 2)
+                pad = 15
+                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 0, 255), 2)
+                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         # Punch/Posture/Glove label
         glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
