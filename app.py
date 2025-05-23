@@ -284,9 +284,9 @@ import cv2
 
 def draw_annotations(frame, keypoints, punches, postures, gloves):
     h, w = frame.shape[:2]
-    
+
     #st.info(f"keypoints {len(keypoints)}punches: {len(punches)} at postures={len(postures)}, gloves={len(gloves)}")
-    
+
     max_people = len(keypoints)
     punches = punches + [""] * (max_people - len(punches))
     postures = postures + [""] * (max_people - len(postures))
@@ -417,7 +417,7 @@ if uploaded_files:
             keypoints = extract_keypoints(results)
             # 🚫 Filter out likely coaches
             keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
-            
+
             if not keypoints:
                 out_writer.write(frame)
                 continue
@@ -427,10 +427,10 @@ if uploaded_files:
             gloves = detect_gloves(rescaledkeypoints)
 
             h, w = frame.shape[:2]
-            
-            
+
+
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            
+
             out_writer.write(annotated)
 
             for i in range(len(punches)):
