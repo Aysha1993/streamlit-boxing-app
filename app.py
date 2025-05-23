@@ -253,37 +253,31 @@ SKELETON_EDGES = [
 import numpy as np
 
 def is_likely_coach(keypoints, 
-                    min_avg_conf=0.4,          # minimum average confidence to consider valid person
-                    min_bbox_height_ratio=0.25, # minimum normalized bbox height to consider valid person
-                    min_keypoints_detected=6): # minimum number of keypoints with confidence > 0.2
+                    min_avg_conf=0.5,          
+                    min_bbox_height_ratio=0.3, 
+                    min_keypoints_detected=8):
     """
-    Determine if a detected person is likely a coach or background by:
-    - Checking average confidence of keypoints
-    - Checking bounding box height in normalized coordinates
-    - Checking number of confidently detected keypoints
+    Determine if a detected person is likely a coach or irrelevant detection.
     """
     confidences = [kp[2] for kp in keypoints]
+    st.info("testing")
+    st.info(f"{confidences}")
     avg_conf = np.mean(confidences)
-
-    # Too low confidence overall? Probably not a valid player
-    if avg_conf < min_avg_conf:
-        return True
-
-    # Count keypoints with decent confidence
     num_valid_kps = sum(c > 0.2 for c in confidences)
-    if num_valid_kps < min_keypoints_detected:
-        return True
-
-    # Bounding box height in normalized y (vertical)
     ys = [kp[0] for kp in keypoints if kp[2] > 0.2]
-    if not ys:
-        return True  # no valid points at all
+    bbox_height = max(ys) - min(ys) if ys else 0
 
-    bbox_height = max(ys) - min(ys)
-    if bbox_height < min_bbox_height_ratio:
-        return True
+    is_coach = (
+        avg_conf < min_avg_conf or
+        num_valid_kps < min_keypoints_detected or
+        bbox_height < min_bbox_height_ratio
+    )
 
-    return False
+    # Debug info
+    st.info(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={num_valid_kps}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
+    
+    return is_coach
+
 
 KEYPOINT_NAMES = [
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -314,8 +308,10 @@ def draw_annotations(frame, keypoints, punches, postures, gloves):
     line_height = 20
 
     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-        if is_likely_coach(kp):
-            continue  # Skip coaches or invalid poses
+        # Normalize keypoints (if not already normalized)
+        kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+        if is_likely_coach(kp_norm):
+            continue
 
         # Draw keypoints
         for i, (y, x, s) in enumerate(kp):
