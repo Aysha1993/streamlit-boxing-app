@@ -577,11 +577,12 @@ if uploaded_files:
         all_cols_present = all(col in df_full.columns for col in keypoint_cols)
         st.info(f"All keypoint columns in dataframe: {keypoint_cols}")   
 
-        X = df[keypoint_cols].values
+        X = df_full[keypoint_cols].values
+        st.info(f"All X values in dataframe: {X}")
 
         # Encode labels
         le = LabelEncoder()
-        y = le.fit_transform(df['punch'].values)
+        y = le.fit_transform(df_full['punch'].values)
 
         # Split train-test
         X_train, X_test, y_train, y_test = train_test_split(
