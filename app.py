@@ -303,16 +303,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
         #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
 
-        if is_likely_coach(kp):
-            avg_conf = np.mean([p[2] for p in kp])
-            ys = [p[0] for p in kp if p[2] > 0.2]
-            bbox_height = max(ys) - min(ys) if ys else 0
-            valid_detections.append((avg_conf, bbox_height, kp, punch, posture, glove))
-
-    #Keep top 2 tallest persons (most likely boxers)
-    valid_detections = sorted(valid_detections, key=lambda x: x[1], reverse=True)[:2]
-
-    for idx, (avg_conf, bbox_height, kp, punch, posture, glove) in enumerate(valid_detections):
         #Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
@@ -350,6 +340,54 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
+
+    #     if is_likely_coach(kp):
+    #         avg_conf = np.mean([p[2] for p in kp])
+    #         ys = [p[0] for p in kp if p[2] > 0.2]
+    #         bbox_height = max(ys) - min(ys) if ys else 0
+    #         valid_detections.append((avg_conf, bbox_height, kp, punch, posture, glove))
+
+    # #Keep top 2 tallest persons (most likely boxers)
+    # valid_detections = sorted(valid_detections, key=lambda x: x[1], reverse=True)[:2]
+
+    # for idx, (avg_conf, bbox_height, kp, punch, posture, glove) in enumerate(valid_detections):
+    #     #Draw keypoints
+    #     for i, (y, x, s) in enumerate(kp):
+    #         if s > 0.2:
+    #             cx, cy = int(x * w), int(y * h)
+    #             if 0 <= cx < w and 0 <= cy < h:
+    #                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+    #                 cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+    #                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
+    #     #Draw skeleton
+    #     for (p1, p2) in SKELETON_EDGES:
+    #         y1, x1, s1 = kp[p1]
+    #         y2, x2, s2 = kp[p2]
+    #         if s1 > 0.2 and s2 > 0.2:
+    #             pt1 = int(x1 * w), int(y1 * h)
+    #             pt2 = int(x2 * w), int(y2 * h)
+    #             if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
+    #                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+    #     #Draw gloves
+    #     for side, wrist_idx in zip(["L", "R"], [9, 10]):
+    #         y, x, s = kp[wrist_idx]
+    #         if s > 0.2:
+    #             cx, cy = int(x * w), int(y * h)
+    #             pad = 15
+    #             has_glove = glove.get('left' if side == 'L' else 'right', False)
+    #             color = (0, 255, 255) if has_glove else (0, 0, 255)
+    #             cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+    #             cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+    #                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+    #     #Final label
+    #     glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+    #     label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+    #     cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+    #                 0.5, (255, 255, 0), 1)
+    #     y_offset += line_height
 
     return frame
 
