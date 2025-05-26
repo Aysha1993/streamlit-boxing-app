@@ -602,7 +602,7 @@ if uploaded_files:
         y_pred = clf.predict(X_test)
 
         # Evaluation
-        print("Accuracy:", accuracy_score(y_test, y_pred))
+        st.info(f"Accuracy:  {accuracy_score(y_test, y_pred)}")
         print(classification_report(y_test, y_pred, target_names=le.classes_))
 
         # Save model and scaler
