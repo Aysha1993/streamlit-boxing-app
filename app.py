@@ -576,47 +576,43 @@ if uploaded_files:
 
         print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
 
-        X = df[keypoint_cols].values
-
-
-
-        # # Extract features: all keypoints x, y, s columns
+        # Extract features: all keypoints x, y, s columns
         # keypoint_cols = []
         # for i in range(17):
         #     keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
 
         # X = df[keypoint_cols].values
 
-        # Encode labels
-        le = LabelEncoder()
-        y = le.fit_transform(df['punch'].values)
+        # # Encode labels
+        # le = LabelEncoder()
+        # y = le.fit_transform(df['punch'].values)
 
-        # Split train-test
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y)
+        # # Split train-test
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #     X, y, test_size=0.2, random_state=42, stratify=y)
 
-        # Optional: scale features
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
+        # # Optional: scale features
+        # scaler = StandardScaler()
+        # X_train = scaler.fit_transform(X_train)
+        # X_test = scaler.transform(X_test)
 
-        # Train a Random Forest Classifier
-        clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
-        clf.fit(X_train, y_train)
+        # # Train a Random Forest Classifier
+        # clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        # clf.fit(X_train, y_train)
 
-        # Predict on test set
-        y_pred = clf.predict(X_test)
+        # # Predict on test set
+        # y_pred = clf.predict(X_test)
 
-        # Evaluation
-        print("Accuracy:", accuracy_score(y_test, y_pred))
-        print(classification_report(y_test, y_pred, target_names=le.classes_))
+        # # Evaluation
+        # print("Accuracy:", accuracy_score(y_test, y_pred))
+        # print(classification_report(y_test, y_pred, target_names=le.classes_))
 
-        # Save model and scaler
-        joblib.dump(clf, '/mnt/data/punch_classifier_rf.joblib')
-        joblib.dump(scaler, '/mnt/data/punch_scaler.joblib')
-        joblib.dump(le, '/mnt/data/punch_labelencoder.joblib')
+        # # Save model and scaler
+        # joblib.dump(clf, '/mnt/data/punch_classifier_rf.joblib')
+        # joblib.dump(scaler, '/mnt/data/punch_scaler.joblib')
+        # joblib.dump(le, '/mnt/data/punch_labelencoder.joblib')
 
-        print("Model, scaler and label encoder saved!")
+        # print("Model, scaler and label encoder saved!")
 
 
         # # Expand keypoints into flat features
