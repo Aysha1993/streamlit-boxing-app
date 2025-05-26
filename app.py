@@ -561,23 +561,32 @@ if uploaded_files:
         import joblib
 
         # Load data (assuming it's saved as CSV)
+
         # Flatten punch_log to DataFrame
-        df = pd.DataFrame(punch_log)
+        df_log = pd.DataFrame(punch_log)
+
+        # Expand keypoints into flat features
+        df_features = df_log['keypoints'].apply(expand_keypoints)
+        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
+
+        
+
+
 
         # Drop rows where punch is missing or N/A
-        df = df[df['punch'].notna()]
-        df = df[df['punch'] != 'N/A']
+        df_full = df_full[df_full['punch'].notna()]
+        df_full = df_full[df_full['punch'] != 'N/A']
 
         # df.columns = df.columns.str.strip()
 
         keypoint_cols = []
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
-        st.write("DataFrame columns:", df.columns.tolist())
+        st.write("DataFrame columns:", df_full.columns.tolist())
 
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
-        all_cols_present = all(col in df.columns for col in keypoint_cols)
+        all_cols_present = all(col in df_full.columns for col in keypoint_cols)
         st.info(f"All keypoint columns in dataframe: {all_cols_present}")
 
         # Extract features: all keypoints x, y, s columns
