@@ -574,7 +574,9 @@ if uploaded_files:
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
 
-        print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
+        # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
+        all_cols_present = all(col in df.columns for col in keypoint_cols)
+        st.info(f"All keypoint columns in dataframe: {all_cols_present}")
 
         # Extract features: all keypoints x, y, s columns
         # keypoint_cols = []
