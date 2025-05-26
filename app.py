@@ -603,14 +603,10 @@ if uploaded_files:
 
         # Evaluation
         st.info(f"Accuracy:  {accuracy_score(y_test, y_pred)}")
-        print(classification_report(y_test, y_pred, target_names=le.classes_))
+        classification=classification_report(y_test, y_pred, target_names=le.classes_)
+        st.info(f" classification = {classification}")
 
-        # Save model and scaler
-        joblib.dump(clf, '/mnt/data/punch_classifier_rf.joblib')
-        joblib.dump(scaler, '/mnt/data/punch_scaler.joblib')
-        joblib.dump(le, '/mnt/data/punch_labelencoder.joblib')
-
-        print("Model, scaler and label encoder saved!")
+       
 
 
         # # Expand keypoints into flat features
