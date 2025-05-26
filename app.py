@@ -391,66 +391,6 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
 
     return frame
 
-
-# def draw_annotations(frame, keypoints, punches, postures, gloves):
-#     h, w = frame.shape[:2]
-
-#     max_people = len(keypoints)
-#     punches = punches + [""] * (max_people - len(punches))
-#     postures = postures + [""] * (max_people - len(postures))
-#     gloves = gloves + [{}] * (max_people - len(gloves))  # gloves should be dicts
-
-#     y_offset = 30
-#     line_height = 20
-
-#     for idx, (kp, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
-#         # From flat list (length 51) to list of 17 [y, x, confidence]
-#         kp = np.array(kp).reshape(-1, 3).tolist()
-#         st.info(f"keypoints={kp}")
-#         # Normalize keypoints (if not already normalized)
-#         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-#         # if is_likely_coach(kp):
-#         #     continue
-#         # Draw keypoints
-#         for i, (y, x, s) in enumerate(kp):
-#             if s > 0.2:
-#                 cx, cy = int(x * w), int(y * h)
-#                 if 0 <= cx < w and 0 <= cy < h:
-#                     cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-#                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-#                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
-#         # Draw skeleton
-#         for (p1, p2) in SKELETON_EDGES:
-#             y1, x1, s1 = kp[p1]
-#             y2, x2, s2 = kp[p2]
-#             if s1 > 0.2 and s2 > 0.2:
-#                 pt1 = int(x1 * w), int(y1 * h)
-#                 pt2 = int(x2 * w), int(y2 * h)
-#                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-#                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-#         # Draw gloves (based on wrists)
-#         for side, wrist_idx in zip(["L", "R"], [9, 10]):
-#             y, x, s = kp[wrist_idx]
-#             if s > 0.2:
-#                 cx, cy = int(x * w), int(y * h)
-#                 pad = 15
-#                 # Check glove presence safely
-#                 has_glove = glove.get('left' if side == 'L' else 'right', False)
-#                 color = (0, 255, 255) if has_glove else (0, 0, 255)
-#                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-#                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-#                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-#         glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-#         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-#         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-#                     0.5, (255, 255, 0), 1)
-#         y_offset += line_height
-
-#     return frame
-
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
         try:
@@ -612,113 +552,168 @@ if uploaded_files:
         # Flatten punch_log to DataFrame
         df_log = pd.DataFrame(punch_log)
 
-        # Expand keypoints into flat features
-        df_features = df_log['keypoints'].apply(expand_keypoints)
-        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
+        import pandas as pd
+        import numpy as np
+        from sklearn.model_selection import train_test_split
+        from sklearn.preprocessing import LabelEncoder, StandardScaler
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.metrics import classification_report, accuracy_score
+        import joblib
 
-        st.success("✅ Extracted keypoints and labels for ML training.")
+        # Load data (assuming it's saved as CSV)
+        # Flatten punch_log to DataFrame
+        df = pd.DataFrame(punch_log)
+
+        # Drop rows where punch is missing or N/A
+        df = df[df['punch'].notna()]
+        df = df[df['punch'] != 'N/A']
+
+        # Extract features: all keypoints x, y, s columns
+        keypoint_cols = []
+        for i in range(17):
+            keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
+
+        X = df[keypoint_cols].values
+
+        # Encode labels
+        le = LabelEncoder()
+        y = le.fit_transform(df['punch'].values)
+
+        # Split train-test
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y)
+
+        # Optional: scale features
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        # Train a Random Forest Classifier
+        clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        clf.fit(X_train, y_train)
+
+        # Predict on test set
+        y_pred = clf.predict(X_test)
+
+        # Evaluation
+        print("Accuracy:", accuracy_score(y_test, y_pred))
+        print(classification_report(y_test, y_pred, target_names=le.classes_))
+
+        # Save model and scaler
+        joblib.dump(clf, '/mnt/data/punch_classifier_rf.joblib')
+        joblib.dump(scaler, '/mnt/data/punch_scaler.joblib')
+        joblib.dump(le, '/mnt/data/punch_labelencoder.joblib')
+
+        print("Model, scaler and label encoder saved!")
 
 
-        # Label encode target
-        label_encoder = LabelEncoder()
-        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
+        # # Expand keypoints into flat features
+        # df_features = df_log['keypoints'].apply(expand_keypoints)
+        # df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
 
-        # Feature/target split
-        X = df_full[[col for col in df_full.columns if col.startswith(('x_', 'y_', 's_'))]]
-        y = df_full['label']
+        # st.success("✅ Extracted keypoints and labels for ML training.")
 
-        # Train/test split
-        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
 
-        # Train classifiers
-        svm_model = svm.SVC(kernel='rbf')
-        tree_model = DecisionTreeClassifier(max_depth=5)
+        # # Label encode target
+        # label_encoder = LabelEncoder()
+        # df_full['label'] = label_encoder.fit_transform(df_full['punch'])
 
-        svm_model.fit(X_train, y_train)
-        tree_model.fit(X_train, y_train)
+        # # Feature/target split
+        # X = df_full[[col for col in df_full.columns if col.startswith(('x_', 'y_', 's_'))]]
+        # y = df_full['label']
 
-        # Evaluate
-        y_pred_svm = svm_model.predict(X_test)
-        y_pred_tree = tree_model.predict(X_test)
+        # # Train/test split
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
 
-        acc_svm = accuracy_score(y_test, y_pred_svm)
-        acc_tree = accuracy_score(y_test, y_pred_tree)
+        # # Train classifiers
+        # svm_model = svm.SVC(kernel='rbf')
+        # tree_model = DecisionTreeClassifier(max_depth=5)
 
-        st.subheader("📈 Model Evaluation")
-        st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
-        st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+        # svm_model.fit(X_train, y_train)
+        # tree_model.fit(X_train, y_train)
 
-        # Confusion Matrix
-        st.write("### Confusion Matrix (SVM)")
-        cm = confusion_matrix(y_test, y_pred_svm)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        disp.plot(ax=ax, cmap='Blues')
-        st.pyplot(fig)
+        # # Evaluate
+        # y_pred_svm = svm_model.predict(X_test)
+        # y_pred_tree = tree_model.predict(X_test)
 
-        st.subheader("🎬 Visualize Predictions")
+        # acc_svm = accuracy_score(y_test, y_pred_svm)
+        # acc_tree = accuracy_score(y_test, y_pred_tree)
 
-        # Run classifier on a few frames
-        sample_preds = []
-        for i in range(min(10, len(X_test))):
-            pred_label = label_encoder.inverse_transform([svm_model.predict([X_test.iloc[i]])[0]])[0]
-            actual_label = label_encoder.inverse_transform([y_test.iloc[i]])[0]
-            sample_preds.append(f"✅ Predicted: {pred_label} | 🏷️ Actual: {actual_label}")
+        # st.subheader("📈 Model Evaluation")
+        # st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
+        # st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
 
-        for row in sample_preds:
-            st.write(row)
-        st.markdown("## 🥊 Punch Performance Dashboard")
+        # # Confusion Matrix
+        # st.write("### Confusion Matrix (SVM)")
+        # cm = confusion_matrix(y_test, y_pred_svm)
+        # disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        # fig, ax = plt.subplots(figsize=(6, 4))
+        # disp.plot(ax=ax, cmap='Blues')
+        # st.pyplot(fig)
 
-        if 'punch_log' in locals() and len(punch_log) > 0:
-            df = pd.DataFrame(punch_log)
+        # st.subheader("🎬 Visualize Predictions")
 
-            # Count Punch Types
-            type_counts = df['punch'].value_counts().to_dict()
-            st.subheader("🔢 Punch Type Count")
-            cols = st.columns(len(type_counts))
-            for i, (ptype, count) in enumerate(type_counts.items()):
-                cols[i].metric(label=ptype, value=count)
+        # # Run classifier on a few frames
+        # sample_preds = []
+        # for i in range(min(10, len(X_test))):
+        #     pred_label = label_encoder.inverse_transform([svm_model.predict([X_test.iloc[i]])[0]])[0]
+        #     actual_label = label_encoder.inverse_transform([y_test.iloc[i]])[0]
+        #     sample_preds.append(f"✅ Predicted: {pred_label} | 🏷️ Actual: {actual_label}")
 
-            # Approximate Punch Frequency
-            if 'frame_end' in df.columns:
-                duration_frames = df['frame_end'].max() - df['frame_start'].min()
-                fps = 30  # adjust this to your actual FPS
-                duration_sec = duration_frames / fps if fps else 1
-                punch_speed = len(df) / duration_sec if duration_sec > 0 else 0
-                st.subheader("⚡ Speed Approximation")
-                st.metric("Punches per Second", f"{punch_speed:.2f}")
-            else:
-                st.warning("Frame timing info missing — can't compute speed.")
+        # for row in sample_preds:
+        #     st.write(row)
+        # st.markdown("## 🥊 Punch Performance Dashboard")
 
-            # Time-bucketed Frequency Chart
-            if 'frame_start' in df.columns:
-                df['time_sec'] = df['frame_start'] // 30  # adjust for your FPS
-                time_counts = df.groupby('time_sec')['punch'].count()
-                st.subheader("📈 Punch Frequency Over Time")
-                fig1, ax1 = plt.subplots()
-                time_counts.plot(kind='line', marker='o', ax=ax1)
-                ax1.set_xlabel("Time (s)")
-                ax1.set_ylabel("Punches")
-                ax1.set_title("Punches Per Second")
-                st.pyplot(fig1)
+        # if 'punch_log' in locals() and len(punch_log) > 0:
+        #     df = pd.DataFrame(punch_log)
 
-            # Bar Chart of Punch Types
-            st.subheader("📊 Punch Type Distribution")
-            fig2, ax2 = plt.subplots()
-            ax2.bar(type_counts.keys(), type_counts.values(), color='skyblue')
-            #sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
-            ax2.set_ylabel("Count")
-            ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
-            st.pyplot(fig2)
+        #     # Count Punch Types
+        #     type_counts = df['punch'].value_counts().to_dict()
+        #     st.subheader("🔢 Punch Type Count")
+        #     cols = st.columns(len(type_counts))
+        #     for i, (ptype, count) in enumerate(type_counts.items()):
+        #         cols[i].metric(label=ptype, value=count)
 
-            # Pie Chart of Punch Types
-            st.subheader("🥧 Punch Share - Pie Chart")
-            fig3, ax3 = plt.subplots()
-            ax3.pie(type_counts.values(), labels=type_counts.keys(), autopct='%1.1f%%', startangle=90)
-            ax3.axis('equal')
-            st.pyplot(fig3)
-        else:
-            st.info("🔍 No punch data found. Upload and process a video to see metrics.")
+        #     # Approximate Punch Frequency
+        #     if 'frame_end' in df.columns:
+        #         duration_frames = df['frame_end'].max() - df['frame_start'].min()
+        #         fps = 30  # adjust this to your actual FPS
+        #         duration_sec = duration_frames / fps if fps else 1
+        #         punch_speed = len(df) / duration_sec if duration_sec > 0 else 0
+        #         st.subheader("⚡ Speed Approximation")
+        #         st.metric("Punches per Second", f"{punch_speed:.2f}")
+        #     else:
+        #         st.warning("Frame timing info missing — can't compute speed.")
+
+        #     # Time-bucketed Frequency Chart
+        #     if 'frame_start' in df.columns:
+        #         df['time_sec'] = df['frame_start'] // 30  # adjust for your FPS
+        #         time_counts = df.groupby('time_sec')['punch'].count()
+        #         st.subheader("📈 Punch Frequency Over Time")
+        #         fig1, ax1 = plt.subplots()
+        #         time_counts.plot(kind='line', marker='o', ax=ax1)
+        #         ax1.set_xlabel("Time (s)")
+        #         ax1.set_ylabel("Punches")
+        #         ax1.set_title("Punches Per Second")
+        #         st.pyplot(fig1)
+
+        #     # Bar Chart of Punch Types
+        #     st.subheader("📊 Punch Type Distribution")
+        #     fig2, ax2 = plt.subplots()
+        #     ax2.bar(type_counts.keys(), type_counts.values(), color='skyblue')
+        #     #sns.barplot(x=list(type_counts.keys()), y=list(type_counts.values()), ax=ax2)
+        #     ax2.set_ylabel("Count")
+        #     ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
+        #     st.pyplot(fig2)
+
+        #     # Pie Chart of Punch Types
+        #     st.subheader("🥧 Punch Share - Pie Chart")
+        #     fig3, ax3 = plt.subplots()
+        #     ax3.pie(type_counts.values(), labels=type_counts.keys(), autopct='%1.1f%%', startangle=90)
+        #     ax3.axis('equal')
+        #     st.pyplot(fig3)
+        # else:
+        #     st.info("🔍 No punch data found. Upload and process a video to see metrics.")
 
     progress_bar.empty()
 
