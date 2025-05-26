@@ -252,9 +252,9 @@ SKELETON_EDGES = [
 
 import numpy as np
 
-def is_likely_coach(keypoints, 
-                    min_avg_conf=0.5,          
-                    min_bbox_height_ratio=0.3, 
+def is_likely_coach(keypoints,
+                    min_avg_conf=0.5,
+                    min_bbox_height_ratio=0.3,
                     min_keypoints_detected=8):
     """
     Determine if a detected person is likely a coach or irrelevant detection.
@@ -273,7 +273,7 @@ def is_likely_coach(keypoints,
     )
     # Debug info
     st.info(f"[DEBUG] CoachCheck → avg_conf={avg_conf:.2f} valid_kps={num_valid_kps}, bbox_height={bbox_height:.2f} → is_coach={is_coach}")
-    
+
     return is_coach
 
 
@@ -301,19 +301,19 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
     valid_detections = []
     for idx, (kp_raw, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
-        # kp_norm = [[y / h, x / w, s] for y, x, s in kp] 
+        #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
 
-        if not is_likely_coach(kp):
+        if is_likely_coach(kp):
             avg_conf = np.mean([p[2] for p in kp])
             ys = [p[0] for p in kp if p[2] > 0.2]
             bbox_height = max(ys) - min(ys) if ys else 0
             valid_detections.append((avg_conf, bbox_height, kp, punch, posture, glove))
 
-    # Keep top 2 tallest persons (most likely boxers)
+    #Keep top 2 tallest persons (most likely boxers)
     valid_detections = sorted(valid_detections, key=lambda x: x[1], reverse=True)[:2]
 
     for idx, (avg_conf, bbox_height, kp, punch, posture, glove) in enumerate(valid_detections):
-        # Draw keypoints
+        #Draw keypoints
         for i, (y, x, s) in enumerate(kp):
             if s > 0.2:
                 cx, cy = int(x * w), int(y * h)
@@ -322,7 +322,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-        # Draw skeleton
+        #Draw skeleton
         for (p1, p2) in SKELETON_EDGES:
             y1, x1, s1 = kp[p1]
             y2, x2, s2 = kp[p2]
@@ -332,7 +332,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-        # Draw gloves
+        #Draw gloves
         for side, wrist_idx in zip(["L", "R"], [9, 10]):
             y, x, s = kp[wrist_idx]
             if s > 0.2:
@@ -344,7 +344,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        # Final label
+        #Final label
         glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
@@ -371,7 +371,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
 #         st.info(f"keypoints={kp}")
 #         # Normalize keypoints (if not already normalized)
 #         kp_norm = [[y / h, x / w, s] for y, x, s in kp]
-#         # if is_likely_coach(kp):          
+#         # if is_likely_coach(kp):
 #         #     continue
 #         # Draw keypoints
 #         for i, (y, x, s) in enumerate(kp):
