@@ -550,7 +550,7 @@ if uploaded_files:
 
 
         # Flatten punch_log to DataFrame
-        df_log = pd.DataFrame(punch_log)
+        # df_log = pd.DataFrame(punch_log)
 
         import pandas as pd
         import numpy as np
