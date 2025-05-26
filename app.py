@@ -606,7 +606,56 @@ if uploaded_files:
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
 
-       
+
+
+        import lightgbm as lgb
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import classification_report
+
+        X = df_full[feature_cols]
+        y = df_full['punch']
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+
+        model = lgb.LGBMClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        st.info(f"LGBAccuracy:  {accuracy_score(y_test, y_pred)}")
+        classification=classification_report(y_test, y_pred, target_names=le.classes_)
+        st.info(f" classification = {classification}")
+
+
+        from sklearn.svm import SVC
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+
+        clf = make_pipeline(StandardScaler(), SVC(kernel='rbf', probability=True))
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        st.info(f"SVC Accuracy:  {accuracy_score(y_test, y_pred)}")
+        classification=classification_report(y_test, y_pred, target_names=le.classes_)
+        st.info(f" classification = {classification}")
+
+
+
+       # Train classifiers
+        svm_model = svm.SVC(kernel='rbf')
+        tree_model = DecisionTreeClassifier(max_depth=5)
+
+        svm_model.fit(X_train, y_train)
+        tree_model.fit(X_train, y_train)
+
+        # Evaluate
+        y_pred_svm = svm_model.predict(X_test)
+        y_pred_tree = tree_model.predict(X_test)
+
+        acc_svm = accuracy_score(y_test, y_pred_svm)
+        acc_tree = accuracy_score(y_test, y_pred_tree)
+
+        st.subheader("📈 Model Evaluation")
+        st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
+        st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+
 
 
         # # Expand keypoints into flat features
