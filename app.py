@@ -14,10 +14,11 @@ import matplotlib.pyplot as plt
 from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder,StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
 #import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
 
 
 # Streamlit setup
@@ -549,17 +550,6 @@ if uploaded_files:
         all_logs.extend(punch_log)
 
 
-        # Flatten punch_log to DataFrame
-        # df_log = pd.DataFrame(punch_log)
-
-        import pandas as pd
-        import numpy as np
-        from sklearn.model_selection import train_test_split
-        from sklearn.preprocessing import LabelEncoder, StandardScaler
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.metrics import classification_report, accuracy_score
-        import joblib
-
         # Load data (assuming it's saved as CSV)
 
         # Flatten punch_log to DataFrame
@@ -568,10 +558,7 @@ if uploaded_files:
         # Expand keypoints into flat features
         df_features = df_log['keypoints'].apply(expand_keypoints)
         df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
-
         
-
-
 
         # Drop rows where punch is missing or N/A
         df_full = df_full[df_full['punch'].notna()]
@@ -583,12 +570,12 @@ if uploaded_files:
         keypoint_cols = []
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
+        
         st.write("DataFrame columns:", df_full.columns.tolist())
-
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
         all_cols_present = all(col in df_full.columns for col in keypoint_cols)
-        st.info(f"All keypoint columns in dataframe: {all_cols_present}")   
+        st.info(f"All keypoint columns in dataframe: {keypoint_cols}")   
 
         X = df[keypoint_cols].values
 
