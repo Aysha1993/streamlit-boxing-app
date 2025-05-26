@@ -780,6 +780,7 @@ joblib
 ffmpeg-python
 tqdm
 seaborn
+lightgbm
 matplotlib
 '''
 
