@@ -568,12 +568,24 @@ if uploaded_files:
         df = df[df['punch'].notna()]
         df = df[df['punch'] != 'N/A']
 
-        # Extract features: all keypoints x, y, s columns
+        df.columns = df.columns.str.strip()
+
         keypoint_cols = []
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
 
+        print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
+
         X = df[keypoint_cols].values
+
+
+
+        # # Extract features: all keypoints x, y, s columns
+        # keypoint_cols = []
+        # for i in range(17):
+        #     keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
+
+        # X = df[keypoint_cols].values
 
         # Encode labels
         le = LabelEncoder()
