@@ -510,6 +510,7 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            st.info(f"rescaledkp={rescaledkeypoints}")
             #punches = classify_punch(rescaledkeypoints,frame_idx)
             #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
@@ -517,17 +518,12 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
 
-            punches = []  # Make sure this is before the loop
-
-            for frame_idx, (frames, person_kpts) in enumerate(zip(frame, keypoints)):
-                frame_height, frame_width = frames.shape[:2]
-
-                # Convert to NumPy array and scale (x, y) from normalized to pixel values
+            punches = []
+            for person_kpts in rescaledkeypoints:
                 person_kpts = np.array(person_kpts)  # Shape: (17, 3)
-                person_kpts[:, 0] *= frame_width     # x-coordinate
-                person_kpts[:, 1] *= frame_height    # y-coordinate
+                person_kpts[:, 0] *= width  # x-coordinate
+                person_kpts[:, 1] *= height  # y-coordinate
 
-                # Detect punch from keypoints
                 label = detect_punch(person_kpts)
                 punches.append(label)
 
