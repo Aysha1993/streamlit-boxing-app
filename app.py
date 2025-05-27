@@ -559,7 +559,7 @@ if uploaded_files:
         # Expand keypoints into flat features
         df_features = df_log['keypoints'].apply(expand_keypoints)
         df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
-        
+
 
         # Drop rows where punch is missing or N/A
         df_full = df_full[df_full['punch'].notna()]
@@ -571,12 +571,12 @@ if uploaded_files:
         keypoint_cols = []
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
-        
+
         st.write("DataFrame columns:", df_full.columns.tolist())
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
         all_cols_present = all(col in df_full.columns for col in keypoint_cols)
-        st.info(f"All keypoint columns in dataframe: {keypoint_cols}")   
+        st.info(f"All keypoint columns in dataframe: {keypoint_cols}")
 
         X = df_full[keypoint_cols].values
         st.info(f"All X values in dataframe: {X}")
@@ -612,8 +612,13 @@ if uploaded_files:
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import classification_report
 
-        X = df_full[feature_cols]
-        y = df_full['punch']
+
+        X = df_full[keypoint_cols].values
+        st.info(f"All X values in dataframe: {X}")
+
+        # Encode labels
+        le = LabelEncoder()
+        y = le.fit_transform(df_full['punch'].values)
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
 
