@@ -87,82 +87,82 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-# def detect_punch(keypoints):
-#     kp = {i: keypoints[i] for i in range(len(keypoints))}
-#     nose = kp[0]
-#     le = kp[7]  # left elbow
-#     lw = kp[9]  # left wrist
-#     re = kp[8]  # right elbow
-#     rw = kp[10]  # right wrist
-#     ls = kp[5]  # left shoulder
-#     rs = kp[6]  # right shoulder
-
-#     dist_lw_nose = np.linalg.norm(np.array(lw[:2]) - np.array(nose[:2]))
-#     dist_rw_nose = np.linalg.norm(np.array(rw[:2]) - np.array(nose[:2]))
-#     left_elbow_angle = calculate_angle(ls[:2], le[:2], lw[:2])
-#     right_elbow_angle = calculate_angle(rs[:2], re[:2], rw[:2])
-#     head_height = nose[1]
-
-#     # Punch Detection Rules
-#     if dist_lw_nose > 50 and left_elbow_angle > 130:
-#         return "Jab"
-#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
-#         return "Cross"
-#     elif lw[0] < le[0] < ls[0] and left_elbow_angle < 100:
-#         return "Left Hook"
-#     elif rw[0] > re[0] > rs[0] and right_elbow_angle < 100:
-#         return "Right Hook"
-#     elif lw[1] < le[1] < ls[1] and dist_lw_nose < 50 and left_elbow_angle < 90:
-#         return "Left Uppercut"
-#     elif rw[1] < re[1] < rs[1] and dist_rw_nose < 50 and right_elbow_angle < 90:
-#         return "Right Uppercut"
-#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
-#         return "Guard"
-#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-#         return "Duck"
-#     else:
-#         return "Idle"
-
 def detect_punch(keypoints):
-    #st.info(f"kp={keypoints}")
-    LEFT_WRIST = 9
-    RIGHT_WRIST = 10
-    NOSE = 0
-    LEFT_ELBOW = 7
-    RIGHT_ELBOW = 8
-    LEFT_SHOULDER = 5
-    RIGHT_SHOULDER = 6
+    kp = {i: keypoints[i] for i in range(len(keypoints))}
+    nose = kp[0]
+    le = kp[7]  # left elbow
+    lw = kp[9]  # left wrist
+    re = kp[8]  # right elbow
+    rw = kp[10]  # right wrist
+    ls = kp[5]  # left shoulder
+    rs = kp[6]  # right shoulder
 
-    lw = keypoints[LEFT_WRIST][:2]
-    rw = keypoints[RIGHT_WRIST][:2]
-    nose = keypoints[NOSE][:2]
-    le = keypoints[LEFT_ELBOW][:2]
-    re = keypoints[RIGHT_ELBOW][:2]
-    ls = keypoints[LEFT_SHOULDER][:2]
-    rs = keypoints[RIGHT_SHOULDER][:2]
-
-    # Distances from wrists to nose (used for punches)
-    dist_lw_nose = np.linalg.norm(lw - nose)
-    dist_rw_nose = np.linalg.norm(rw - nose)
-
-    # Elbow angles to check punch extension
-    left_elbow_angle = calculate_angle(ls, le, lw)
-    right_elbow_angle = calculate_angle(rs, re, rw)
-
-    # Face position to estimate duck
+    dist_lw_nose = np.linalg.norm(np.array(lw[:2]) - np.array(nose[:2]))
+    dist_rw_nose = np.linalg.norm(np.array(rw[:2]) - np.array(nose[:2]))
+    left_elbow_angle = calculate_angle(ls[:2], le[:2], lw[:2])
+    right_elbow_angle = calculate_angle(rs[:2], re[:2], rw[:2])
     head_height = nose[1]
 
-    # Heuristics
+    # Punch Detection Rules
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
+    elif lw[0] < le[0] < ls[0] and left_elbow_angle < 100:
+        return "Left Hook"
+    elif rw[0] > re[0] > rs[0] and right_elbow_angle < 100:
+        return "Right Hook"
+    elif lw[1] < le[1] < ls[1] and dist_lw_nose < 50 and left_elbow_angle < 90:
+        return "Left Uppercut"
+    elif rw[1] < re[1] < rs[1] and dist_rw_nose < 50 and right_elbow_angle < 90:
+        return "Right Uppercut"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         return "Duck"
     else:
-        return "None"
+        return "Idle"
+
+# def detect_punch(keypoints):
+#     #st.info(f"kp={keypoints}")
+#     LEFT_WRIST = 9
+#     RIGHT_WRIST = 10
+#     NOSE = 0
+#     LEFT_ELBOW = 7
+#     RIGHT_ELBOW = 8
+#     LEFT_SHOULDER = 5
+#     RIGHT_SHOULDER = 6
+
+#     lw = keypoints[LEFT_WRIST][:2]
+#     rw = keypoints[RIGHT_WRIST][:2]
+#     nose = keypoints[NOSE][:2]
+#     le = keypoints[LEFT_ELBOW][:2]
+#     re = keypoints[RIGHT_ELBOW][:2]
+#     ls = keypoints[LEFT_SHOULDER][:2]
+#     rs = keypoints[RIGHT_SHOULDER][:2]
+
+#     # Distances from wrists to nose (used for punches)
+#     dist_lw_nose = np.linalg.norm(lw - nose)
+#     dist_rw_nose = np.linalg.norm(rw - nose)
+
+#     # Elbow angles to check punch extension
+#     left_elbow_angle = calculate_angle(ls, le, lw)
+#     right_elbow_angle = calculate_angle(rs, re, rw)
+
+#     # Face position to estimate duck
+#     head_height = nose[1]
+
+#     # Heuristics
+#     if dist_lw_nose > 50 and left_elbow_angle > 130:
+#         return "Jab"
+#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
+#         return "Cross"
+#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
+#         return "Guard"
+#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+#         return "Duck"
+#     else:
+#         return "None"
 
 
 # def classify_punch(keypoints_all_people, frame_idx):
