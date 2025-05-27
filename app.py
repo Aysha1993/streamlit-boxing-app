@@ -658,7 +658,7 @@ if uploaded_files:
         })
         
         # Reorder and save
-        predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
+        predicted_df = predicted_df[['frame', 'timestamp', 'pred_punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
         predicted_df.to_csv("predicted_punches.csv", index=False)
 
         # Streamlit display and download
