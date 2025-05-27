@@ -12,4 +12,5 @@ seaborn
 lightgbm
 imbalanced-learn
 matplotlib
+plotly
 
