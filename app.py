@@ -628,13 +628,13 @@ if uploaded_files:
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # # SMOTE
-        # smote = SMOTE(random_state=42)
-        # X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+        # SMOTE
+        smote = SMOTE(random_state=42)
+        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
-        clf.fit(X_train_scaled, y_train)
+        clf.fit(X_train_balanced, y_train_balanced)
 
         # Predict
         y_pred = clf.predict(X_test_scaled)
@@ -670,13 +670,75 @@ if uploaded_files:
         )
 
 
-        # Confusion Matrix
-        st.write("### Confusion Matrix (Tree)")
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        from sklearn.metrics import confusion_matrix
+        import plotly.express as px
+
+        # --- Section: Metrics Summary ---
+        st.subheader("📈 Model Performance Metrics")
+        st.metric("Accuracy", f"{accuracy:.2%}")
+
+        # --- Section: Confusion Matrix ---
+        st.subheader("🔀 Confusion Matrix")
         cm = confusion_matrix(y_test, y_pred)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        disp.plot(ax=ax, cmap='Blues')
-        st.pyplot(fig)
+        fig_cm, ax_cm = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=le.classes_, yticklabels=le.classes_, ax=ax_cm)
+        ax_cm.set_xlabel("Predicted")
+        ax_cm.set_ylabel("True")
+        st.pyplot(fig_cm)
+
+        # --- Section: Punch Type Counts ---
+        st.subheader("👊 Punch Type Distribution")
+
+        # Count of predicted and true punch types
+        true_counts = predicted_df['true_punch_type'].value_counts().rename("True Count")
+        pred_counts = predicted_df['pred_punch_type'].value_counts().rename("Predicted Count")
+        count_df = pd.concat([true_counts, pred_counts], axis=1).fillna(0).astype(int)
+        st.dataframe(count_df)
+
+        # --- Bar chart for punch frequency ---
+        fig_bar = px.bar(
+            count_df.reset_index(),
+            x='index',
+            y=['True Count', 'Predicted Count'],
+            barmode='group',
+            labels={'index': 'Punch Type'},
+            title="🔢 Punch Frequency (True vs Predicted)"
+        )
+        st.plotly_chart(fig_bar)
+
+        # --- Pie chart for predicted punches ---
+        fig_pie = px.pie(
+            predicted_df,
+            names='pred_punch_type',
+            title="🥧 Punch Prediction Breakdown"
+        )
+        st.plotly_chart(fig_pie)
+
+        # --- Section: Speed Approximation ---
+        st.subheader("💨 Punch Speed Estimation (approx)")
+
+        # Approximate speed = 1 / time between punches (frames with different punches)
+        predicted_df_sorted = predicted_df.sort_values(by='frame')
+        predicted_df_sorted['frame_diff'] = predicted_df_sorted['frame'].diff().fillna(0)
+        predicted_df_sorted['time_diff'] = predicted_df_sorted['frame_diff'] / fps
+        predicted_df_sorted['approx_speed'] = 1 / predicted_df_sorted['time_diff'].replace(0, float('nan'))
+
+        # Line chart of speed
+        fig_line = px.line(
+            predicted_df_sorted,
+            x='frame',
+            y='approx_speed',
+            title='📉 Approximate Punch Speed over Time',
+            labels={'approx_speed': 'Speed (punches/sec)'}
+        )
+        st.plotly_chart(fig_line)
+
+        # Optional: Show raw predicted_df again
+        with st.expander("🧾 View Full Predictions Table"):
+            st.dataframe(predicted_df)
+
 
 
 
