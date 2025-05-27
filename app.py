@@ -624,7 +624,7 @@ if uploaded_files:
         from sklearn.pipeline import make_pipeline
         from sklearn.preprocessing import StandardScaler
 
-        clf = make_pipeline(StandardScaler(), SVC(kernel='rbf', probability=True))
+        clf = make_pipeline(StandardScaler(), SVC(kernel='rbf',class_weight='balanced', probability=True))
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         st.info(f"SVC Accuracy:  {accuracy_score(y_test, y_pred)}")
@@ -641,8 +641,8 @@ if uploaded_files:
 
 
        # Train classifiers
-        svm_model = svm.SVC(kernel='rbf')
-        tree_model = DecisionTreeClassifier(max_depth=5)
+        svm_model = svm.SVC(kernel='rbf',class_weight='balanced')
+        tree_model = DecisionTreeClassifier(max_depth=5,class_weight='balanced')
 
         svm_model.fit(X_train, y_train)
         tree_model.fit(X_train, y_train)
