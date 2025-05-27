@@ -611,6 +611,10 @@ if uploaded_files:
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
 
+        # Label encode target
+        label_encoder = LabelEncoder()
+        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
+
          # Confusion Matrix
         st.write("### Confusion Matrix (lgb)")
         cm = confusion_matrix(y_test, y_pred)
@@ -630,6 +634,10 @@ if uploaded_files:
         st.info(f"SVC Accuracy:  {accuracy_score(y_test, y_pred)}")
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
+
+        # Label encode target
+        label_encoder = LabelEncoder()
+        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
 
          # Confusion Matrix
         st.write("### Confusion Matrix (svc)")
@@ -657,6 +665,11 @@ if uploaded_files:
         st.subheader("📈 Model Evaluation")
         st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
         st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+
+
+        # Label encode target
+        label_encoder = LabelEncoder()
+        df_full['label'] = label_encoder.fit_transform(df_full['punch'])
 
 
          # Confusion Matrix
