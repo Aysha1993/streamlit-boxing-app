@@ -615,8 +615,6 @@ if uploaded_files:
         X = df_full[keypoint_cols].values # Replace with actual feature column names
         y = le.fit_transform(df_full['punch'])     
 
-        train_idx, test_idx = train_test_split(df_full.index, test_size=0.2, stratify=y, random_state=42)
-
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
 
@@ -630,13 +628,13 @@ if uploaded_files:
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # SMOTE
-        smote = SMOTE(random_state=42)
-        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+        # # SMOTE
+        # smote = SMOTE(random_state=42)
+        # X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
-        clf.fit(X_train_balanced, y_train_balanced)
+        clf.fit(X_train_scaled, y_train)
 
         # Predict
         y_pred = clf.predict(X_test_scaled)
