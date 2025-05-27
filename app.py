@@ -88,7 +88,7 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
 def detect_punch(keypoints):
-    st.info(f"kp={keypoints}")
+    #st.info(f"kp={keypoints}")
     LEFT_WRIST = 9
     RIGHT_WRIST = 10
     NOSE = 0
@@ -510,7 +510,7 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
-            st.info(f"rescaledkp={rescaledkeypoints}")
+            #st.info(f"rescaledkp={rescaledkeypoints}")
             #punches = classify_punch(rescaledkeypoints,frame_idx)
             #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
