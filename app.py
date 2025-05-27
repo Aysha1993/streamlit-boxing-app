@@ -602,36 +602,74 @@ if uploaded_files:
         st.write("DataFrame columns:", df_full.columns.tolist())
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
-        all_cols_present = all(col in df_full.columns for col in keypoint_cols)
         st.info(f"All keypoint columns in dataframe: {keypoint_cols}")
 
         X = df_full[keypoint_cols].values
         st.info(f"All X values in dataframe: {X}")
 
+
+
+
+        from imblearn.over_sampling import SMOTE
+        from sklearn.utils.class_weight import compute_class_weight
+
         # Encode labels
         le = LabelEncoder()
         y = le.fit_transform(df_full['punch'].values)
 
-        # Split train-test
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42)
+        # Class weights (for imbalanced classes)
+        class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y), y=y)
+        class_weight_dict = dict(zip(np.unique(y), class_weights))
 
-        # Optional: scale features
+        # Train-test split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+        # Feature scaling
         scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
 
-        # Train a Random Forest Classifier
-        clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
-        clf.fit(X_train, y_train)
+        # SMOTE (applied *after* split to avoid leakage)
+        smote = SMOTE(random_state=42)
+        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
-        # Predict on test set
-        y_pred = clf.predict(X_test)
+        # Train classifier with class weights
+        clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight=class_weight_dict, n_jobs=-1)
+        clf.fit(X_train_balanced, y_train_balanced)
 
-        # Evaluation
-        st.info(f"RF Accuracy with scaler:  {accuracy_score(y_test, y_pred)}")
-        classification=classification_report(y_test, y_pred, target_names=le.classes_)
-        st.info(f" classification = {classification}")
+        y_pred = clf.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, target_names=le.classes_)
+
+        st.success(f"✅ RF Accuracy (SMOTE + weights): {accuracy:.3f}")
+        st.text("🔍 Classification Report:\n" + report)
+
+
+
+        # # Encode labels
+        # le = LabelEncoder()
+        # y = le.fit_transform(df_full['punch'].values)
+
+        # # Split train-test
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #     X, y, test_size=0.2, random_state=42)
+
+        # # Optional: scale features
+        # scaler = StandardScaler()
+        # X_train = scaler.fit_transform(X_train)
+        # X_test = scaler.transform(X_test)
+
+        # # Train a Random Forest Classifier
+        # clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        # clf.fit(X_train, y_train)
+
+        # # Predict on test set
+        # y_pred = clf.predict(X_test)
+
+        # # Evaluation
+        # st.info(f"RF Accuracy with scaler:  {accuracy_score(y_test, y_pred)}")
+        # classification=classification_report(y_test, y_pred, target_names=le.classes_)
+        # st.info(f" classification = {classification}")
 
 
         # # Expand keypoints into flat features
