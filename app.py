@@ -79,81 +79,133 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-def classify_punch(keypoints_all_people, frame_idx):
-    global person_states
-    results = []
 
-    for person_id, kpts in enumerate(keypoints_all_people):
-        # Initialize or retrieve previous state
-        state = person_states.get(person_id, {
-            "prev_kpts": kpts,
-            "in_motion": {"left": False, "right": False},
-            "frame_start": {"left": None, "right": None},
-        })
 
-        for side in ["left", "right"]:
-            try:
-                wrist_idx = keypoint_index[f"{side}_wrist"]
-                elbow_idx = keypoint_index[f"{side}_elbow"]
-                shoulder_idx = keypoint_index[f"{side}_shoulder"]
+def calculate_angle(a, b, c):
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    ba = a - b
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+    return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-                wrist = kpts[wrist_idx][:2]
-                elbow = kpts[elbow_idx][:2]
-                shoulder = kpts[shoulder_idx][:2]
-                prev_wrist = state["prev_kpts"][wrist_idx][:2]
+def detect_punch(kpts):
+    try:
+        kpts = np.array(kpts)
+        ls = kpts[keypoint_index["left_shoulder"]][:2]
+        rs = kpts[keypoint_index["right_shoulder"]][:2]
+        le = kpts[keypoint_index["left_elbow"]][:2]
+        re = kpts[keypoint_index["right_elbow"]][:2]
+        lw = kpts[keypoint_index["left_wrist"]][:2]
+        rw = kpts[keypoint_index["right_wrist"]][:2]
+        nose = kpts[keypoint_index["nose"]][:2]
 
-                # Sanity check for missing data
-                if not all(map(lambda x: isinstance(x, (int, float)), wrist + elbow + shoulder + prev_wrist)):
-                    continue
+        # Scale normalizer
+        shoulder_width = np.linalg.norm(rs - ls) + 1e-6
+        mid_shoulder_y = (ls[1] + rs[1]) / 2
 
-                velocity = calculate_velocity(prev_wrist, wrist)
-                elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
+        # Distances to nose
+        dist_lw_nose = np.linalg.norm(lw - nose) / shoulder_width
+        dist_rw_nose = np.linalg.norm(rw - nose) / shoulder_width
 
-                # Start of punch
-                if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
-                    state["in_motion"][side] = True
-                    state["frame_start"][side] = frame_idx
+        # Elbow angles
+        left_elbow_angle = calculate_angle(ls, le, lw)
+        right_elbow_angle = calculate_angle(rs, re, rw)
 
-                # End of punch
-                elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
-                    frame_start = state["frame_start"][side]
-                    frame_end = frame_idx
-                    punch_type = None
+        # Head drop
+        head_drop = (nose[1] - mid_shoulder_y) / shoulder_width
 
-                    # Classify punch type based on elbow angle
-                    if elbow_angle < HOOK_ANGLE_THRESHOLD:
-                        punch_type = "Hook"
-                    elif side == "left":
-                        punch_type = "Jab"
-                    else:
-                        punch_type = "Cross"
+        # Rules
+        if head_drop > 0.2:
+            return "Duck"
+        elif dist_lw_nose < 0.6 and dist_rw_nose < 0.6 and left_elbow_angle < 90 and right_elbow_angle < 90:
+            return "Guard"
+        elif left_elbow_angle > 150 and dist_lw_nose > 0.6:
+            return "Jab"
+        elif right_elbow_angle > 150 and dist_rw_nose > 0.6:
+            return "Cross"
+        else:
+            return "None"
 
-                    if punch_type:
-                        results.append({
-                            "label": f"{side.capitalize()} {punch_type}",
-                            "frame_start": frame_start,
-                            "frame_end": frame_end
-                        })
+    except Exception as e:
+        print(f"Error in punch detection: {e}")
+        return "None"
 
-                    # Reset motion state
-                    state["in_motion"][side] = False
-                    state["frame_start"][side] = None
 
-            except KeyError as e:
-                print(f"Missing keypoint index: {e}")
-                continue
-            except IndexError as e:
-                print(f"Keypoint index out of range: {e}")
-                continue
-            except Exception as e:
-                print(f"Unexpected error in punch detection: {e}")
-                continue
+# def classify_punch(keypoints_all_people, frame_idx):
+#     global person_states
+#     results = []
 
-        # Update previous keypoints for next frame
-        state["prev_kpts"] = kpts
-        person_states[person_id] = state
+#     for person_id, kpts in enumerate(keypoints_all_people):
+#         # Initialize or retrieve previous state
+#         state = person_states.get(person_id, {
+#             "prev_kpts": kpts,
+#             "in_motion": {"left": False, "right": False},
+#             "frame_start": {"left": None, "right": None},
+#         })
 
-    return results
+#         for side in ["left", "right"]:
+#             try:
+#                 wrist_idx = keypoint_index[f"{side}_wrist"]
+#                 elbow_idx = keypoint_index[f"{side}_elbow"]
+#                 shoulder_idx = keypoint_index[f"{side}_shoulder"]
+
+#                 wrist = kpts[wrist_idx][:2]
+#                 elbow = kpts[elbow_idx][:2]
+#                 shoulder = kpts[shoulder_idx][:2]
+#                 prev_wrist = state["prev_kpts"][wrist_idx][:2]
+
+#                 # Sanity check for missing data
+#                 if not all(map(lambda x: isinstance(x, (int, float)), wrist + elbow + shoulder + prev_wrist)):
+#                     continue
+
+#                 velocity = calculate_velocity(prev_wrist, wrist)
+#                 elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
+
+#                 # Start of punch
+#                 if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
+#                     state["in_motion"][side] = True
+#                     state["frame_start"][side] = frame_idx
+
+#                 # End of punch
+#                 elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
+#                     frame_start = state["frame_start"][side]
+#                     frame_end = frame_idx
+#                     punch_type = None
+
+#                     # Classify punch type based on elbow angle
+#                     if elbow_angle < HOOK_ANGLE_THRESHOLD:
+#                         punch_type = "Hook"
+#                     elif side == "left":
+#                         punch_type = "Jab"
+#                     else:
+#                         punch_type = "Cross"
+
+#                     if punch_type:
+#                         results.append({
+#                             "label": f"{side.capitalize()} {punch_type}",
+#                             "frame_start": frame_start,
+#                             "frame_end": frame_end
+#                         })
+
+#                     # Reset motion state
+#                     state["in_motion"][side] = False
+#                     state["frame_start"][side] = None
+
+#             except KeyError as e:
+#                 print(f"Missing keypoint index: {e}")
+#                 continue
+#             except IndexError as e:
+#                 print(f"Keypoint index out of range: {e}")
+#                 continue
+#             except Exception as e:
+#                 print(f"Unexpected error in punch detection: {e}")
+#                 continue
+
+#         # Update previous keypoints for next frame
+#         state["prev_kpts"] = kpts
+#         person_states[person_id] = state
+
+#     return results
 
 def check_posture(keypoints):
     feedback = []
@@ -460,7 +512,8 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
-            punches = classify_punch(rescaledkeypoints,frame_idx)
+            #punches = classify_punch(rescaledkeypoints,frame_idx)
+            punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
             gloves = detect_gloves(rescaledkeypoints)
 
@@ -471,17 +524,27 @@ if uploaded_files:
 
             out_writer.write(annotated)
 
-            for i in range(len(punches)):
-              punch_label = punches[i]["label"] if punches[i] else "None"
-              frame_start = punches[i]["frame_start"] if punches[i] else None
-              frame_end = punches[i]["frame_end"] if punches[i] else None
-              punch_log.append({
+            # for i in range(len(punches)):
+            #   punch_label = punches[i]["label"] if punches[i] else "None"
+            #   frame_start = punches[i]["frame_start"] if punches[i] else None
+            #   frame_end = punches[i]["frame_end"] if punches[i] else None
+            #   punch_log.append({
+            #       "video": uploaded_file.name,
+            #       "frame": frame_idx,
+            #       "person": i,
+            #       "punch": punch_label,
+            #       "frame_start": frame_start,
+            #       "frame_end": frame_end,
+            #       "posture": postures[i] if i < len(postures) else "N/A",
+            #       "gloves": gloves[i] if i < len(gloves) else "N/A",
+            #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+            #   })
+
+            punch_log.append({
                   "video": uploaded_file.name,
                   "frame": frame_idx,
                   "person": i,
-                  "punch": punch_label,
-                  "frame_start": frame_start,
-                  "frame_end": frame_end,
+                  "punch": punches[i] if i < len(punches) else "N/A",
                   "posture": postures[i] if i < len(postures) else "N/A",
                   "gloves": gloves[i] if i < len(gloves) else "N/A",
                   "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
