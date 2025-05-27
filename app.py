@@ -88,6 +88,7 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
+
 def detect_punch(kpts):
     try:
         kpts = np.array(kpts)
@@ -99,29 +100,32 @@ def detect_punch(kpts):
         rw = kpts[keypoint_index["right_wrist"]][:2]
         nose = kpts[keypoint_index["nose"]][:2]
 
-        # Scale normalizer
+        if np.any(np.isnan(kpts)) or np.all(kpts == 0):
+            return "None"
+
         shoulder_width = np.linalg.norm(rs - ls) + 1e-6
         mid_shoulder_y = (ls[1] + rs[1]) / 2
 
-        # Distances to nose
         dist_lw_nose = np.linalg.norm(lw - nose) / shoulder_width
         dist_rw_nose = np.linalg.norm(rw - nose) / shoulder_width
 
-        # Elbow angles
         left_elbow_angle = calculate_angle(ls, le, lw)
         right_elbow_angle = calculate_angle(rs, re, rw)
 
-        # Head drop
         head_drop = (nose[1] - mid_shoulder_y) / shoulder_width
+
+        # Debug print
+        st.info(f"Head drop: {head_drop:.2f}, Dist LW-Nose: {dist_lw_nose:.2f}, RW-Nose: {dist_rw_nose:.2f}")
+        st.info(f"Left elbow angle: {left_elbow_angle:.2f}, Right: {right_elbow_angle:.2f}")
 
         # Rules
         if head_drop > 0.2:
             return "Duck"
         elif dist_lw_nose < 0.6 and dist_rw_nose < 0.6 and left_elbow_angle < 90 and right_elbow_angle < 90:
             return "Guard"
-        elif left_elbow_angle > 150 and dist_lw_nose > 0.6:
+        elif left_elbow_angle > 140 and dist_lw_nose > 0.6:
             return "Jab"
-        elif right_elbow_angle > 150 and dist_rw_nose > 0.6:
+        elif right_elbow_angle > 140 and dist_rw_nose > 0.6:
             return "Cross"
         else:
             return "None"
@@ -129,7 +133,6 @@ def detect_punch(kpts):
     except Exception as e:
         print(f"Error in punch detection: {e}")
         return "None"
-
 
 # def classify_punch(keypoints_all_people, frame_idx):
 #     global person_states
