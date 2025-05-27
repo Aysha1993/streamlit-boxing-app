@@ -539,16 +539,16 @@ if uploaded_files:
             #       "gloves": gloves[i] if i < len(gloves) else "N/A",
             #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
             #   })
-
-            punch_log.append({
-                  "video": uploaded_file.name,
-                  "frame": frame_idx,
-                  "person": i,
-                  "punch": punches[i] if i < len(punches) else "N/A",
-                  "posture": postures[i] if i < len(postures) else "N/A",
-                  "gloves": gloves[i] if i < len(gloves) else "N/A",
-                  "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-              })
+            for i in range(len(punches)):
+                punch_log.append({
+                      "video": uploaded_file.name,
+                      "frame": frame_idx,
+                      "person": i,
+                      "punch": punches[i] if i < len(punches) else "N/A",
+                      "posture": postures[i] if i < len(postures) else "N/A",
+                      "gloves": gloves[i] if i < len(gloves) else "N/A",
+                      "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+                  })
 
             frame_idx += 1
             if frame_idx % 5 == 0:
