@@ -1,3 +1,4 @@
+%%writefile /content/app.py
 import streamlit as st
 import cv2
 import numpy as np
@@ -20,6 +21,8 @@ from sklearn.metrics import accuracy_score, classification_report
 #import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 import joblib
+from imblearn.over_sampling import SMOTE
+from sklearn.utils.class_weight import compute_class_weight
 
 
 # Streamlit setup
@@ -526,6 +529,7 @@ if uploaded_files:
                       "video": uploaded_file.name,
                       "frame": frame_idx,
                       "person": i,
+                      "timestamp": frame_idx / fps,
                       "punch": punches[i] if i < len(punches) else "N/A",
                       "posture": postures[i] if i < len(postures) else "N/A",
                       "gloves": gloves[i] if i < len(gloves) else "N/A",
@@ -608,11 +612,6 @@ if uploaded_files:
         st.info(f"All X values in dataframe: {X}")
 
 
-
-
-        from imblearn.over_sampling import SMOTE
-        from sklearn.utils.class_weight import compute_class_weight
-
         # Encode labels
         le = LabelEncoder()
         y = le.fit_transform(df_full['punch'].values)
@@ -643,6 +642,40 @@ if uploaded_files:
 
         st.success(f"✅ RF Accuracy (SMOTE + weights): {accuracy:.3f}")
         st.text("🔍 Classification Report:\n" + report)
+        st.info(f"Frame: {frame_idx} | Timestamp: {frame_idx / fps:.2f} sec | Punches: {punches}")
+
+
+        # Confusion Matrix
+        st.write("### Confusion Matrix (SVM)")
+        cm = confusion_matrix(y_test, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
+
+
+        # Get the original indices of the test set
+        X_test_indices = X_test.index if isinstance(X_test, pd.DataFrame) else df_full.iloc[X_test].index
+
+        # Create predicted punch dataframe
+        predicted_df = pd.DataFrame({
+            'frame': df_full.loc[X_test_indices, 'frame'].values,
+            'timestamp': df_full.loc[X_test_indices, 'frame'].values / fps,
+            'predicted_label': y_pred,
+            'punch_type': le.inverse_transform(y_pred)
+        })
+
+        # Optional: include ground truth for comparison
+        predicted_df['true_label'] = y_test
+        predicted_df['true_punch_type'] = le.inverse_transform(y_test)
+
+        # Reorder and save
+        predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label','true_punch_type','true_label']]
+        predicted_df.to_csv("predicted_punches.csv", index=False)
+        st.success("✅ Saved predicted punches to predicted_punches.csv")
+        st.dataframe(predicted_df.head())
+        st.download_button("📄 Download Pred Log CSV", predicted_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+
 
 
 
