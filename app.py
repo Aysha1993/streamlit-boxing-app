@@ -191,24 +191,6 @@ def detect_gloves(keypoints, distance_thresh=0.1):
 
     return gloves
 
-# def detect_gloves(keypoints, distance_thresh=0.1):
-#     gloves = []
-#     for kp in keypoints:
-#         lw, le = kp[9], kp[7]
-#         rw, re = kp[10], kp[8]
-
-#         def is_glove_present(wrist, elbow):
-#             if wrist[2] > 0.2 and elbow[2] > 0.2:
-#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
-#                 return dist > distance_thresh
-#             return False
-
-#         left_glove = "yes" if is_glove_present(lw, le) else "no"
-#         right_glove = "yes" if is_glove_present(rw, re) else "no"
-#         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
-#     return gloves
-
-
 # 17 keypoints (based on MoveNet/COCO order)
 KEYPOINT_NAMES = [
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -629,6 +611,14 @@ if uploaded_files:
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
 
+         # Confusion Matrix
+        st.write("### Confusion Matrix (lgb)")
+        cm = confusion_matrix(y_test, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
+
 
         from sklearn.svm import SVC
         from sklearn.pipeline import make_pipeline
@@ -641,6 +631,13 @@ if uploaded_files:
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
 
+         # Confusion Matrix
+        st.write("### Confusion Matrix (svc)")
+        cm = confusion_matrix(y_test, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
 
 
        # Train classifiers
@@ -660,6 +657,15 @@ if uploaded_files:
         st.subheader("📈 Model Evaluation")
         st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
         st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+
+
+         # Confusion Matrix
+        st.write("### Confusion Matrix (tree)")
+        cm = confusion_matrix(y_test, y_pred_tree)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_encoder.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
 
 
 
