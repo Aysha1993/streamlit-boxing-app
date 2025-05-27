@@ -258,33 +258,6 @@ SKELETON_EDGES = [
     (11, 12)                                # Hip line
 ]
 
-# def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
-#     h, w, _ = frame.shape
-
-#     for person in keypoints_with_scores:
-#         keypoints = person[:17]
-
-#         # Draw keypoints with names
-#         for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
-#             cx = int(x * w)
-#             cy = int(y * h)
-#             color = (0, 255, 255) if score > threshold else (255, 0, 255)
-#             cv2.circle(frame, (cx, cy), 4, color, -1)
-#             cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-#                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
-
-#         # Draw skeleton connections
-#         for p1, p2 in SKELETON_EDGES:
-#             y1, x1, s1 = keypoints[p1]
-#             y2, x2, s2 = keypoints[p2]
-#             if s1 > threshold and s2 > threshold:
-#                 pt1 = (int(x1 * w), int(y1 * h))
-#                 pt2 = (int(x2 * w), int(y2 * h))
-#                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
-
-#     return frame
-
-import numpy as np
 
 def is_likely_coach(keypoints,
                     min_avg_conf=0.5,
@@ -656,7 +629,7 @@ if uploaded_files:
         y_pred = clf.predict(X_test)
 
         # Evaluation
-        st.info(f"Accuracy:  {accuracy_score(y_test, y_pred)}")
+        st.info(f"RF Accuracy with scaler:  {accuracy_score(y_test, y_pred)}")
         classification=classification_report(y_test, y_pred, target_names=le.classes_)
         st.info(f" classification = {classification}")
 
