@@ -677,7 +677,7 @@ if uploaded_files:
 
         # Split train-test
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y)
+            X, y, test_size=0.2, random_state=42)
 
         # Optional: scale features
         scaler = StandardScaler()
@@ -710,7 +710,7 @@ if uploaded_files:
         le = LabelEncoder()
         y = le.fit_transform(df_full['punch'].values)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         model = lgb.LGBMClassifier()
         model.fit(X_train, y_train)
