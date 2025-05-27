@@ -80,7 +80,6 @@ keypoint_index = {
 }
 
 
-
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     ba = a - b
@@ -88,52 +87,47 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
+def detect_punch(keypoints):
+    st.info(f"kp={keypoints}")
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    NOSE = 0
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
 
-def detect_punch(kpts):
-    st.info(f"keypoints = {kpts}")
-    try:
-        kpts = np.array(kpts)
-        ls = kpts[keypoint_index["left_shoulder"]][:2]
-        rs = kpts[keypoint_index["right_shoulder"]][:2]
-        le = kpts[keypoint_index["left_elbow"]][:2]
-        re = kpts[keypoint_index["right_elbow"]][:2]
-        lw = kpts[keypoint_index["left_wrist"]][:2]
-        rw = kpts[keypoint_index["right_wrist"]][:2]
-        nose = kpts[keypoint_index["nose"]][:2]
+    lw = keypoints[LEFT_WRIST][:2]
+    rw = keypoints[RIGHT_WRIST][:2]
+    nose = keypoints[NOSE][:2]
+    le = keypoints[LEFT_ELBOW][:2]
+    re = keypoints[RIGHT_ELBOW][:2]
+    ls = keypoints[LEFT_SHOULDER][:2]
+    rs = keypoints[RIGHT_SHOULDER][:2]
 
-        if np.any(np.isnan(kpts)) or np.all(kpts == 0):
-            return "None"
+    # Distances from wrists to nose (used for punches)
+    dist_lw_nose = np.linalg.norm(lw - nose)
+    dist_rw_nose = np.linalg.norm(rw - nose)
 
-        shoulder_width = np.linalg.norm(rs - ls) + 1e-6
-        mid_shoulder_y = (ls[1] + rs[1]) / 2
+    # Elbow angles to check punch extension
+    left_elbow_angle = calculate_angle(ls, le, lw)
+    right_elbow_angle = calculate_angle(rs, re, rw)
 
-        dist_lw_nose = np.linalg.norm(lw - nose) / shoulder_width
-        dist_rw_nose = np.linalg.norm(rw - nose) / shoulder_width
+    # Face position to estimate duck
+    head_height = nose[1]
 
-        left_elbow_angle = calculate_angle(ls, le, lw)
-        right_elbow_angle = calculate_angle(rs, re, rw)
-
-        head_drop = (nose[1] - mid_shoulder_y) / shoulder_width
-
-        # Debug print
-        st.info(f"Head drop: {head_drop:.2f}, Dist LW-Nose: {dist_lw_nose:.2f}, RW-Nose: {dist_rw_nose:.2f}")
-        st.info(f"Left elbow angle: {left_elbow_angle:.2f}, Right: {right_elbow_angle:.2f}")
-
-        # Rules
-        if head_drop > 0.2:
-            return "Duck"
-        elif dist_lw_nose < 0.6 and dist_rw_nose < 0.6 and left_elbow_angle < 90 and right_elbow_angle < 90:
-            return "Guard"
-        elif left_elbow_angle > 140 and dist_lw_nose > 0.6:
-            return "Jab"
-        elif right_elbow_angle > 140 and dist_rw_nose > 0.6:
-            return "Cross"
-        else:
-            return "None"
-
-    except Exception as e:
-        print(f"Error in punch detection: {e}")
+    # Heuristics
+    if dist_lw_nose > 50 and left_elbow_angle > 130:
+        return "Jab"
+    elif dist_rw_nose > 50 and right_elbow_angle > 130:
+        return "Cross"
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
+        return "Guard"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
+    else:
         return "None"
+
 
 # def classify_punch(keypoints_all_people, frame_idx):
 #     global person_states
@@ -517,11 +511,25 @@ if uploaded_files:
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
             #punches = classify_punch(rescaledkeypoints,frame_idx)
-            punches = detect_punch(rescaledkeypoints)
+            #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
             gloves = detect_gloves(rescaledkeypoints)
 
             h, w = frame.shape[:2]
+
+            punches = []  # Make sure this is before the loop
+
+            for frame_idx, (frames, person_kpts) in enumerate(zip(frame, keypoints)):
+                frame_height, frame_width = frames.shape[:2]
+
+                # Convert to NumPy array and scale (x, y) from normalized to pixel values
+                person_kpts = np.array(person_kpts)  # Shape: (17, 3)
+                person_kpts[:, 0] *= frame_width     # x-coordinate
+                person_kpts[:, 1] *= frame_height    # y-coordinate
+
+                # Detect punch from keypoints
+                label = detect_punch(person_kpts)
+                punches.append(label)
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves, h, w)
