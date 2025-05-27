@@ -795,6 +795,7 @@ ffmpeg-python
 tqdm
 seaborn
 lightgbm
+imbalanced-learn
 matplotlib
 '''
 
