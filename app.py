@@ -652,28 +652,91 @@ if uploaded_files:
         disp.plot(ax=ax, cmap='Blues')
         st.pyplot(fig)
 
+        train_idx, test_idx = train_test_split(df_full.index, test_size=0.2, stratify=y, random_state=42)
 
-        # Get the original indices of the test set
-        X_test_indices = X_test.index if isinstance(X_test, pd.DataFrame) else df_full.iloc[X_test].index
+        # ////////////////////////////////////////////////////////////////////////////////////
+        # Ensure DataFrame index is clean
+        df_full = df_full.reset_index(drop=True)
 
-        # Create predicted punch dataframe
+        # Extract features and target
+        X = df_full[keypoint_cols].values # Replace with actual feature column names
+        y = le.fit_transform(df_full['punch'])
+
+        # Track indices during train-test split
+        X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
+            X, y, df_full.index, test_size=0.2, stratify=y, random_state=42
+        )
+
+        # Feature scaling
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        # SMOTE
+        smote = SMOTE(random_state=42)
+        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+
+        # Train classifier
+        clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
+        clf.fit(X_train_balanced, y_train_balanced)
+
+        # Predict
+        y_pred = clf.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, target_names=le.classes_)
+
+        # Streamlit metrics
+        st.success(f"✅ RF Accuracy (SMOTE + weights): {accuracy:.3f}")
+        st.text("🔍 Classification Report:\n" + report)
+
+        # ✅ Create predicted punch dataframe using tracked indices
         predicted_df = pd.DataFrame({
-            'frame': df_full.loc[X_test_indices, 'frame'].values,
-            'timestamp': df_full.loc[X_test_indices, 'frame'].values / fps,
+            'frame': df_full.loc[test_idx, 'frame'].values,
+            'timestamp': df_full.loc[test_idx, 'frame'].values / fps,
             'predicted_label': y_pred,
-            'punch_type': le.inverse_transform(y_pred)
+            'punch_type': le.inverse_transform(y_pred),
+            'true_label': y_test,
+            'true_punch_type': le.inverse_transform(y_test)
         })
 
-        # Optional: include ground truth for comparison
-        predicted_df['true_label'] = y_test
-        predicted_df['true_punch_type'] = le.inverse_transform(y_test)
-
         # Reorder and save
-        predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label','true_punch_type','true_label']]
+        predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
         predicted_df.to_csv("predicted_punches.csv", index=False)
+
+        # Streamlit display and download
         st.success("✅ Saved predicted punches to predicted_punches.csv")
         st.dataframe(predicted_df.head())
-        st.download_button("📄 Download Pred Log CSV", predicted_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+        st.download_button(
+            "📄 Download Pred Log CSV",
+            predicted_df.to_csv(index=False),
+            file_name=f"log_{uploaded_file.name}.csv",
+            mime="text/csv"
+        )
+
+
+
+
+        # # Get the original indices of the test set
+        # X_test_indices = X_test.index if isinstance(X_test, pd.DataFrame) else df_full.iloc[X_test].index
+
+        # # Create predicted punch dataframe
+        # predicted_df = pd.DataFrame({
+        #     'frame': df_full.loc[X_test_indices, 'frame'].values,
+        #     'timestamp': df_full.loc[X_test_indices, 'frame'].values / fps,
+        #     'predicted_label': y_pred,
+        #     'punch_type': le.inverse_transform(y_pred)
+        # })
+
+        # # Optional: include ground truth for comparison
+        # predicted_df['true_label'] = y_test
+        # predicted_df['true_punch_type'] = le.inverse_transform(y_test)
+
+        # # Reorder and save
+        # predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label','true_punch_type','true_label']]
+        # predicted_df.to_csv("predicted_punches.csv", index=False)
+        # st.success("✅ Saved predicted punches to predicted_punches.csv")
+        # st.dataframe(predicted_df.head())
+        # st.download_button("📄 Download Pred Log CSV", predicted_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
 
 
 
