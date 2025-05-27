@@ -652,7 +652,7 @@ if uploaded_files:
             'frame': df_full.loc[test_idx, 'frame'].values,
             'timestamp': df_full.loc[test_idx, 'frame'].values / fps,
             'predicted_label': y_pred,
-            'punch_type': le.inverse_transform(y_pred),
+            'pred_punch_type': le.inverse_transform(y_pred),
             'true_label': y_test,
             'true_punch_type': le.inverse_transform(y_test)
         })
@@ -673,7 +673,7 @@ if uploaded_files:
 
 
         # Confusion Matrix
-        st.write("### Confusion Matrix (SVM)")
+        st.write("### Confusion Matrix (Tree)")
         cm = confusion_matrix(y_test, y_pred)
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
         fig, ax = plt.subplots(figsize=(6, 4))
