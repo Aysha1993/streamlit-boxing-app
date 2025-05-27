@@ -90,6 +90,7 @@ def calculate_angle(a, b, c):
 
 
 def detect_punch(kpts):
+    st.info(f"keypoints = {kpts}")
     try:
         kpts = np.array(kpts)
         ls = kpts[keypoint_index["left_shoulder"]][:2]
@@ -542,6 +543,7 @@ if uploaded_files:
             #       "gloves": gloves[i] if i < len(gloves) else "N/A",
             #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
             #   })
+            st.info(f"punches = {punches}")
             for i in range(len(punches)):
                 punch_log.append({
                       "video": uploaded_file.name,
