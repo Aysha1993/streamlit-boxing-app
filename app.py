@@ -522,7 +522,7 @@ if uploaded_files:
             #       "gloves": gloves[i] if i < len(gloves) else "N/A",
             #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
             #   })
-            st.info(f"punches = {punches}")
+            # st.info(f"punches = {punches}")
             for i in range(len(punches)):
                 punch_log.append({
                       "video": uploaded_file.name,
@@ -607,18 +607,18 @@ if uploaded_files:
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
         st.info(f"All keypoint columns in dataframe: {keypoint_cols}")
         st.info(f"Frame: {frame_idx} | Timestamp: {frame_idx / fps:.2f} sec | Punches: {punches}")
-        
+
         # Encode labels
-        le = LabelEncoder()      
+        le = LabelEncoder() 
+
+        # Extract features and target
+        X = df_full[keypoint_cols].values # Replace with actual feature column names
+        y = le.fit_transform(df_full['punch'])     
 
         train_idx, test_idx = train_test_split(df_full.index, test_size=0.2, stratify=y, random_state=42)
 
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
-
-        # Extract features and target
-        X = df_full[keypoint_cols].values # Replace with actual feature column names
-        y = le.fit_transform(df_full['punch'])
 
         # Track indices during train-test split
         X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
