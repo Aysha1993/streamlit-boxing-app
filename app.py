@@ -606,55 +606,13 @@ if uploaded_files:
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
         st.info(f"All keypoint columns in dataframe: {keypoint_cols}")
-
-        X = df_full[keypoint_cols].values
-        st.info(f"All X values in dataframe: {X}")
-
-
-        # Encode labels
-        le = LabelEncoder()
-        y = le.fit_transform(df_full['punch'].values)
-
-        # Class weights (for imbalanced classes)
-        class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y), y=y)
-        class_weight_dict = dict(zip(np.unique(y), class_weights))
-
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-
-        # Feature scaling
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-
-        # SMOTE (applied *after* split to avoid leakage)
-        smote = SMOTE(random_state=42)
-        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-
-        # Train classifier with class weights
-        clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight=class_weight_dict, n_jobs=-1)
-        clf.fit(X_train_balanced, y_train_balanced)
-
-        y_pred = clf.predict(X_test_scaled)
-        accuracy = accuracy_score(y_test, y_pred)
-        report = classification_report(y_test, y_pred, target_names=le.classes_)
-
-        st.success(f"✅ RF Accuracy (SMOTE + weights): {accuracy:.3f}")
-        st.text("🔍 Classification Report:\n" + report)
         st.info(f"Frame: {frame_idx} | Timestamp: {frame_idx / fps:.2f} sec | Punches: {punches}")
-
-
-        # Confusion Matrix
-        st.write("### Confusion Matrix (SVM)")
-        cm = confusion_matrix(y_test, y_pred)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        disp.plot(ax=ax, cmap='Blues')
-        st.pyplot(fig)
+        
+        # Encode labels
+        le = LabelEncoder()      
 
         train_idx, test_idx = train_test_split(df_full.index, test_size=0.2, stratify=y, random_state=42)
 
-        # ////////////////////////////////////////////////////////////////////////////////////
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
 
@@ -698,7 +656,7 @@ if uploaded_files:
             'true_label': y_test,
             'true_punch_type': le.inverse_transform(y_test)
         })
-
+        
         # Reorder and save
         predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
         predicted_df.to_csv("predicted_punches.csv", index=False)
@@ -712,6 +670,15 @@ if uploaded_files:
             file_name=f"log_{uploaded_file.name}.csv",
             mime="text/csv"
         )
+
+
+        # Confusion Matrix
+        st.write("### Confusion Matrix (SVM)")
+        cm = confusion_matrix(y_test, y_pred)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        disp.plot(ax=ax, cmap='Blues')
+        st.pyplot(fig)
 
 
 
