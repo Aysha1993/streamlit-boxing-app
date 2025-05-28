@@ -335,7 +335,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         in_ring = is_inside_ring(kp, h, w)
 
         # Update punch tracker
-        punch_tracker.update(idx, punch)
+        punch_tracker.update('2', punch)
 
         # Skip if in ring but not a boxer
         if in_ring and not punch_tracker.is_boxer(idx):
