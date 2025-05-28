@@ -224,24 +224,91 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-def detect_gloves(keypoints, distance_thresh=0.1):
-    gloves = []
-    for kp in keypoints:
-        lw, le = kp[9], kp[7]   # left wrist, left elbow
-        rw, re = kp[10], kp[8]  # right wrist, right elbow
+import cv2
+import numpy as np
 
-        def is_glove_present(wrist, elbow):
-            if wrist[2] > 0.2 and elbow[2] > 0.2:
-                dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
-                return dist > distance_thresh
-            return False
+def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3, crop_size=30):
+    """
+    Detect boxing gloves using wrist keypoints and color/shape around the wrist.
 
-        gloves.append({
-            "left": is_glove_present(lw, le),
-            "right": is_glove_present(rw, re)
+    Args:
+        frame: BGR image (numpy array)
+        keypoints: List of people, each a list of 17 keypoints (x, y, confidence)
+        confidence_threshold: Minimum confidence for wrist visibility
+        crop_size: Half-size of square patch to crop around wrist
+
+    Returns:
+        List of glove detections: [{'left_glove': True/False, 'right_glove': True/False}, ...]
+    """
+    glove_detections = []
+
+    for person in keypoints:
+        h, w, _ = frame.shape
+
+        def crop_wrist_region(wrist_index):
+            kp = person[wrist_index]
+            if kp[2] < confidence_threshold:
+                return None
+            x = int(kp[0] * w)
+            y = int(kp[1] * h)
+            x1, y1 = max(0, x - crop_size), max(0, y - crop_size)
+            x2, y2 = min(w, x + crop_size), min(h, y + crop_size)
+            return frame[y1:y2, x1:x2]
+
+        def is_glove(region):
+            if region is None or region.size == 0:
+                return False
+
+            # Convert to HSV for better color filtering
+            hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+
+            # Define color ranges (adjust as needed)
+            glove_colors = {
+                'red': ((0, 70, 50), (10, 255, 255)),
+                'blue': ((100, 100, 50), (140, 255, 255)),
+                'black': ((0, 0, 0), (180, 255, 60)),
+            }
+
+            mask_total = np.zeros(hsv.shape[:2], dtype=np.uint8)
+            for lower, upper in glove_colors.values():
+                mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+                mask_total = cv2.bitwise_or(mask_total, mask)
+
+            # Check if mask has enough coverage (glove likely present)
+            glove_ratio = np.sum(mask_total > 0) / mask_total.size
+            return glove_ratio > 0.2  # You can tune this threshold
+
+        left_crop = crop_wrist_region(9)
+        right_crop = crop_wrist_region(10)
+
+        left_glove = is_glove(left_crop)
+        right_glove = is_glove(right_crop)
+
+        glove_detections.append({
+            'left_glove': left_glove,
+            'right_glove': right_glove
         })
 
-    return gloves
+    return glove_detections
+
+# def detect_gloves(keypoints, distance_thresh=0.1):
+#     gloves = []
+#     for kp in keypoints:
+#         lw, le = kp[9], kp[7]   # left wrist, left elbow
+#         rw, re = kp[10], kp[8]  # right wrist, right elbow
+
+#         def is_glove_present(wrist, elbow):
+#             if wrist[2] > 0.2 and elbow[2] > 0.2:
+#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
+#                 return dist > distance_thresh
+#             return False
+
+#         gloves.append({
+#             "left": is_glove_present(lw, le),
+#             "right": is_glove_present(rw, re)
+#         })
+
+#     return gloves
 
 # 17 keypoints (based on MoveNet/COCO order)
 KEYPOINT_NAMES = [
@@ -303,12 +370,12 @@ SKELETON_EDGES = [
 
 import cv2
 
-def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
-    for idx, (kp_raw, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
         #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
 
@@ -331,73 +398,32 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
+        # for side, wrist_idx in zip(["L", "R"], [9, 10]):
+        #     y, x, s = kp[wrist_idx]
+        #     if s > 0.2:
+        #         cx, cy = int(x * w), int(y * h)
+        #         pad = 15
+        #         has_glove = glove.get('left' if side == 'L' else 'right', False)
+        #         color = (0, 0, 255) if has_glove else (0, 255, 255)
+        #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+        #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+        #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
         #Draw gloves
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                pad = 15
-                has_glove = glove.get('left' if side == 'L' else 'right', False)
-                color = (0, 0, 255) if has_glove else (0, 255, 255)
-                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        for side, idx in [('left', 9), ('right', 10)]:
+                    if glovedetected[f"{side}_glove"]:
+                        x = int(person[idx][0] * frame.shape[1])
+                        y = int(person[idx][1] * frame.shape[0])
+                        cv2.circle(frame, (x, y), 8, (0, 255, 0), -1)
+                        cv2.putText(frame, f"{side.capitalize()} Glove", (x + 5, y - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         #Final label
-        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+        glove_str = f"L-{'Yes' if glovedetected.get('left') else 'No'} R-{'Yes' if glovedetected.get('right') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
-
-    #     if is_likely_coach(kp):
-    #         avg_conf = np.mean([p[2] for p in kp])
-    #         ys = [p[0] for p in kp if p[2] > 0.2]
-    #         bbox_height = max(ys) - min(ys) if ys else 0
-    #         valid_detections.append((avg_conf, bbox_height, kp, punch, posture, glove))
-
-    # #Keep top 2 tallest persons (most likely boxers)
-    # valid_detections = sorted(valid_detections, key=lambda x: x[1], reverse=True)[:2]
-
-    # for idx, (avg_conf, bbox_height, kp, punch, posture, glove) in enumerate(valid_detections):
-    #     #Draw keypoints
-    #     for i, (y, x, s) in enumerate(kp):
-    #         if s > 0.2:
-    #             cx, cy = int(x * w), int(y * h)
-    #             if 0 <= cx < w and 0 <= cy < h:
-    #                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-    #                 cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-    #                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
-    #     #Draw skeleton
-    #     for (p1, p2) in SKELETON_EDGES:
-    #         y1, x1, s1 = kp[p1]
-    #         y2, x2, s2 = kp[p2]
-    #         if s1 > 0.2 and s2 > 0.2:
-    #             pt1 = int(x1 * w), int(y1 * h)
-    #             pt2 = int(x2 * w), int(y2 * h)
-    #             if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-    #                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-    #     #Draw gloves
-    #     for side, wrist_idx in zip(["L", "R"], [9, 10]):
-    #         y, x, s = kp[wrist_idx]
-    #         if s > 0.2:
-    #             cx, cy = int(x * w), int(y * h)
-    #             pad = 15
-    #             has_glove = glove.get('left' if side == 'L' else 'right', False)
-    #             color = (0, 255, 255) if has_glove else (0, 0, 255)
-    #             cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-    #             cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-    #                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-    #     #Final label
-    #     glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-    #     label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-    #     cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-    #                 0.5, (255, 255, 0), 1)
-    #     y_offset += line_height
-
     return frame
 
 def expand_keypoints(keypoints):
@@ -489,7 +515,8 @@ if uploaded_files:
             #punches = classify_punch(rescaledkeypoints,frame_idx)
             #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
-            gloves = detect_gloves(rescaledkeypoints)
+            #gloves = detect_gloves(rescaledkeypoints)
+            glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
 
             h, w = frame.shape[:2]
 
@@ -503,7 +530,7 @@ if uploaded_files:
                 punches.append(label)
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
 
