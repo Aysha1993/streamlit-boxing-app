@@ -560,7 +560,7 @@ if uploaded_files:
                       "timestamp": frame_idx / fps,
                       "punch": punches[i] if i < len(punches) else "N/A",
                       "posture": postures[i] if i < len(postures) else "N/A",
-                      "gloves": gloves[i] if i < len(gloves) else "N/A",
+                      "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
                       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
                   })
 
