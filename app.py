@@ -416,9 +416,10 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                 if s > 0.2:
                     cx = int(x * frame.shape[1])
                     cy = int(y * frame.shape[0])
-                    cv2.circle(frame, (cx, cy), 8, (0, 255, 0), -1)
+                    pad=15
+                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
                     cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         #Final label
         glove_str = f"L-{'Yes' if glovedetected.get('left') else 'No'} R-{'Yes' if glovedetected.get('right') else 'No'}"
