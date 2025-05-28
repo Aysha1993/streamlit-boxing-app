@@ -609,11 +609,11 @@ if uploaded_files:
         st.info(f"Frame: {frame_idx} | Timestamp: {frame_idx / fps:.2f} sec | Punches: {punches}")
 
         # Encode labels
-        le = LabelEncoder() 
+        le = LabelEncoder()
 
         # Extract features and target
         X = df_full[keypoint_cols].values # Replace with actual feature column names
-        y = le.fit_transform(df_full['punch'])     
+        y = le.fit_transform(df_full['punch'])
 
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
@@ -654,7 +654,7 @@ if uploaded_files:
             'true_label': y_test,
             'true_punch_type': le.inverse_transform(y_test)
         })
-        
+
         # Reorder and save
         predicted_df = predicted_df[['frame', 'timestamp', 'pred_punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
         predicted_df.to_csv("predicted_punches.csv", index=False)
@@ -918,6 +918,7 @@ tqdm
 seaborn
 lightgbm
 imbalanced-learn
+plotly
 matplotlib
 '''
 
