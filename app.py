@@ -412,8 +412,8 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         #Draw gloves
         for side, idx in [('left', 9), ('right', 10)]:
                     if glovedetected[f"{side}_glove"]:
-                        x = int(person[idx][0] * frame.shape[1])
-                        y = int(person[idx][1] * frame.shape[0])
+                        x = int(idx[0] * frame.shape[1])
+                        y = int(idx[1] * frame.shape[0])
                         cv2.circle(frame, (x, y), 8, (0, 255, 0), -1)
                         cv2.putText(frame, f"{side.capitalize()} Glove", (x + 5, y - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
