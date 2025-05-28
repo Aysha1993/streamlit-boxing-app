@@ -224,15 +224,14 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-
 def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3, crop_size=30):
     """
-    Detect boxing gloves using wrist keypoints and color/shape around the wrist.
+    Detect boxing gloves using wrist keypoints and color/shape, only when punch posture is detected.
 
     Args:
         frame: BGR image (numpy array)
         keypoints: List of people, each a list of 17 keypoints (x, y, confidence)
-        confidence_threshold: Minimum confidence for wrist visibility
+        confidence_threshold: Minimum confidence for keypoints
         crop_size: Half-size of square patch to crop around wrist
 
     Returns:
@@ -240,8 +239,47 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
     """
     glove_detections = []
 
+    def is_punching_pose(person):
+        """
+        Heuristically detect punch-like posture: one arm extended forward
+        """
+        def arm_extended(shoulder_idx, elbow_idx, wrist_idx):
+            s = person[shoulder_idx]
+            e = person[elbow_idx]
+            w = person[wrist_idx]
+
+            # Confidence check
+            if s[2] < confidence_threshold or e[2] < confidence_threshold or w[2] < confidence_threshold:
+                return False
+
+            # Vector direction
+            sx, sy = s[0], s[1]
+            ex, ey = e[0], e[1]
+            wx, wy = w[0], w[1]
+
+            # Approximate straightness of arm using angle between segments
+            vec1 = np.array([ex - sx, ey - sy])
+            vec2 = np.array([wx - ex, wy - ey])
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            if norm1 == 0 or norm2 == 0:
+                return False
+
+            cos_angle = np.dot(vec1, vec2) / (norm1 * norm2)
+            angle = np.arccos(np.clip(cos_angle, -1, 1)) * 180 / np.pi
+
+            # Angle near 180 means straight arm (punch-like)
+            return angle > 150
+
+        # Return True if at least one arm is extended
+        return arm_extended(5, 7, 9) or arm_extended(6, 8, 10)  # Left or Right arm
+
     for person in keypoints:
         h, w, _ = frame.shape
+
+        if not is_punching_pose(person):
+            glove_detections.append({'left_glove': False, 'right_glove': False})
+            continue  # Skip glove check if not punching
 
         def crop_wrist_region(wrist_index):
             kp = person[wrist_index]
@@ -257,10 +295,7 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
             if region is None or region.size == 0:
                 return False
 
-            # Convert to HSV for better color filtering
             hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
-
-            # Define color ranges (adjust as needed)
             glove_colors = {
                 'red': ((0, 70, 50), (10, 255, 255)),
                 'blue': ((100, 100, 50), (140, 255, 255)),
@@ -272,22 +307,16 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
                 mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
                 mask_total = cv2.bitwise_or(mask_total, mask)
 
-             # Color coverage threshold
             glove_ratio = np.sum(mask_total > 0) / mask_total.size
             if glove_ratio < 0.2:
                 return False
 
-            # Add shape-based filtering: contour area
             contours, _ = cv2.findContours(mask_total, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             for cnt in contours:
                 area = cv2.contourArea(cnt)
-                if area > 100:  # Minimum contour area threshold (tune as needed)
+                if area > 100:
                     return True
             return False
-
-            # # Check if mask has enough coverage (glove likely present)
-            # glove_ratio = np.sum(mask_total > 0) / mask_total.size
-            # return glove_ratio > 0.2  # You can tune this threshold
 
         left_crop = crop_wrist_region(9)
         right_crop = crop_wrist_region(10)
