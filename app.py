@@ -338,7 +338,7 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                 cx, cy = int(x * w), int(y * h)
                 pad = 15
                 has_glove = glove.get('left' if side == 'L' else 'right', False)
-                color = (0, 255, 255) if has_glove else (0, 0, 255)
+                color = (0, 0, 255) if has_glove else (0, 255, 255)
                 cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
                 cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
@@ -579,7 +579,6 @@ if uploaded_files:
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
 
         all_logs.extend(punch_log)
-
 
         # Load data (assuming it's saved as CSV)
 
