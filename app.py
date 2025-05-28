@@ -331,11 +331,11 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
-        # Update punch tracker
-        punch_tracker.update(idx, punch)
-
         # Check location
         in_ring = is_inside_ring(kp, h, w)
+
+        # Update punch tracker
+        punch_tracker.update(idx, punch)
 
         # Skip if in ring but not a boxer
         if in_ring and not punch_tracker.is_boxer(idx):
@@ -408,6 +408,7 @@ def expand_keypoints(keypoints):
         return pd.Series(data)
     except Exception:
         return pd.Series()
+
 def rescale_keypoints(keypoints, input_size, original_size):
     input_height, input_width = input_size
     orig_height, orig_width = original_size
@@ -427,8 +428,6 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
-
-
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
