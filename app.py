@@ -89,61 +89,7 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-def detect_punch(keypoints):
-    LEFT_WRIST = 9
-    RIGHT_WRIST = 10
-    NOSE = 0
-    LEFT_ELBOW = 7
-    RIGHT_ELBOW = 8
-    LEFT_SHOULDER = 5
-    RIGHT_SHOULDER = 6
-
-    try:
-        kp = np.array(keypoints).reshape(-1, 3)
-        conf = kp[:, 2]
-
-        # Skip if essential keypoints are low confidence
-        if np.any(conf[[NOSE, LEFT_WRIST, RIGHT_WRIST, LEFT_ELBOW, RIGHT_ELBOW, LEFT_SHOULDER, RIGHT_SHOULDER]] < 0.2):
-            return "None"
-
-        # Coordinates
-        lw = kp[LEFT_WRIST][:2]
-        rw = kp[RIGHT_WRIST][:2]
-        nose = kp[NOSE][:2]
-        le = kp[LEFT_ELBOW][:2]
-        re = kp[RIGHT_ELBOW][:2]
-        ls = kp[LEFT_SHOULDER][:2]
-        rs = kp[RIGHT_SHOULDER][:2]
-
-        # Distances from wrists to nose
-        dist_lw_nose = np.linalg.norm(lw - nose)
-        dist_rw_nose = np.linalg.norm(rw - nose)
-
-        # Elbow angles
-        left_elbow_angle = calculate_angle(ls, le, lw)
-        right_elbow_angle = calculate_angle(rs, re, rw)
-
-        # Head height (y-coord increases downward)
-        head_height = nose[1]
-
-        # Heuristic rules
-        if dist_lw_nose > 50 and left_elbow_angle > 130:
-            return "Jab"
-        elif dist_rw_nose > 50 and right_elbow_angle > 130:
-            return "Cross"
-        elif dist_lw_nose < 50 and dist_rw_nose < 50:
-            return "Guard"
-        elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-            return "Duck"
-        else:
-            return "None"
-
-    except Exception as e:
-        print(f"Error in punch detection: {e}")
-        return "None"
-
 # def detect_punch(keypoints):
-#     #st.info(f"kp={keypoints}")
 #     LEFT_WRIST = 9
 #     RIGHT_WRIST = 10
 #     NOSE = 0
@@ -152,36 +98,90 @@ def detect_punch(keypoints):
 #     LEFT_SHOULDER = 5
 #     RIGHT_SHOULDER = 6
 
-#     lw = keypoints[LEFT_WRIST][:2]
-#     rw = keypoints[RIGHT_WRIST][:2]
-#     nose = keypoints[NOSE][:2]
-#     le = keypoints[LEFT_ELBOW][:2]
-#     re = keypoints[RIGHT_ELBOW][:2]
-#     ls = keypoints[LEFT_SHOULDER][:2]
-#     rs = keypoints[RIGHT_SHOULDER][:2]
+#     try:
+#         kp = np.array(keypoints).reshape(-1, 3)
+#         conf = kp[:, 2]
 
-#     # Distances from wrists to nose (used for punches)
-#     dist_lw_nose = np.linalg.norm(lw - nose)
-#     dist_rw_nose = np.linalg.norm(rw - nose)
+#         # Skip if essential keypoints are low confidence
+#         if np.any(conf[[NOSE, LEFT_WRIST, RIGHT_WRIST, LEFT_ELBOW, RIGHT_ELBOW, LEFT_SHOULDER, RIGHT_SHOULDER]] < 0.2):
+#             return "None"
 
-#     # Elbow angles to check punch extension
-#     left_elbow_angle = calculate_angle(ls, le, lw)
-#     right_elbow_angle = calculate_angle(rs, re, rw)
+#         # Coordinates
+#         lw = kp[LEFT_WRIST][:2]
+#         rw = kp[RIGHT_WRIST][:2]
+#         nose = kp[NOSE][:2]
+#         le = kp[LEFT_ELBOW][:2]
+#         re = kp[RIGHT_ELBOW][:2]
+#         ls = kp[LEFT_SHOULDER][:2]
+#         rs = kp[RIGHT_SHOULDER][:2]
 
-#     # Face position to estimate duck
-#     head_height = nose[1]
+#         # Distances from wrists to nose
+#         dist_lw_nose = np.linalg.norm(lw - nose)
+#         dist_rw_nose = np.linalg.norm(rw - nose)
 
-#     # Heuristics
-#     if dist_lw_nose > 50 and left_elbow_angle > 130:
-#         return "Jab"
-#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
-#         return "Cross"
-#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
-#         return "Guard"
-#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-#         return "Duck"
-#     else:
+#         # Elbow angles
+#         left_elbow_angle = calculate_angle(ls, le, lw)
+#         right_elbow_angle = calculate_angle(rs, re, rw)
+
+#         # Head height (y-coord increases downward)
+#         head_height = nose[1]
+
+#         # Heuristic rules
+#         if dist_lw_nose > 50 and left_elbow_angle > 130:
+#             return "Jab"
+#         elif dist_rw_nose > 50 and right_elbow_angle > 130:
+#             return "Cross"
+#         elif dist_lw_nose < 50 and dist_rw_nose < 50:
+#             return "Guard"
+#         elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+#             return "Duck"
+#         else:
+#             return "None"
+
+#     except Exception as e:
+#         print(f"Error in punch detection: {e}")
 #         return "None"
+
+def detect_punch(keypoints):
+    #st.info(f"kp={keypoints}")
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    NOSE = 0
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+
+    lw = keypoints[LEFT_WRIST][:2]
+    rw = keypoints[RIGHT_WRIST][:2]
+    nose = keypoints[NOSE][:2]
+    le = keypoints[LEFT_ELBOW][:2]
+    re = keypoints[RIGHT_ELBOW][:2]
+    ls = keypoints[LEFT_SHOULDER][:2]
+    rs = keypoints[RIGHT_SHOULDER][:2]
+
+    # Distances from wrists to nose (used for punches)
+    dist_lw_nose = np.linalg.norm(lw - nose)
+    dist_rw_nose = np.linalg.norm(rw - nose)
+
+    # Elbow angles to check punch extension
+    left_elbow_angle = calculate_angle(ls, le, lw)
+    right_elbow_angle = calculate_angle(rs, re, rw)
+
+    # Face position to estimate duck
+    head_height = nose[1]
+
+    # Heuristics
+    if dist_lw_nose > 50 and left_elbow_angle > 130:
+        return "Jab"
+    elif dist_rw_nose > 50 and right_elbow_angle > 130:
+        return "Cross"
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
+        return "Guard"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
+    else:
+        return "None"
 
 def check_posture(keypoints):
     feedback = []
@@ -348,66 +348,17 @@ SKELETON_EDGES = [
     (11, 12)                                # Hip line
 ]
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
-    y_offset = 30
-    line_height = 20
-
-    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
-        if punch.lower() in ['none', '', 'no_punch']:  # <-- FILTER COACH / NON-BOXER
-            continue
-
-        kp = np.array(kp_raw).reshape(-1, 3).tolist()
-
-        # Draw keypoints
-        for i, (y, x, s) in enumerate(kp):
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                if 0 <= cx < w and 0 <= cy < h:
-                    cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-                    cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
-        # Draw skeleton
-        for (p1, p2) in SKELETON_EDGES:
-            y1, x1, s1 = kp[p1]
-            y2, x2, s2 = kp[p2]
-            if s1 > 0.2 and s2 > 0.2:
-                pt1 = int(x1 * w), int(y1 * h)
-                pt2 = int(x2 * w), int(y2 * h)
-                if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-        # Draw gloves
-        for side, kp_idx in [('left', 9), ('right', 10)]:
-            if glovedetected.get(f"{side}_glove"):
-                y, x, s = kp[kp_idx]
-                if s > 0.2:
-                    cx = int(x * w)
-                    cy = int(y * h)
-                    pad = 15
-                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
-                    cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
-        # Final label
-        glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
-        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-        cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5, (255, 255, 0), 1)
-        y_offset += line_height
-
-    return frame
-
 # def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
 #     y_offset = 30
 #     line_height = 20
 
-#     valid_detections = []
 #     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
-#         kp = np.array(kp_raw).reshape(-1, 3).tolist()
-#         #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+#         if punch.lower() in ['none', '', 'no_punch']:  # <-- FILTER COACH / NON-BOXER
+#             continue
 
-#         #Draw keypoints
+#         kp = np.array(kp_raw).reshape(-1, 3).tolist()
+
+#         # Draw keypoints
 #         for i, (y, x, s) in enumerate(kp):
 #             if s > 0.2:
 #                 cx, cy = int(x * w), int(y * h)
@@ -416,7 +367,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 #                     cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
 #                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-#         #Draw skeleton
+#         # Draw skeleton
 #         for (p1, p2) in SKELETON_EDGES:
 #             y1, x1, s1 = kp[p1]
 #             y2, x2, s2 = kp[p2]
@@ -426,36 +377,85 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 #                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
 #                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
-#         # for side, wrist_idx in zip(["L", "R"], [9, 10]):
-#         #     y, x, s = kp[wrist_idx]
-#         #     if s > 0.2:
-#         #         cx, cy = int(x * w), int(y * h)
-#         #         pad = 15
-#         #         has_glove = glove.get('left' if side == 'L' else 'right', False)
-#         #         color = (0, 0, 255) if has_glove else (0, 255, 255)
-#         #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-#         #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-#         #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-#         #Draw gloves
+#         # Draw gloves
 #         for side, kp_idx in [('left', 9), ('right', 10)]:
 #             if glovedetected.get(f"{side}_glove"):
 #                 y, x, s = kp[kp_idx]
 #                 if s > 0.2:
-#                     cx = int(x * frame.shape[1])
-#                     cy = int(y * frame.shape[0])
-#                     pad=15
+#                     cx = int(x * w)
+#                     cy = int(y * h)
+#                     pad = 15
 #                     cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
 #                     cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
 #                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
-#         #Final label
+#         # Final label
 #         glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
 #         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
 #         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
 #                     0.5, (255, 255, 0), 1)
 #         y_offset += line_height
+
 #     return frame
+
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
+    y_offset = 30
+    line_height = 20
+
+    valid_detections = []
+    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
+        kp = np.array(kp_raw).reshape(-1, 3).tolist()
+        #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+
+        #Draw keypoints
+        for i, (y, x, s) in enumerate(kp):
+            if s > 0.2:
+                cx, cy = int(x * w), int(y * h)
+                if 0 <= cx < w and 0 <= cy < h:
+                    cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
+                    cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
+        #Draw skeleton
+        for (p1, p2) in SKELETON_EDGES:
+            y1, x1, s1 = kp[p1]
+            y2, x2, s2 = kp[p2]
+            if s1 > 0.2 and s2 > 0.2:
+                pt1 = int(x1 * w), int(y1 * h)
+                pt2 = int(x2 * w), int(y2 * h)
+                if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
+                    cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
+
+        # for side, wrist_idx in zip(["L", "R"], [9, 10]):
+        #     y, x, s = kp[wrist_idx]
+        #     if s > 0.2:
+        #         cx, cy = int(x * w), int(y * h)
+        #         pad = 15
+        #         has_glove = glove.get('left' if side == 'L' else 'right', False)
+        #         color = (0, 0, 255) if has_glove else (0, 255, 255)
+        #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+        #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+        #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+        #Draw gloves
+        for side, kp_idx in [('left', 9), ('right', 10)]:
+            if glovedetected.get(f"{side}_glove"):
+                y, x, s = kp[kp_idx]
+                if s > 0.2:
+                    cx = int(x * frame.shape[1])
+                    cy = int(y * frame.shape[0])
+                    pad=15
+                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
+                    cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+        #Final label
+        glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
+        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+        cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (255, 255, 0), 1)
+        y_offset += line_height
+    return frame
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
