@@ -224,8 +224,6 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-import cv2
-import numpy as np
 
 def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3, crop_size=30):
     """
@@ -274,9 +272,22 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
                 mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
                 mask_total = cv2.bitwise_or(mask_total, mask)
 
-            # Check if mask has enough coverage (glove likely present)
+             # Color coverage threshold
             glove_ratio = np.sum(mask_total > 0) / mask_total.size
-            return glove_ratio > 0.2  # You can tune this threshold
+            if glove_ratio < 0.2:
+                return False
+
+            # Add shape-based filtering: contour area
+            contours, _ = cv2.findContours(mask_total, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area > 100:  # Minimum contour area threshold (tune as needed)
+                    return True
+            return False
+
+            # # Check if mask has enough coverage (glove likely present)
+            # glove_ratio = np.sum(mask_total > 0) / mask_total.size
+            # return glove_ratio > 0.2  # You can tune this threshold
 
         left_crop = crop_wrist_region(9)
         right_crop = crop_wrist_region(10)
