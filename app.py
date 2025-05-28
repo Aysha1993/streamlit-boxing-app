@@ -329,10 +329,6 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
-        if idx == 2:
-            st.info("Skipping non-boxer ID 2")
-            continue
-
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
         # # Check location
@@ -460,7 +456,7 @@ if uploaded_files:
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
-
+        # punch_tracker = PunchTracker(max_frames=30)
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -481,6 +477,7 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            st.info(f"rescaledkeypoints = {rescaledkeypoints}")
             #st.info(f"rescaledkp={rescaledkeypoints}")
             #punches = classify_punch(rescaledkeypoints,frame_idx)
             #punches = detect_punch(rescaledkeypoints)
@@ -488,21 +485,30 @@ if uploaded_files:
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
 
-            punch_tracker = PunchTracker(max_frames=30)
+            
             h, w = frame.shape[:2]
 
             punches = []
             for person_kpts in rescaledkeypoints:
                 person_kpts = np.array(person_kpts)  # Shape: (17, 3)
-                person_kpts[:, 0] *= width  # x-coordinate
-                person_kpts[:, 1] *= height  # y-coordinate
+                # person_kpts[:, 0] *= width  # x-coordinate
+                # person_kpts[:, 1] *= height  # y-coordinate
 
                 label = detect_punch(person_kpts)
                 punches.append(label)
 
+                
+            filtered_indices = [i for i in range(len(rescaledkeypoints)) if i != 2]
+            filtered_keypoints = [rescaledkeypoints[i] for i in filtered_indices]
+            filtered_punches = [punches[i] for i in filtered_indices]
+            filtered_postures = [postures[i] for i in filtered_indices]
+            filtered_gloves = [glove_detections[i] for i in filtered_indices]
+
+            annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
+
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,punch_tracker)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
 
