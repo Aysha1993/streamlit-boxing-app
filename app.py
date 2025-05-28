@@ -422,7 +422,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         #Final label
-        glove_str = f"L-{'Yes' if glovedetected.get('left') else 'No'} R-{'Yes' if glovedetected.get('right') else 'No'}"
+        glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
