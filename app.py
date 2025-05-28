@@ -329,6 +329,10 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
+        if idx == 2:
+            st.info("Skipping non-boxer ID 2")
+            continue
+
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
         # # Check location
