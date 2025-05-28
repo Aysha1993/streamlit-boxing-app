@@ -200,9 +200,9 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
     for person in keypoints:
         h, w, _ = frame.shape
 
-        if not is_punching_pose(person):
-            glove_detections.append({'left_glove': False, 'right_glove': False})
-            continue  # Skip glove check if not punching
+        # if not is_punching_pose(person):
+        #     glove_detections.append({'left_glove': False, 'right_glove': False})
+        #     continue  # Skip glove check if not punching
 
         def crop_wrist_region(wrist_index):
             kp = person[wrist_index]
