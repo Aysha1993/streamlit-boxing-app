@@ -323,7 +323,7 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,punch_tracker):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
@@ -331,15 +331,15 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
-        # Check location
-        in_ring = is_inside_ring(kp, h, w)
+        # # Check location
+        # in_ring = is_inside_ring(kp, h, w)
 
-        # Update punch tracker
-        punch_tracker.update(idx, punch)
+        # # Update punch tracker
+        # punch_tracker.update(idx, punch)
 
-        # Skip if in ring but not a boxer
-        if in_ring and not punch_tracker.is_boxer(idx):
-            continue
+        # # Skip if in ring but not a boxer
+        # if in_ring and not punch_tracker.is_boxer(idx):
+        #     continue
 
         #Draw keypoints
         for i, (y, x, s) in enumerate(kp):
@@ -497,7 +497,8 @@ if uploaded_files:
                 punches.append(label)
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,punch_tracker)
+            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,punch_tracker)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
 
