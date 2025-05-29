@@ -557,38 +557,51 @@ if uploaded_files:
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
 
         all_logs.extend(punch_log)
+        st.write("All columns:", expanded_df.columns.tolist())
+
 
         df_log = pd.DataFrame(punch_log)
 
-        # Load data (assuming it's saved as CSV)
+        # Expand keypoints into flat features
+        df_features = df_log['keypoints'].apply(expand_keypoints)
+        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
 
-        X = df_log.filter(regex="^(x_|y_|s_)")  # All keypoint-related columns
-        y = df_log["punch"]            # Replace with "posture" for posture classification
+        # Extract features: all keypoints x, y, s columns
+        keypoint_cols = []
+        for i in range(17):
+            keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+        st.write("df_full columns:", df_full.columns.tolist())
+        st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
 
-        clf = RandomForestClassifier(n_estimators=100, random_state=42)
-        clf.fit(X_train, y_train)
+        # Extract features and target
+        X = df_full[keypoint_cols].values
+        y = df_full["punch"]            # Replace with "posture" for posture classification
 
-        y_pred = clf.predict(X_test)
+        # X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+        
+        # clf = RandomForestClassifier(n_estimators=100, random_state=42)
+        # clf.fit(X_train, y_train)
 
-        # Accuracy
-        acc = accuracy_score(y_test, y_pred)
-        print("✅ Accuracy:", acc)
+        # y_pred = clf.predict(X_test)
 
-        # Confusion Matrix
-        cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
+        # # Accuracy
+        # acc = accuracy_score(y_test, y_pred)
+        # print("✅ Accuracy:", acc)
 
-        # Heatmap
-        plt.figure(figsize=(8,6))
-        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        plt.show()
+        # # Confusion Matrix
+        # cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
 
-        # Detailed Report
-        print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
+        # # Heatmap
+        # plt.figure(figsize=(8,6))
+        # sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
+        # plt.xlabel("Predicted")
+        # plt.ylabel("True")
+        # plt.title("Confusion Matrix")
+        # plt.show()
+
+        # # Detailed Report
+        # print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
 
                 
 
