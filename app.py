@@ -427,7 +427,7 @@ if uploaded_files:
     all_logs = []
     progress_bar = st.progress(0)
     for idx, uploaded_file in enumerate(uploaded_files):
-        st.subheader(f"📦 Processing: {uploaded_file.name}")
+        st.subheader(f"📦frame Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
         input_path = os.path.join(temp_dir, uploaded_file.name)
 
@@ -467,7 +467,7 @@ if uploaded_files:
             postures = check_posture(rescaledkeypoints)
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
-
+            st.info(f"rescaledkeypoints= {rescaledkeypoints}")
 
             h, w = frame.shape[:2]
 
@@ -476,9 +476,10 @@ if uploaded_files:
                 person_kpts = np.array(person_kpts)  # Shape: (17, 3)
                 person_kpts[:, 0] *= width  # x-coordinate
                 person_kpts[:, 1] *= height  # y-coordinate
-
                 label = detect_punch(person_kpts)
                 punches.append(label)
+                st.info(f"person_kpts= {person_kpts}")
+                st.info(f"label= {label}")
             st.info(f"punches= {punches}")
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
