@@ -656,10 +656,19 @@ if uploaded_files:
 
         st.line_chart(time_grouped)
 
-        # Average Speed
-        if "speed (approx)" in df.columns:
-            avg_speed = df["speed (approx)"].mean()
-            st.metric("⚡ Average Punch Speed (approx)", f"{avg_speed:.2f} punches/sec")
+        # Filter punches
+        valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
+
+        # Punch count
+        total_punches = len(valid_punches)
+
+        # Duration from full timeline
+        time_range = pred_output_df["timestamp"].max() - pred_output_df["timestamp"].min()
+
+        # Average punches/sec
+        avg_speed = total_punches / time_range if time_range > 0 else 0
+
+        st.metric("⚡ Average Punch Speed (approx)", f"{avg_speed:.2f} punches/sec")
 
         # Count by Person
         st.subheader("👥 Punch Count per Person")
