@@ -20,6 +20,9 @@ from sklearn.metrics import accuracy_score, classification_report
 #import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 import joblib
+from imblearn.over_sampling import SMOTE
+from sklearn.utils.class_weight import compute_class_weight
+from collections import Counter
 
 
 # Streamlit setup
@@ -79,81 +82,65 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-def classify_punch(keypoints_all_people, frame_idx):
-    global person_states
-    results = []
 
-    for person_id, kpts in enumerate(keypoints_all_people):
-        # Initialize or retrieve previous state
-        state = person_states.get(person_id, {
-            "prev_kpts": kpts,
-            "in_motion": {"left": False, "right": False},
-            "frame_start": {"left": None, "right": None},
-        })
+def calculate_angle(a, b, c):
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    ba = a - b
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+    return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-        for side in ["left", "right"]:
-            try:
-                wrist_idx = keypoint_index[f"{side}_wrist"]
-                elbow_idx = keypoint_index[f"{side}_elbow"]
-                shoulder_idx = keypoint_index[f"{side}_shoulder"]
+def detect_punch(keypoints):
+    #st.info(f"kp={keypoints}")
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    NOSE = 0
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+    LEFT_HIP = 11
+    RIGHT_HIP = 12
 
-                wrist = kpts[wrist_idx][:2]
-                elbow = kpts[elbow_idx][:2]
-                shoulder = kpts[shoulder_idx][:2]
-                prev_wrist = state["prev_kpts"][wrist_idx][:2]
+    lw = keypoints[LEFT_WRIST][:2]
+    rw = keypoints[RIGHT_WRIST][:2]
+    nose = keypoints[NOSE][:2]
+    le = keypoints[LEFT_ELBOW][:2]
+    re = keypoints[RIGHT_ELBOW][:2]
+    ls = keypoints[LEFT_SHOULDER][:2]
+    rs = keypoints[RIGHT_SHOULDER][:2]
+    lh = keypoints[LEFT_HIP][:2]
+    rh = keypoints[RIGHT_HIP][:2]
 
-                # Sanity check for missing data
-                if not all(map(lambda x: isinstance(x, (int, float)), wrist + elbow + shoulder + prev_wrist)):
-                    continue
+    # Distances from wrists to nose (used for punches)
+    dist_lw_nose = np.linalg.norm(lw - nose)
+    dist_rw_nose = np.linalg.norm(rw - nose)
 
-                velocity = calculate_velocity(prev_wrist, wrist)
-                elbow_angle = calculate_elbow_angle(shoulder, elbow, wrist)
+    # Elbow angles to check punch extension
+    left_elbow_angle = calculate_angle(ls, le, lw)
+    right_elbow_angle = calculate_angle(rs, re, rw)
 
-                # Start of punch
-                if velocity > VELOCITY_THRESHOLD and not state["in_motion"][side]:
-                    state["in_motion"][side] = True
-                    state["frame_start"][side] = frame_idx
+    left_shoulder_angle = calculate_angle(le, ls, lh)
+    right_shoulder_angle = calculate_angle(re, rs, rh)
 
-                # End of punch
-                elif velocity < VELOCITY_THRESHOLD * 0.5 and state["in_motion"][side]:
-                    frame_start = state["frame_start"][side]
-                    frame_end = frame_idx
-                    punch_type = None
+    # Face position to estimate duck
+    head_height = nose[1]
 
-                    # Classify punch type based on elbow angle
-                    if elbow_angle < HOOK_ANGLE_THRESHOLD:
-                        punch_type = "Hook"
-                    elif side == "left":
-                        punch_type = "Jab"
-                    else:
-                        punch_type = "Cross"
-
-                    if punch_type:
-                        results.append({
-                            "label": f"{side.capitalize()} {punch_type}",
-                            "frame_start": frame_start,
-                            "frame_end": frame_end
-                        })
-
-                    # Reset motion state
-                    state["in_motion"][side] = False
-                    state["frame_start"][side] = None
-
-            except KeyError as e:
-                print(f"Missing keypoint index: {e}")
-                continue
-            except IndexError as e:
-                print(f"Keypoint index out of range: {e}")
-                continue
-            except Exception as e:
-                print(f"Unexpected error in punch detection: {e}")
-                continue
-
-        # Update previous keypoints for next frame
-        state["prev_kpts"] = kpts
-        person_states[person_id] = state
-
-    return results
+    # Heuristics
+    # Try punch types first
+    if dist_lw_nose > 50 and left_elbow_angle > 130:
+        return "Jab"
+    elif dist_rw_nose > 50 and right_elbow_angle > 130:
+        return "Cross"
+    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
+        return "Hook"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
+    # Guard if both wrists are near the nose AFTER other checks
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
+        return "Guard"
+    else:
+        return "None"
 
 def check_posture(keypoints):
     feedback = []
@@ -172,87 +159,113 @@ def check_posture(keypoints):
         feedback.append(", ".join(msgs))
     return feedback
 
-def detect_gloves(keypoints, distance_thresh=0.1):
-    gloves = []
-    for kp in keypoints:
-        lw, le = kp[9], kp[7]   # left wrist, left elbow
-        rw, re = kp[10], kp[8]  # right wrist, right elbow
+def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3, crop_size=30):
+    """
+    Detect boxing gloves using wrist keypoints and color/shape, only when punch posture is detected.
 
-        def is_glove_present(wrist, elbow):
-            if wrist[2] > 0.2 and elbow[2] > 0.2:
-                dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
-                return dist > distance_thresh
+    Args:
+        frame: BGR image (numpy array)
+        keypoints: List of people, each a list of 17 keypoints (x, y, confidence)
+        confidence_threshold: Minimum confidence for keypoints
+        crop_size: Half-size of square patch to crop around wrist
+
+    Returns:
+        List of glove detections: [{'left_glove': True/False, 'right_glove': True/False}, ...]
+    """
+    glove_detections = []
+    #pose based filtering
+    def is_punching_pose(person):
+        """
+        Heuristically detect punch-like posture: one arm extended forward
+        """
+        def arm_extended(shoulder_idx, elbow_idx, wrist_idx):
+            s = person[shoulder_idx]
+            e = person[elbow_idx]
+            w = person[wrist_idx]
+
+            # Confidence check
+            if s[2] < confidence_threshold or e[2] < confidence_threshold or w[2] < confidence_threshold:
+                return False
+
+            # Vector direction
+            sx, sy = s[0], s[1]
+            ex, ey = e[0], e[1]
+            wx, wy = w[0], w[1]
+
+            # Approximate straightness of arm using angle between segments
+            vec1 = np.array([ex - sx, ey - sy])
+            vec2 = np.array([wx - ex, wy - ey])
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            if norm1 == 0 or norm2 == 0:
+                return False
+
+            cos_angle = np.dot(vec1, vec2) / (norm1 * norm2)
+            angle = np.arccos(np.clip(cos_angle, -1, 1)) * 180 / np.pi
+
+            # Angle near 180 means straight arm (punch-like)
+            return angle > 150
+
+        # Return True if at least one arm is extended
+        return arm_extended(5, 7, 9) or arm_extended(6, 8, 10)  # Left or Right arm
+
+    for person in keypoints:
+        h, w, _ = frame.shape
+
+        # if not is_punching_pose(person):
+        #     glove_detections.append({'left_glove': False, 'right_glove': False})
+        #     continue  # Skip glove check if not punching
+
+        def crop_wrist_region(wrist_index):
+            kp = person[wrist_index]
+            if kp[2] < confidence_threshold:
+                return None
+            x = int(kp[0] * w)
+            y = int(kp[1] * h)
+            x1, y1 = max(0, x - crop_size), max(0, y - crop_size)
+            x2, y2 = min(w, x + crop_size), min(h, y + crop_size)
+            return frame[y1:y2, x1:x2]
+
+        def is_glove(region):
+            if region is None or region.size == 0:
+                return False
+
+            hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+            glove_colors = {
+                'red': ((0, 70, 50), (10, 255, 255)),
+                'blue': ((100, 100, 50), (140, 255, 255)),
+                'black': ((0, 0, 0), (180, 255, 60)),
+            }
+
+            mask_total = np.zeros(hsv.shape[:2], dtype=np.uint8)
+            for lower, upper in glove_colors.values():
+                mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+                mask_total = cv2.bitwise_or(mask_total, mask)
+
+            glove_ratio = np.sum(mask_total > 0) / mask_total.size
+            if glove_ratio < 0.2:
+                return False
+
+            contours, _ = cv2.findContours(mask_total, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area > 100:
+                    return True
             return False
 
-        gloves.append({
-            "left": is_glove_present(lw, le),
-            "right": is_glove_present(rw, re)
+        left_crop = crop_wrist_region(9)
+        right_crop = crop_wrist_region(10)
+
+        left_glove = is_glove(left_crop)
+        right_glove = is_glove(right_crop)
+
+        glove_detections.append({
+            'left_glove': left_glove,
+            'right_glove': right_glove
         })
 
-    return gloves
+    return glove_detections
 
-# def detect_gloves(keypoints, distance_thresh=0.1):
-#     gloves = []
-#     for kp in keypoints:
-#         lw, le = kp[9], kp[7]
-#         rw, re = kp[10], kp[8]
-
-#         def is_glove_present(wrist, elbow):
-#             if wrist[2] > 0.2 and elbow[2] > 0.2:
-#                 dist = np.linalg.norm(np.array(wrist[:2]) - np.array(elbow[:2]))
-#                 return dist > distance_thresh
-#             return False
-
-#         left_glove = "yes" if is_glove_present(lw, le) else "no"
-#         right_glove = "yes" if is_glove_present(rw, re) else "no"
-#         gloves.append(f"Gloves: L-{left_glove} R-{right_glove}")
-#     return gloves
-
-
-# 17 keypoints (based on MoveNet/COCO order)
-KEYPOINT_NAMES = [
-    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
-    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist", "left_hip", "right_hip",
-    "left_knee", "right_knee", "left_ankle", "right_ankle"
-]
-
-# Skeleton edges between keypoints
-SKELETON_EDGES = [
-    (0, 1), (1, 3), (0, 2), (2, 4),         # Face
-    (5, 7), (7, 9), (6, 8), (8, 10),        # Arms
-    (5, 6), (5, 11), (6, 12),               # Torso
-    (11, 13), (13, 15), (12, 14), (14, 16), # Legs
-    (11, 12)                                # Hip line
-]
-
-# def draw_annotations(frame, keypoints_with_scores, threshold=0.2):
-#     h, w, _ = frame.shape
-
-#     for person in keypoints_with_scores:
-#         keypoints = person[:17]
-
-#         # Draw keypoints with names
-#         for i, (y, x, score) in enumerate(keypoints):  # (y, x, score)
-#             cx = int(x * w)
-#             cy = int(y * h)
-#             color = (0, 255, 255) if score > threshold else (255, 0, 255)
-#             cv2.circle(frame, (cx, cy), 4, color, -1)
-#             cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-#                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1, cv2.LINE_AA)
-
-#         # Draw skeleton connections
-#         for p1, p2 in SKELETON_EDGES:
-#             y1, x1, s1 = keypoints[p1]
-#             y2, x2, s2 = keypoints[p2]
-#             if s1 > threshold and s2 > threshold:
-#                 pt1 = (int(x1 * w), int(y1 * h))
-#                 pt2 = (int(x2 * w), int(y2 * h))
-#                 cv2.line(frame, pt1, pt2, (255, 255, 255), 2)
-
-#     return frame
-
-import numpy as np
 
 def is_likely_coach(keypoints,
                     min_avg_conf=0.5,
@@ -294,16 +307,26 @@ SKELETON_EDGES = [
     (11, 12)                                # Hip line
 ]
 
-import cv2
 
-def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
-    for idx, (kp_raw, punch, posture, glove) in enumerate(zip(keypoints, punches, postures, gloves)):
+    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
+
+
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
-        #kp_norm = [[y / h, x / w, s] for y, x, s in kp]
+
+        # # Check location
+        # in_ring = is_inside_ring(kp, h, w)
+
+        # # Update punch tracker
+        # punch_tracker.update(idx, punch)
+
+        # # Skip if in ring but not a boxer
+        # if in_ring and not punch_tracker.is_boxer(idx):
+        #     continue
 
         #Draw keypoints
         for i, (y, x, s) in enumerate(kp):
@@ -324,73 +347,35 @@ def draw_annotations(frame, keypoints, punches, postures, gloves, h, w):
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
 
+        # for side, wrist_idx in zip(["L", "R"], [9, 10]):
+        #     y, x, s = kp[wrist_idx]
+        #     if s > 0.2:
+        #         cx, cy = int(x * w), int(y * h)
+        #         pad = 15
+        #         has_glove = glove.get('left' if side == 'L' else 'right', False)
+        #         color = (0, 0, 255) if has_glove else (0, 255, 255)
+        #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
+        #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
+        #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
         #Draw gloves
-        for side, wrist_idx in zip(["L", "R"], [9, 10]):
-            y, x, s = kp[wrist_idx]
-            if s > 0.2:
-                cx, cy = int(x * w), int(y * h)
-                pad = 15
-                has_glove = glove.get('left' if side == 'L' else 'right', False)
-                color = (0, 255, 255) if has_glove else (0, 0, 255)
-                cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-                cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        for side, kp_idx in [('left', 9), ('right', 10)]:
+            if glovedetected.get(f"{side}_glove"):
+                y, x, s = kp[kp_idx]
+                if s > 0.2:
+                    cx = int(x * frame.shape[1])
+                    cy = int(y * frame.shape[0])
+                    pad=15
+                    cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
+                    cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         #Final label
-        glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
+        glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
-
-    #     if is_likely_coach(kp):
-    #         avg_conf = np.mean([p[2] for p in kp])
-    #         ys = [p[0] for p in kp if p[2] > 0.2]
-    #         bbox_height = max(ys) - min(ys) if ys else 0
-    #         valid_detections.append((avg_conf, bbox_height, kp, punch, posture, glove))
-
-    # #Keep top 2 tallest persons (most likely boxers)
-    # valid_detections = sorted(valid_detections, key=lambda x: x[1], reverse=True)[:2]
-
-    # for idx, (avg_conf, bbox_height, kp, punch, posture, glove) in enumerate(valid_detections):
-    #     #Draw keypoints
-    #     for i, (y, x, s) in enumerate(kp):
-    #         if s > 0.2:
-    #             cx, cy = int(x * w), int(y * h)
-    #             if 0 <= cx < w and 0 <= cy < h:
-    #                 cv2.circle(frame, (cx, cy), 4, (0, 255, 0), -1)
-    #                 cv2.putText(frame, KEYPOINT_NAMES[i], (cx + 5, cy - 5),
-    #                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
-    #     #Draw skeleton
-    #     for (p1, p2) in SKELETON_EDGES:
-    #         y1, x1, s1 = kp[p1]
-    #         y2, x2, s2 = kp[p2]
-    #         if s1 > 0.2 and s2 > 0.2:
-    #             pt1 = int(x1 * w), int(y1 * h)
-    #             pt2 = int(x2 * w), int(y2 * h)
-    #             if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
-    #                 cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-    #     #Draw gloves
-    #     for side, wrist_idx in zip(["L", "R"], [9, 10]):
-    #         y, x, s = kp[wrist_idx]
-    #         if s > 0.2:
-    #             cx, cy = int(x * w), int(y * h)
-    #             pad = 15
-    #             has_glove = glove.get('left' if side == 'L' else 'right', False)
-    #             color = (0, 255, 255) if has_glove else (0, 0, 255)
-    #             cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-    #             cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-    #                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-    #     #Final label
-    #     glove_str = f"L-{'Yes' if glove.get('left') else 'No'} R-{'Yes' if glove.get('right') else 'No'}"
-    #     label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-    #     cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-    #                 0.5, (255, 255, 0), 1)
-    #     y_offset += line_height
-
     return frame
 
 def expand_keypoints(keypoints):
@@ -410,6 +395,7 @@ def expand_keypoints(keypoints):
         return pd.Series(data)
     except Exception:
         return pd.Series()
+
 def rescale_keypoints(keypoints, input_size, original_size):
     input_height, input_width = input_size
     orig_height, orig_width = original_size
@@ -433,13 +419,13 @@ def rescale_keypoints(keypoints, input_size, original_size):
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 
+
 if uploaded_files:
     model = load_model()
     #model = tf.saved_model.load("PATH_TO_YOUR_MOVENET_MODEL")  # Preload model once
 
     all_logs = []
     progress_bar = st.progress(0)
-
     for idx, uploaded_file in enumerate(uploaded_files):
         st.subheader(f"📦 Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
@@ -457,7 +443,7 @@ if uploaded_files:
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
-
+        # punch_tracker = PunchTracker(max_frames=30)
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -478,38 +464,62 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
-            punches = classify_punch(rescaledkeypoints,frame_idx)
             postures = check_posture(rescaledkeypoints)
-            gloves = detect_gloves(rescaledkeypoints)
+            #gloves = detect_gloves(rescaledkeypoints)
+            glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
+
 
             h, w = frame.shape[:2]
 
+            punches = []
+            for person_kpts in rescaledkeypoints:
+                person_kpts = np.array(person_kpts)  # Shape: (17, 3)
+                person_kpts[:, 0] *= width  # x-coordinate
+                person_kpts[:, 1] *= height  # y-coordinate
+
+                label = detect_punch(person_kpts)
+                punches.append(label)
+            st.info(f"punches= {punches}")
+
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
+            st.text(f"Frame {frame_idx} | Punches: {punches} | Keypoints: {rescaledkeypoints}")
 
+            # for i in range(len(punches)):
+            #   punch_label = punches[i]["label"] if punches[i] else "None"
+            #   frame_start = punches[i]["frame_start"] if punches[i] else None
+            #   frame_end = punches[i]["frame_end"] if punches[i] else None
+            #   punch_log.append({
+            #       "video": uploaded_file.name,
+            #       "frame": frame_idx,
+            #       "person": i,
+            #       "punch": punch_label,
+            #       "frame_start": frame_start,
+            #       "frame_end": frame_end,
+            #       "posture": postures[i] if i < len(postures) else "N/A",
+            #       "gloves": gloves[i] if i < len(gloves) else "N/A",
+            #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+            #   })
+            # st.info(f"punches = {punches}")
             for i in range(len(punches)):
-              punch_label = punches[i]["label"] if punches[i] else "None"
-              frame_start = punches[i]["frame_start"] if punches[i] else None
-              frame_end = punches[i]["frame_end"] if punches[i] else None
-              punch_log.append({
-                  "video": uploaded_file.name,
-                  "frame": frame_idx,
-                  "person": i,
-                  "punch": punch_label,
-                  "frame_start": frame_start,
-                  "frame_end": frame_end,
-                  "posture": postures[i] if i < len(postures) else "N/A",
-                  "gloves": gloves[i] if i < len(gloves) else "N/A",
-                  "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-              })
+                punch_log.append({
+                      "video": uploaded_file.name,
+                      "frame": frame_idx,
+                      "person": i,
+                      "timestamp": frame_idx / fps,
+                      "punch": punches[i] if i < len(punches) else "N/A",
+                      "posture": postures[i] if i < len(postures) else "N/A",
+                      "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
+                      "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+                  })
 
             frame_idx += 1
             if frame_idx % 5 == 0:
               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
               progress_bar.progress(min(total_progress, 1.0))
-
+        
         cap.release()
         out_writer.release()
 
@@ -550,8 +560,9 @@ if uploaded_files:
 
         all_logs.extend(punch_log)
 
-
         # Load data (assuming it's saved as CSV)
+
+        #Data preprocessing 
 
         # Flatten punch_log to DataFrame
         df_log = pd.DataFrame(punch_log)
@@ -564,6 +575,9 @@ if uploaded_files:
         # Drop rows where punch is missing or N/A
         df_full = df_full[df_full['punch'].notna()]
         df_full = df_full[df_full['punch'] != 'N/A']
+        # Check unique punches after filtering
+        unique_punches = df_full['punch'].value_counts()
+        st.warning(f"🔍 Filtered Punch Distribution:\n{unique_punches}")
 
         # df.columns = df.columns.str.strip()
 
@@ -575,92 +589,202 @@ if uploaded_files:
         st.write("DataFrame columns:", df_full.columns.tolist())
 
         # print("All keypoint columns in dataframe:", all(col in df.columns for col in keypoint_cols))  # Should be True
-        all_cols_present = all(col in df_full.columns for col in keypoint_cols)
         st.info(f"All keypoint columns in dataframe: {keypoint_cols}")
-
-        X = df_full[keypoint_cols].values
-        st.info(f"All X values in dataframe: {X}")
+        st.info(f"Frame: {frame_idx} | Timestamp: {frame_idx / fps:.2f} sec | Punches: {punches}")
 
         # Encode labels
         le = LabelEncoder()
-        y = le.fit_transform(df_full['punch'].values)
 
-        # Split train-test
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y)
+        # Extract features and target
+        X = df_full[keypoint_cols].values # Replace with actual feature column names
+        y = le.fit_transform(df_full['punch'])
+        st.info(f"ycount={Counter(y)}")
 
-        # Optional: scale features
+        # Ensure DataFrame index is clean
+        df_full = df_full.reset_index(drop=True)
+
+        # Track indices during train-test split
+        X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
+            X, y, df_full.index, test_size=0.2, stratify=y, random_state=42
+        )
+        # Feature scaling
         scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        st.info(f"Before SMOTE: {Counter(y_train)}")
 
-        # Train a Random Forest Classifier
-        clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
-        clf.fit(X_train, y_train)
+        # Apply SMOTE only if there are at least 2 unique classes
+        if len(np.unique(y_train)) > 1:
+            smote = SMOTE(random_state=42)
+            X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+            st.success(f"✅ After SMOTE: {Counter(y_train_balanced)}")
+        else:
+            X_train_balanced, y_train_balanced = X_train_scaled, y_train
+            st.warning("⚠️ SMOTE skipped: Only one class present.")
 
-        # Predict on test set
-        y_pred = clf.predict(X_test)
+        st.info(f"After SMOTE:, {Counter(y_train_balanced)}")
 
-        # Evaluation
-        st.info(f"Accuracy:  {accuracy_score(y_test, y_pred)}")
-        classification=classification_report(y_test, y_pred, target_names=le.classes_)
-        st.info(f" classification = {classification}")
+        # Train classifier
+        clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
+        clf.fit(X_train_balanced, y_train_balanced)
 
+        # Predict
+        y_pred = clf.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        report = classification_report(y_test, y_pred, target_names=le.classes_)
 
+        # Streamlit metrics
+        st.success(f"✅ RF Accuracy (SMOTE + weights): {accuracy:.3f}")
+        st.text("🔍 Classification Report:\n" + report)
 
-        import lightgbm as lgb
-        from sklearn.model_selection import train_test_split
-        from sklearn.metrics import classification_report
+        # ✅ Create predicted punch dataframe using tracked indices
+        predicted_df = pd.DataFrame({
+            'frame': df_full.loc[test_idx, 'frame'].values,
+            'timestamp': df_full.loc[test_idx, 'frame'].values / fps,
+            'predicted_label': y_pred,
+            'pred_punch_type': le.inverse_transform(y_pred),
+            'true_label': y_test,
+            'true_punch_type': le.inverse_transform(y_test)
+        })
 
+        # Reorder and save
+        predicted_df = predicted_df[['frame', 'timestamp', 'pred_punch_type', 'predicted_label', 'true_punch_type', 'true_label']]
+        predicted_df.to_csv("predicted_punches.csv", index=False)
 
-        X = df_full[keypoint_cols].values
-        st.info(f"All X values in dataframe: {X}")
-
-        # Encode labels
-        le = LabelEncoder()
-        y = le.fit_transform(df_full['punch'].values)
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
-
-        model = lgb.LGBMClassifier()
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        st.info(f"LGBAccuracy:  {accuracy_score(y_test, y_pred)}")
-        classification=classification_report(y_test, y_pred, target_names=le.classes_)
-        st.info(f" classification = {classification}")
-
-
-        from sklearn.svm import SVC
-        from sklearn.pipeline import make_pipeline
-        from sklearn.preprocessing import StandardScaler
-
-        clf = make_pipeline(StandardScaler(), SVC(kernel='rbf', probability=True))
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        st.info(f"SVC Accuracy:  {accuracy_score(y_test, y_pred)}")
-        classification=classification_report(y_test, y_pred, target_names=le.classes_)
-        st.info(f" classification = {classification}")
+        # Streamlit display and download
+        st.success("✅ Saved predicted punches to predicted_punches.csv")
+        st.dataframe(predicted_df.head())
+        st.download_button(
+            "📄 Download Pred Log CSV",
+            predicted_df.to_csv(index=False),
+            file_name=f"log_{uploaded_file.name}.csv",
+            mime="text/csv"
+        )
 
 
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        from sklearn.metrics import confusion_matrix
+        import plotly.express as px
 
-       # Train classifiers
-        svm_model = svm.SVC(kernel='rbf')
-        tree_model = DecisionTreeClassifier(max_depth=5)
+        # --- Section: Metrics Summary ---
+        st.subheader("📈 Model Performance Metrics")
+        st.metric("Accuracy", f"{accuracy:.2%}")
 
-        svm_model.fit(X_train, y_train)
-        tree_model.fit(X_train, y_train)
+        # --- Section: Confusion Matrix ---
+        st.subheader("🔀 Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig_cm, ax_cm = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=le.classes_, yticklabels=le.classes_, ax=ax_cm)
+        ax_cm.set_xlabel("Predicted")
+        ax_cm.set_ylabel("True")
+        st.pyplot(fig_cm)
 
-        # Evaluate
-        y_pred_svm = svm_model.predict(X_test)
-        y_pred_tree = tree_model.predict(X_test)
+        # --- Section: Punch Type Counts ---
+        st.subheader("👊 Punch Type Distribution")
 
-        acc_svm = accuracy_score(y_test, y_pred_svm)
-        acc_tree = accuracy_score(y_test, y_pred_tree)
+        # Count of predicted and true punch types
+        true_counts = predicted_df['true_punch_type'].value_counts().rename("True Count")
+        pred_counts = predicted_df['pred_punch_type'].value_counts().rename("Predicted Count")
+        count_df = pd.concat([true_counts, pred_counts], axis=1).fillna(0).astype(int)
+        st.dataframe(count_df)
 
-        st.subheader("📈 Model Evaluation")
-        st.write(f"🔹 SVM Accuracy: `{acc_svm:.2f}`")
-        st.write(f"🔹 Decision Tree Accuracy: `{acc_tree:.2f}`")
+        # --- Bar chart for punch frequency ---
+        fig_bar = px.bar(
+            count_df.reset_index(),
+            x='index',
+            y=['True Count', 'Predicted Count'],
+            barmode='group',
+            labels={'index': 'Punch Type'},
+            title="🔢 Punch Frequency (True vs Predicted)"
+        )
+        st.plotly_chart(fig_bar)
 
+        # --- Pie chart for predicted punches ---
+        fig_pie = px.pie(
+            predicted_df,
+            names='pred_punch_type',
+            title="🥧 Punch Prediction Breakdown"
+        )
+        st.plotly_chart(fig_pie)
+
+        # --- Section: Speed Approximation ---
+        st.subheader("💨 Punch Speed Estimation (approx)")
+
+        # Approximate speed = 1 / time between punches (frames with different punches)
+        predicted_df_sorted = predicted_df.sort_values(by='frame')
+        predicted_df_sorted['frame_diff'] = predicted_df_sorted['frame'].diff().fillna(0)
+        predicted_df_sorted['time_diff'] = predicted_df_sorted['frame_diff'] / fps
+        predicted_df_sorted['approx_speed'] = 1 / predicted_df_sorted['time_diff'].replace(0, float('nan'))
+
+        # Line chart of speed
+        fig_line = px.line(
+            predicted_df_sorted,
+            x='frame',
+            y='approx_speed',
+            title='📉 Approximate Punch Speed over Time',
+            labels={'approx_speed': 'Speed (punches/sec)'}
+        )
+        st.plotly_chart(fig_line)
+
+        # Optional: Show raw predicted_df again
+        with st.expander("🧾 View Full Predictions Table"):
+            st.dataframe(predicted_df)
+
+
+
+
+
+        # # Get the original indices of the test set
+        # X_test_indices = X_test.index if isinstance(X_test, pd.DataFrame) else df_full.iloc[X_test].index
+
+        # # Create predicted punch dataframe
+        # predicted_df = pd.DataFrame({
+        #     'frame': df_full.loc[X_test_indices, 'frame'].values,
+        #     'timestamp': df_full.loc[X_test_indices, 'frame'].values / fps,
+        #     'predicted_label': y_pred,
+        #     'punch_type': le.inverse_transform(y_pred)
+        # })
+
+        # # Optional: include ground truth for comparison
+        # predicted_df['true_label'] = y_test
+        # predicted_df['true_punch_type'] = le.inverse_transform(y_test)
+
+        # # Reorder and save
+        # predicted_df = predicted_df[['frame', 'timestamp', 'punch_type', 'predicted_label','true_punch_type','true_label']]
+        # predicted_df.to_csv("predicted_punches.csv", index=False)
+        # st.success("✅ Saved predicted punches to predicted_punches.csv")
+        # st.dataframe(predicted_df.head())
+        # st.download_button("📄 Download Pred Log CSV", predicted_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+
+
+
+
+        # # Encode labels
+        # le = LabelEncoder()
+        # y = le.fit_transform(df_full['punch'].values)
+
+        # # Split train-test
+        # X_train, X_test, y_train, y_test = train_test_split(
+        #     X, y, test_size=0.2, random_state=42)
+
+        # # Optional: scale features
+        # scaler = StandardScaler()
+        # X_train = scaler.fit_transform(X_train)
+        # X_test = scaler.transform(X_test)
+
+        # # Train a Random Forest Classifier
+        # clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+        # clf.fit(X_train, y_train)
+
+        # # Predict on test set
+        # y_pred = clf.predict(X_test)
+
+        # # Evaluation
+        # st.info(f"RF Accuracy with scaler:  {accuracy_score(y_test, y_pred)}")
+        # classification=classification_report(y_test, y_pred, target_names=le.classes_)
+        # st.info(f" classification = {classification}")
 
 
         # # Expand keypoints into flat features
@@ -786,6 +910,8 @@ ffmpeg-python
 tqdm
 seaborn
 lightgbm
+imbalanced-learn
+plotly
 matplotlib
 '''
 
