@@ -574,13 +574,17 @@ if uploaded_files:
         st.write("df_full columns:", df_full.columns.tolist())
         st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
 
-        # Extract features and target
-        X = df_full[keypoint_cols].values
-        y = df_full["punch"]            # Replace with "posture" for posture classification
-        
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
-        
+        # Add index to track row
+        df_full = df_full.reset_index(drop=False)  # 'index' column will store original indices
+
+        # Then extract features and target
+        X = df_full[keypoint_cols].values
+        y = df_full["punch"]
+        indices = df_full["index"]  # This holds row index from original DataFrame
+
+        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, stratify=y, test_size=0.2, random_state=42)
+
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train, y_train)
 
@@ -593,6 +597,25 @@ if uploaded_files:
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
 
+        # Reconstruct predictions DataFrame with correct alignment
+        true_labels = pd.Series(y_test).reset_index(drop=True)
+        pred_labels = pd.Series(y_pred).reset_index(drop=True)
+
+        # Get metadata from original df_full using the saved indices
+        meta_columns = ["video", "frame", "person", "timestamp"]
+        pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
+
+        # Build final DataFrame
+        pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
+
+        st.dataframe(pred_output_df.head())
+        st.download_button(
+            "📄 Download Predictions CSV",
+            pred_output_df.to_csv(index=False),
+            file_name="predictions_vs_actual.csv",
+            mime="text/csv"
+        )
+        
         # Heatmap
         plt.figure(figsize=(8,6))
         sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
@@ -603,9 +626,6 @@ if uploaded_files:
 
         # Detailed Report
         st.info(f"\n📊 Classification Report:\n= {classification_report(y_test, y_pred)}")
-
-
-        
 
 
         # Create a DataFrame for predictions
