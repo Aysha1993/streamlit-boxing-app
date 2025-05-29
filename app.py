@@ -656,36 +656,48 @@ if uploaded_files:
 
         st.line_chart(time_grouped)
 
-        # Filter punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
-
-        # Punch count
         total_punches = len(valid_punches)
+        duration = pred_output_df["timestamp"].max() - pred_output_df["timestamp"].min()
 
-        # Duration from full timeline
-        time_range = pred_output_df["timestamp"].max() - pred_output_df["timestamp"].min()
-
-        # Average punches/sec
-        avg_speed = total_punches / time_range if time_range > 0 else 0
-
-        valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
-
-        # Total number of punches
-        total_punches = len(valid_punches)
-
-        # Total duration of session (based on timestamp column)
-        min_time = pred_output_df["timestamp"].min()
-        max_time = pred_output_df["timestamp"].max()
-        duration = max_time - min_time
-
-        # Avoid division by zero
         if duration > 0:
             punch_speed = total_punches / duration
         else:
             punch_speed = 0
 
-        # Display
         st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
+
+
+        # # Filter punches
+        # valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
+
+        # # Punch count
+        # total_punches = len(valid_punches)
+
+        # # Duration from full timeline
+        # time_range = pred_output_df["timestamp"].max() - pred_output_df["timestamp"].min()
+
+        # # Average punches/sec
+        # avg_speed = total_punches / time_range if time_range > 0 else 0
+
+        # valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
+
+        # # Total number of punches
+        # total_punches = len(valid_punches)
+
+        # # Total duration of session (based on timestamp column)
+        # min_time = pred_output_df["timestamp"].min()
+        # max_time = pred_output_df["timestamp"].max()
+        # duration = max_time - min_time
+
+        # # Avoid division by zero
+        # if duration > 0:
+        #     punch_speed = total_punches / duration
+        # else:
+        #     punch_speed = 0
+
+        # # Display
+        # st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
        
 
         # Count by Person
