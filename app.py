@@ -578,30 +578,30 @@ if uploaded_files:
         X = df_full[keypoint_cols].values
         y = df_full["punch"]            # Replace with "posture" for posture classification
 
-        # X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
         
-        # clf = RandomForestClassifier(n_estimators=100, random_state=42)
-        # clf.fit(X_train, y_train)
+        clf = RandomForestClassifier(n_estimators=100, random_state=42)
+        clf.fit(X_train, y_train)
 
-        # y_pred = clf.predict(X_test)
+        y_pred = clf.predict(X_test)
 
-        # # Accuracy
-        # acc = accuracy_score(y_test, y_pred)
-        # print("✅ Accuracy:", acc)
+        # Accuracy
+        acc = accuracy_score(y_test, y_pred)
+        print("✅ Accuracy:", acc)
 
-        # # Confusion Matrix
-        # cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
+        # Confusion Matrix
+        cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
 
-        # # Heatmap
-        # plt.figure(figsize=(8,6))
-        # sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
-        # plt.xlabel("Predicted")
-        # plt.ylabel("True")
-        # plt.title("Confusion Matrix")
-        # plt.show()
+        # Heatmap
+        plt.figure(figsize=(8,6))
+        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.show()
 
-        # # Detailed Report
-        # print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
+        # Detailed Report
+        print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
 
                 
 
