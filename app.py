@@ -457,9 +457,8 @@ if uploaded_files:
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
-            st.info(f"keypoints= {keypoints}")
-            # 🚫 Filter out likely coaches
-            #keypoints = [kp for kp in keypoints if not is_likely_coach(kp)]
+            #st.info(f"keypoints= {keypoints}")
+            
 
             if not keypoints:
                 out_writer.write(frame)
@@ -469,7 +468,6 @@ if uploaded_files:
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
             
-
             h, w = frame.shape[:2]
 
             punches = []
@@ -479,15 +477,15 @@ if uploaded_files:
                 person_kpts[:, 1] *= height  # y-coordinate
                 label = detect_punch(person_kpts)
                 punches.append(label)
-                st.info(f"person_kpts= {person_kpts}")
-                st.info(f"label= {label}")
-            st.info(f"punches= {punches}")
+                # st.info(f"person_kpts= {person_kpts}")
+                # st.info(f"label= {label}")
+            #st.info(f"punches= {punches}")
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
-            st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
+            #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
             # for i in range(len(punches)):
             #   punch_label = punches[i]["label"] if punches[i] else "None"
