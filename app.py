@@ -506,23 +506,17 @@ if uploaded_files:
 
                 label = detect_punch(person_kpts)
                 punches.append(label)
+            st.info(f"punches= {punches}")
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,punch_tracker)
-
-
-            filtered_indices = [i for i in range(len(rescaledkeypoints)) if i != 2]
-            filtered_keypoints = [rescaledkeypoints[i] for i in filtered_indices]
-            filtered_punches = [punches[i] for i in filtered_indices]
-            filtered_postures = [postures[i] for i in filtered_indices]
-            filtered_gloves = [glove_detections[i] for i in filtered_indices]
 
             #annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
 
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
-            st.text(f"Frame {frame_idx} | Punches: {punches}")
+            st.text(f"Frame {frame_idx} | Punches: {punches} | Keypoints: {rescaledkeypoints}")
 
             # for i in range(len(punches)):
             #   punch_label = punches[i]["label"] if punches[i] else "None"
