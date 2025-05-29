@@ -640,11 +640,11 @@ if uploaded_files:
         smote = SMOTE(random_state=42)
 
         unique_classes = np.unique(y_train)
-        if len(unique_classes) < 2:
-            st.info(f"Only one class present in training labels: {unique_classes}. Skipping SMOTE.")
-            # Optionally handle this case differently
-        else:
+        if y_train.nunique() > 1:
             X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+        else:
+            st.info("SMOTE skipped: Only one class present in y_train.")
+            X_train_balanced, y_train_balanced = X_train_scaled, y_train
 
 
         # SMOTE     
