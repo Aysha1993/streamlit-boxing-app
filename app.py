@@ -600,7 +600,6 @@ if uploaded_files:
 
         # Load data (assuming it's saved as CSV)
 
-
         #Data preprocessing 
 
         # Flatten punch_log to DataFrame
@@ -614,6 +613,9 @@ if uploaded_files:
         # Drop rows where punch is missing or N/A
         df_full = df_full[df_full['punch'].notna()]
         df_full = df_full[df_full['punch'] != 'N/A']
+        # Check unique punches after filtering
+        unique_punches = df_full['punch'].value_counts()
+        st.warning(f"🔍 Filtered Punch Distribution:\n{unique_punches}")
 
         # df.columns = df.columns.str.strip()
 
