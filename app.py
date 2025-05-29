@@ -99,6 +99,8 @@ def detect_punch(keypoints):
     RIGHT_ELBOW = 8
     LEFT_SHOULDER = 5
     RIGHT_SHOULDER = 6
+    LEFT_HIP = 11
+    RIGHT_HIP = 12
 
     lw = keypoints[LEFT_WRIST][:2]
     rw = keypoints[RIGHT_WRIST][:2]
@@ -107,6 +109,8 @@ def detect_punch(keypoints):
     re = keypoints[RIGHT_ELBOW][:2]
     ls = keypoints[LEFT_SHOULDER][:2]
     rs = keypoints[RIGHT_SHOULDER][:2]
+    lh = keypoints[LEFT_HIP][:2]
+    rh = keypoints[RIGHT_HIP][:2]
 
     # Distances from wrists to nose (used for punches)
     dist_lw_nose = np.linalg.norm(lw - nose)
@@ -115,6 +119,9 @@ def detect_punch(keypoints):
     # Elbow angles to check punch extension
     left_elbow_angle = calculate_angle(ls, le, lw)
     right_elbow_angle = calculate_angle(rs, re, rw)
+
+    left_shoulder_angle = calculate_angle(le, ls, lh)
+    right_shoulder_angle = calculate_angle(re, rs, rh)
 
     # Face position to estimate duck
     head_height = nose[1]
@@ -128,6 +135,8 @@ def detect_punch(keypoints):
         return "Guard"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         return "Duck"
+    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
+        return "Hook"
     else:
         return "None"
 
