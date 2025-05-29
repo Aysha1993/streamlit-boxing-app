@@ -602,7 +602,38 @@ if uploaded_files:
         plt.show()
 
         # Detailed Report
-        print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
+        st.info(f"\n📊 Classification Report:\n= {classification_report(y_test, y_pred)}")
+
+
+        
+
+
+        # Create a DataFrame for predictions
+        pred_df = pd.DataFrame({
+            "true_label": y_test,
+            "predicted_label": y_pred
+        })
+
+        # Optionally include index info if your X_test aligns with df_full
+        # Add metadata columns (frame, person, video, etc.)
+        meta_columns = ["video", "frame", "person", "timestamp"]
+        pred_meta = df_full.iloc[y_test.index][meta_columns].reset_index(drop=True)
+
+        # Concatenate meta + predictions
+        pred_output_df = pd.concat([pred_meta, pred_df], axis=1)
+
+        # Preview
+        st.write("### 🎯 Prediction vs Ground Truth")
+        st.dataframe(pred_output_df.head())
+
+        # Download as CSV
+        st.download_button(
+            label="📄 Download Predictions CSV",
+            data=pred_output_df.to_csv(index=False),
+            file_name="predictions_vs_actual.csv",
+            mime="text/csv"
+        )
+
 
                 
 
