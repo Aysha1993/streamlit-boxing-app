@@ -558,10 +558,12 @@ if uploaded_files:
 
         all_logs.extend(punch_log)
 
+        df_log = pd.DataFrame(punch_log)
+
         # Load data (assuming it's saved as CSV)
 
-        X = expanded_df.filter(regex="^(x_|y_|s_)")  # All keypoint-related columns
-        y = expanded_df["punch"]            # Replace with "posture" for posture classification
+        X = df_log.filter(regex="^(x_|y_|s_)")  # All keypoint-related columns
+        y = df_log["punch"]            # Replace with "posture" for posture classification
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
 
