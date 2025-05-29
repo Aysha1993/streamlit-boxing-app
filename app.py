@@ -1,3 +1,4 @@
+%%writefile /content/app.py
 import streamlit as st
 import cv2
 import numpy as np
@@ -625,37 +626,53 @@ if uploaded_files:
         plt.show()
 
         # Detailed Report
-        st.info(f"\n📊 Classification Report:\n= {classification_report(y_test, y_pred)}")
+        st.info(f"\n📊 Classification Report:\n= {classification_report(y_test, y_pred)}")      
 
+        # === Performance Metrics Summary ===
+        st.subheader("📈 Performance Metrics Summary")
 
-        # Create a DataFrame for predictions
-        pred_df = pd.DataFrame({
-            "true_label": y_test,
-            "predicted_label": y_pred
-        })
+        # Accuracy display
+        st.metric("✅ Accuracy", f"{acc:.2%}")
 
-        # Optionally include index info if your X_test aligns with df_full
-        # Add metadata columns (frame, person, video, etc.)
-        meta_columns = ["video", "frame", "person", "timestamp"]
-        pred_meta = df_full.iloc[y_test.index][meta_columns].reset_index(drop=True)
+        # Punch Counts
+        st.subheader("🥊 Punch Type Distribution")
+        punch_counts = pred_output_df['predicted_label'].value_counts()
+        st.bar_chart(punch_counts)
 
-        # Concatenate meta + predictions
-        pred_output_df = pd.concat([pred_meta, pred_df], axis=1)
+        # Pie chart
+        fig1, ax1 = plt.subplots()
+        ax1.pie(punch_counts, labels=punch_counts.index, autopct='%1.1f%%', startangle=90)
+        ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+        st.pyplot(fig1)
 
-        # Preview
-        st.write("### 🎯 Prediction vs Ground Truth")
-        st.dataframe(pred_output_df.head())
+        # Punch frequency over time
+        st.subheader("📊 Punch Frequency Over Time")
+        time_grouped = pred_output_df.groupby(pd.cut(pred_output_df["timestamp"], bins=10))["predicted_label"].value_counts().unstack().fillna(0)
+        st.line_chart(time_grouped)
 
-        # Download as CSV
-        st.download_button(
-            label="📄 Download Predictions CSV",
-            data=pred_output_df.to_csv(index=False),
-            file_name="predictions_vs_actual.csv",
-            mime="text/csv"
-        )
+        # Average Speed
+        if "speed (approx)" in df.columns:
+            avg_speed = df["speed (approx)"].mean()
+            st.metric("⚡ Average Punch Speed (approx)", f"{avg_speed:.2f} punches/sec")
 
+        # Count by Person
+        st.subheader("👥 Punch Count per Person")
+        person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        st.dataframe(person_punch_counts)
 
-                
+        # Confusion matrix chart (if not shown already)
+        st.subheader("🔁 Confusion Matrix")
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        st.pyplot(fig2)
+
+        # Classification report
+        st.subheader("📋 Classification Report")
+        report_str = classification_report(y_test, y_pred, output_dict=False)
+        st.text(report_str)
 
     progress_bar.empty()
 
