@@ -17,7 +17,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelEncoder,StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
-#import seaborn as sns
+import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 from imblearn.over_sampling import SMOTE
@@ -418,10 +418,8 @@ def rescale_keypoints(keypoints, input_size, original_size):
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
-
-
 if uploaded_files:
-    model = load_model()
+    #model = load_model()
     #model = tf.saved_model.load("PATH_TO_YOUR_MOVENET_MODEL")  # Preload model once
 
     all_logs = []
@@ -562,7 +560,35 @@ if uploaded_files:
 
         # Load data (assuming it's saved as CSV)
 
-        
+        X = expanded_df.filter(regex="^(x_|y_|s_)")  # All keypoint-related columns
+        y = expanded_df["punch"]            # Replace with "posture" for posture classification
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
+
+        clf = RandomForestClassifier(n_estimators=100, random_state=42)
+        clf.fit(X_train, y_train)
+
+        y_pred = clf.predict(X_test)
+
+        # Accuracy
+        acc = accuracy_score(y_test, y_pred)
+        print("✅ Accuracy:", acc)
+
+        # Confusion Matrix
+        cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
+
+        # Heatmap
+        plt.figure(figsize=(8,6))
+        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+        # Detailed Report
+        print("\n📊 Classification Report:\n", classification_report(y_test, y_pred))
+
+                
 
     progress_bar.empty()
 
