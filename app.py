@@ -127,16 +127,18 @@ def detect_punch(keypoints):
     head_height = nose[1]
 
     # Heuristics
+    # Try punch types first
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-    elif dist_lw_nose < 50 and dist_rw_nose < 50:
-        return "Guard"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-        return "Duck"
     elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
         return "Hook"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
+    # Guard if both wrists are near the nose AFTER other checks
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
+        return "Guard"
     else:
         return "None"
 
@@ -489,10 +491,6 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
-            #st.info(f"rescaledkeypoints = {rescaledkeypoints}")
-            #st.info(f"rescaledkp={rescaledkeypoints}")
-            #punches = classify_punch(rescaledkeypoints,frame_idx)
-            #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
@@ -524,6 +522,7 @@ if uploaded_files:
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
+            st.text(f"Frame {frame_idx} | Punches: {punches}")
 
             # for i in range(len(punches)):
             #   punch_label = punches[i]["label"] if punches[i] else "None"
@@ -557,7 +556,7 @@ if uploaded_files:
             if frame_idx % 5 == 0:
               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
               progress_bar.progress(min(total_progress, 1.0))
-
+        
         cap.release()
         out_writer.release()
 
