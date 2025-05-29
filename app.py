@@ -22,7 +22,6 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib
 from imblearn.over_sampling import SMOTE
 from sklearn.utils.class_weight import compute_class_weight
-from collections import Counter
 
 
 # Streamlit setup
@@ -99,8 +98,6 @@ def detect_punch(keypoints):
     RIGHT_ELBOW = 8
     LEFT_SHOULDER = 5
     RIGHT_SHOULDER = 6
-    LEFT_HIP = 11
-    RIGHT_HIP = 12
 
     lw = keypoints[LEFT_WRIST][:2]
     rw = keypoints[RIGHT_WRIST][:2]
@@ -109,8 +106,6 @@ def detect_punch(keypoints):
     re = keypoints[RIGHT_ELBOW][:2]
     ls = keypoints[LEFT_SHOULDER][:2]
     rs = keypoints[RIGHT_SHOULDER][:2]
-    lh = keypoints[LEFT_HIP][:2]
-    rh = keypoints[RIGHT_HIP][:2]
 
     # Distances from wrists to nose (used for punches)
     dist_lw_nose = np.linalg.norm(lw - nose)
@@ -120,25 +115,18 @@ def detect_punch(keypoints):
     left_elbow_angle = calculate_angle(ls, le, lw)
     right_elbow_angle = calculate_angle(rs, re, rw)
 
-    left_shoulder_angle = calculate_angle(le, ls, lh)
-    right_shoulder_angle = calculate_angle(re, rs, rh)
-
     # Face position to estimate duck
     head_height = nose[1]
 
     # Heuristics
-    # Try punch types first
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
-        return "Hook"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-        return "Duck"
-    # Guard if both wrists are near the nose AFTER other checks
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
     else:
         return "None"
 
@@ -491,6 +479,10 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            st.info(f"rescaledkeypoints = {rescaledkeypoints}")
+            #st.info(f"rescaledkp={rescaledkeypoints}")
+            #punches = classify_punch(rescaledkeypoints,frame_idx)
+            #punches = detect_punch(rescaledkeypoints)
             postures = check_posture(rescaledkeypoints)
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
@@ -506,17 +498,22 @@ if uploaded_files:
 
                 label = detect_punch(person_kpts)
                 punches.append(label)
-            st.info(f"punches= {punches}")
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,punch_tracker)
 
-            #annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
 
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            filtered_indices = [i for i in range(len(rescaledkeypoints)) if i != 2]
+            filtered_keypoints = [rescaledkeypoints[i] for i in filtered_indices]
+            filtered_punches = [punches[i] for i in filtered_indices]
+            filtered_postures = [postures[i] for i in filtered_indices]
+            filtered_gloves = [glove_detections[i] for i in filtered_indices]
+
+            annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
+
+            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
-            st.text(f"Frame {frame_idx} | Punches: {punches} | Keypoints: {rescaledkeypoints}")
 
             # for i in range(len(punches)):
             #   punch_label = punches[i]["label"] if punches[i] else "None"
@@ -550,7 +547,7 @@ if uploaded_files:
             if frame_idx % 5 == 0:
               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
               progress_bar.progress(min(total_progress, 1.0))
-        
+
         cap.release()
         out_writer.release()
 
@@ -593,8 +590,6 @@ if uploaded_files:
 
         # Load data (assuming it's saved as CSV)
 
-        #Data preprocessing 
-
         # Flatten punch_log to DataFrame
         df_log = pd.DataFrame(punch_log)
 
@@ -606,9 +601,6 @@ if uploaded_files:
         # Drop rows where punch is missing or N/A
         df_full = df_full[df_full['punch'].notna()]
         df_full = df_full[df_full['punch'] != 'N/A']
-        # Check unique punches after filtering
-        unique_punches = df_full['punch'].value_counts()
-        st.warning(f"🔍 Filtered Punch Distribution:\n{unique_punches}")
 
         # df.columns = df.columns.str.strip()
 
@@ -629,7 +621,6 @@ if uploaded_files:
         # Extract features and target
         X = df_full[keypoint_cols].values # Replace with actual feature column names
         y = le.fit_transform(df_full['punch'])
-        st.info(f"ycount={Counter(y)}")
 
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
@@ -638,23 +629,15 @@ if uploaded_files:
         X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
             X, y, df_full.index, test_size=0.2, stratify=y, random_state=42
         )
+
         # Feature scaling
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
-        
-        st.info(f"Before SMOTE: {Counter(y_train)}")
 
-        # Apply SMOTE only if there are at least 2 unique classes
-        if len(np.unique(y_train)) > 1:
-            smote = SMOTE(random_state=42)
-            X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-            st.success(f"✅ After SMOTE: {Counter(y_train_balanced)}")
-        else:
-            X_train_balanced, y_train_balanced = X_train_scaled, y_train
-            st.warning("⚠️ SMOTE skipped: Only one class present.")
-
-        st.info(f"After SMOTE:, {Counter(y_train_balanced)}")
+        # SMOTE
+        smote = SMOTE(random_state=42)
+        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
