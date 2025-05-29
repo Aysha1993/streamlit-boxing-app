@@ -22,6 +22,7 @@ from sklearn.ensemble import RandomForestClassifier
 import joblib
 from imblearn.over_sampling import SMOTE
 from sklearn.utils.class_weight import compute_class_weight
+from collections import Counter
 
 
 # Streamlit setup
@@ -479,7 +480,7 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
-            st.info(f"rescaledkeypoints = {rescaledkeypoints}")
+            #st.info(f"rescaledkeypoints = {rescaledkeypoints}")
             #st.info(f"rescaledkp={rescaledkeypoints}")
             #punches = classify_punch(rescaledkeypoints,frame_idx)
             #punches = detect_punch(rescaledkeypoints)
@@ -636,16 +637,20 @@ if uploaded_files:
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
+        
+        st.info(f"Before SMOTE: {Counter(y_train)}")
 
         smote = SMOTE(random_state=42)
 
         unique_classes = np.unique(y_train)
-        if y_train.nunique() > 1:
+        if len(np.unique(y_train)) > 1:
             X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
         else:
             st.info("SMOTE skipped: Only one class present in y_train.")
             X_train_balanced, y_train_balanced = X_train_scaled, y_train
 
+        # After applying SMOTE
+        print(f"After SMOTE:, {Counter(y_train_balanced)}")
 
         # SMOTE     
         #X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
