@@ -650,24 +650,20 @@ if uploaded_files:
         
         st.info(f"Before SMOTE: {Counter(y_train)}")
 
-        # smote = SMOTE(random_state=42)
+        # Apply SMOTE only if there are at least 2 unique classes
+        if len(np.unique(y_train)) > 1:
+            smote = SMOTE(random_state=42)
+            X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+            st.success(f"✅ After SMOTE: {Counter(y_train_balanced)}")
+        else:
+            X_train_balanced, y_train_balanced = X_train_scaled, y_train
+            st.warning("⚠️ SMOTE skipped: Only one class present.")
 
-        # unique_classes = np.unique(y_train)
-        # if len(np.unique(y_train)) > 1:
-        #     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-        # else:
-        #     st.info("SMOTE skipped: Only one class present in y_train.")
-        #     X_train_balanced, y_train_balanced = X_train_scaled, y_train
-
-        # # After applying SMOTE
-        # print(f"After SMOTE:, {Counter(y_train_balanced)}")
-
-        # SMOTE     
-        #X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+        st.info(f"After SMOTE:, {Counter(y_train_balanced)}")
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
-        clf.fit(X_train_scaled, y_train)
+        clf.fit(X_train_balanced, y_train_balanced)
 
         # Predict
         y_pred = clf.predict(X_test_scaled)
