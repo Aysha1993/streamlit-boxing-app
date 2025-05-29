@@ -645,8 +645,15 @@ if uploaded_files:
         st.pyplot(fig1)
 
         # Punch frequency over time
+
         st.subheader("📊 Punch Frequency Over Time")
-        time_grouped = pred_output_df.groupby(pd.cut(pred_output_df["timestamp"], bins=10))["predicted_label"].value_counts().unstack().fillna(0)
+        # Round timestamps to 1 second
+        pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
+
+        # Count punches per second
+        time_grouped = pred_output_df[pred_output_df["predicted_label"].notna()] \
+            .groupby(["time_bin", "predicted_label"]).size().unstack().fillna(0)
+
         st.line_chart(time_grouped)
 
         # Average Speed
@@ -674,7 +681,6 @@ if uploaded_files:
         st.text(report_str)
 
     progress_bar.empty()
-
 
 requirements = '''streamlit
 tensorflow
