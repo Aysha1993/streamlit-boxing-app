@@ -577,7 +577,7 @@ if uploaded_files:
         # Extract features and target
         X = df_full[keypoint_cols].values
         y = df_full["punch"]            # Replace with "posture" for posture classification
-        st.info("test")
+        
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
         
@@ -585,10 +585,10 @@ if uploaded_files:
         clf.fit(X_train, y_train)
 
         y_pred = clf.predict(X_test)
-
+        
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
-        print("✅ Accuracy:", acc)
+        st.info(f"✅ Accuracy:, {acc}")
 
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
