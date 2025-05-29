@@ -590,6 +590,9 @@ if uploaded_files:
 
         # Load data (assuming it's saved as CSV)
 
+
+        #Data preprocessing
+
         # Flatten punch_log to DataFrame
         df_log = pd.DataFrame(punch_log)
 
@@ -629,15 +632,23 @@ if uploaded_files:
         X_train, X_test, y_train, y_test, train_idx, test_idx = train_test_split(
             X, y, df_full.index, test_size=0.2, stratify=y, random_state=42
         )
-
         # Feature scaling
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        # SMOTE
         smote = SMOTE(random_state=42)
-        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+
+        unique_classes = np.unique(y_train)
+        if len(unique_classes) < 2:
+            st.info(f"Only one class present in training labels: {unique_classes}. Skipping SMOTE.")
+            # Optionally handle this case differently
+        else:
+            X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+
+
+        # SMOTE     
+        #X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
