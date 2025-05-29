@@ -592,7 +592,7 @@ if uploaded_files:
         # Load data (assuming it's saved as CSV)
 
 
-        #Data preprocessing
+        #Data preprocessing 
 
         # Flatten punch_log to DataFrame
         df_log = pd.DataFrame(punch_log)
@@ -625,6 +625,7 @@ if uploaded_files:
         # Extract features and target
         X = df_full[keypoint_cols].values # Replace with actual feature column names
         y = le.fit_transform(df_full['punch'])
+        st.info(f"ycount={Counter(y)}")
 
         # Ensure DataFrame index is clean
         df_full = df_full.reset_index(drop=True)
@@ -640,24 +641,24 @@ if uploaded_files:
         
         st.info(f"Before SMOTE: {Counter(y_train)}")
 
-        smote = SMOTE(random_state=42)
+        # smote = SMOTE(random_state=42)
 
-        unique_classes = np.unique(y_train)
-        if len(np.unique(y_train)) > 1:
-            X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-        else:
-            st.info("SMOTE skipped: Only one class present in y_train.")
-            X_train_balanced, y_train_balanced = X_train_scaled, y_train
+        # unique_classes = np.unique(y_train)
+        # if len(np.unique(y_train)) > 1:
+        #     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+        # else:
+        #     st.info("SMOTE skipped: Only one class present in y_train.")
+        #     X_train_balanced, y_train_balanced = X_train_scaled, y_train
 
-        # After applying SMOTE
-        print(f"After SMOTE:, {Counter(y_train_balanced)}")
+        # # After applying SMOTE
+        # print(f"After SMOTE:, {Counter(y_train_balanced)}")
 
         # SMOTE     
         #X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
         # Train classifier
         clf = RandomForestClassifier(n_estimators=200, random_state=42, class_weight='balanced', n_jobs=-1)
-        clf.fit(X_train_balanced, y_train_balanced)
+        clf.fit(X_train_scaled, y_train)
 
         # Predict
         y_pred = clf.predict(X_test_scaled)
