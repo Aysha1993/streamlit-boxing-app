@@ -517,9 +517,9 @@ if uploaded_files:
             filtered_postures = [postures[i] for i in filtered_indices]
             filtered_gloves = [glove_detections[i] for i in filtered_indices]
 
-            annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
+            #annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punches, filtered_postures, filtered_gloves, h, w)
 
-            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             st.text(f"Frame {frame_idx} | Punches: {punches}")
