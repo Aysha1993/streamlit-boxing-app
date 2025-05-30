@@ -410,11 +410,12 @@ class Sort:
         return new_tracks
 # Extract detections from MoveNet output
 
-def extract_detections(movenet_output, confidence_threshold=0.3):
+def extract_detections(keypoints, confidence_threshold=0.3):
+    st.info(f"Incoming keypoints type:, {type(keypoints)}")
+    st.info(f"Shape:, {np.array(keypoints).shape}")
     detections = []
-    keypoints = movenet_output['keypoints']  # Shape: (num_persons, 17, 3)
-    
-    for person in keypoints:
+
+    for person in keypoints:  # Each person: shape (17, 3)
         if person.shape[0] != 17:
             continue  # skip malformed keypoints
 
@@ -480,7 +481,7 @@ if uploaded_files:
     all_logs = []
     progress_bar = st.progress(0)
     for idx, uploaded_file in enumerate(uploaded_files):
-        st.subheader(f"📦frame Processing: {uploaded_file.name}")
+        st.subheader(f"📦Frame Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
         input_path = os.path.join(temp_dir, uploaded_file.name)
 
@@ -513,7 +514,7 @@ if uploaded_files:
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
 
-            detections = extract_detections(keypoints,0.3)
+            detections = extract_detections(results  ,0.3)
             tracked = tracker.update(detections)  
             st.info(f"Raw Detections:, {detections}")
             st.info(f"Original keypoints:, {len(keypoints)}")
