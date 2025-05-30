@@ -444,7 +444,7 @@ if uploaded_files:
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
-            #st.info(f"keypoints= {keypoints}")
+            st.info(f"keypoints= {keypoints}")
 
 
             if not keypoints:
