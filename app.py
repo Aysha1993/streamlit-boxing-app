@@ -410,23 +410,32 @@ class Sort:
         self.trackers = new_tracks
         return new_tracks
 # Extract detections from MoveNet output
-def extract_detections(keypoints_with_scores, height, width, threshold=0.2):
-    people = []
-    for person in keypoints_with_scores[0]:
-        kps = np.array(person[:51]).reshape(17, 3)
-        score = np.mean(kps[:, 2])
-        if score < threshold:
-            continue
 
-        x1 = np.min(kps[:, 1]) * width
-        y1 = np.min(kps[:, 0]) * height
-        x2 = np.max(kps[:, 1]) * width
-        y2 = np.max(kps[:, 0]) * height
-        bbox = [x1, y1, x2, y2]
+def extract_detections(keypoints, frame_height, frame_width):
+    detections = []
+    for person in keypoints:
+        # Ensure person is a NumPy array
+        person = np.array(person)
 
-        person_data = bbox + kps.flatten().tolist()
-        people.append(person_data)
-    return people
+        # Validate shape
+        if person.shape[0] < 51:
+            continue  # Skip invalid detections
+
+        # First 51 values are keypoints (17 keypoints * (x, y, score))
+        kps = person[:51].reshape(17, 3)
+        
+        # Get bounding box (x_center, y_center, width, height, score)
+        bbox = person[51:56]
+
+        # Scale keypoints to original image size
+        kps[:, 0] *= frame_width
+        kps[:, 1] *= frame_height
+
+        detections.append({
+            "keypoints": kps,
+            "bbox": bbox,
+        })
+    return detections
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
