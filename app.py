@@ -378,63 +378,56 @@ class Sort:
         self.min_hits = min_hits
         self.iou_threshold = iou_threshold
         self.track_id_count = 0
-
     def update(self, detections):
         new_tracks = []
         for det in detections:
-            new_tracks.append({'bbox': det[:4], 'keypoints': det[4:], 'id': None})
+            new_tracks.append({'center': det[:2], 'keypoints': det[2:], 'id': None})
 
-        # Assign IDs (naive but consistent: center point distance tracking)
         assigned = []
         for track in self.trackers:
-            if 'id' not in track: continue
+            if 'id' not in track:
+                continue
             min_dist = float('inf')
             best_match = None
             for idx, nt in enumerate(new_tracks):
-                if idx in assigned: continue
-                dist = np.linalg.norm(np.array(track['center']) - np.array(nt['bbox'][:2]))
+                if idx in assigned:
+                    continue
+                dist = np.linalg.norm(np.array(track['center']) - np.array(nt['center']))
                 if dist < min_dist:
                     min_dist = dist
                     best_match = idx
             if best_match is not None:
                 assigned.append(best_match)
                 new_tracks[best_match]['id'] = track['id']
-                new_tracks[best_match]['center'] = track['center']
+                new_tracks[best_match]['center'] = new_tracks[best_match]['center']
 
         for nt in new_tracks:
             if nt['id'] is None:
                 nt['id'] = self.track_id_count
-                nt['center'] = nt['bbox'][:2]
                 self.track_id_count += 1
 
         self.trackers = new_tracks
         return new_tracks
 # Extract detections from MoveNet output
 
+
 def extract_detections(keypoints, frame_height, frame_width):
     detections = []
     for person in keypoints:
-        # Ensure person is a NumPy array
         person = np.array(person)
-
-        # Validate shape
         if person.shape[0] < 51:
-            continue  # Skip invalid detections
-
-        # First 51 values are keypoints (17 keypoints * (x, y, score))
+            continue
         kps = person[:51].reshape(17, 3)
-        
-        # Get bounding box (x_center, y_center, width, height, score)
         bbox = person[51:56]
-
-        # Scale keypoints to original image size
         kps[:, 0] *= frame_width
         kps[:, 1] *= frame_height
 
-        detections.append({
-            "keypoints": kps,
-            "bbox": bbox,
-        })
+        x_center, y_center, _, _, _ = bbox
+        detections.append([
+            x_center * frame_width,  # bbox x
+            y_center * frame_height,  # bbox y
+            *kps.flatten().tolist()   # 17 * 3 = 51 values
+        ])
     return detections
 
 def expand_keypoints(keypoints):
@@ -543,30 +536,37 @@ if uploaded_files:
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
 
-
-            # Track IDs assigned
+             # Track IDs assigned
             ids_in_frame = [t['id'] for t in tracked]
+            st.text(f"Tracked IDs in frame: {[t['id'] for t in tracked]}")
+            st.text(f"BOXER_IDS: {BOXER_IDS}")
 
-            # Filter keypoints + punches + posture + gloves by ID
+
             for t in tracked:
                 pid = t['id']
                 if pid not in BOXER_IDS:
                     continue
 
-                # Get detection that matches tracked ID
-                tidx = tracked.index(t)
-                kpts = rescaledkeypoints[tidx]
-                punch = punches[tidx]
-                posture = postures[tidx]
-                gloves = glove_detections[tidx]
+                kpts = np.array(t['keypoints']).reshape(17, 3)
+                punch = detect_punch(kpts)
+                posture = check_posture([kpts])[0]
+                gloves = detect_gloves_by_color_and_shape(frame, [kpts])[0]
 
-                # Annotate
                 frame = draw_annotations(frame, [kpts], [punch], [posture], [gloves], h, w, pid)
 
-            # Now write the frame (with only boxer annotations)
-            out_writer.write(frame)
+                punch_log.append({
+                    "video": uploaded_file.name,
+                    "frame": frame_idx,
+                    "person": pid,
+                    "timestamp": frame_idx / fps,
+                    "punch": punch,
+                    "posture": posture,
+                    "gloves": gloves,
+                    "keypoints": kpts.tolist()
+                })
 
-            
+            # Now write the frame (with only boxer annotations)
+            out_writer.write(frame)           
             
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
@@ -590,17 +590,18 @@ if uploaded_files:
             #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
             #   })
             # st.info(f"punches = {punches}")
-            for i in range(len(punches)):
-                punch_log.append({
-                      "video": uploaded_file.name,
-                      "frame": frame_idx,
-                      "person": i,
-                      "timestamp": frame_idx / fps,
-                      "punch": punches[i] if i < len(punches) else "N/A",
-                      "posture": postures[i] if i < len(postures) else "N/A",
-                      "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
-                      "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-                  })
+
+            # for i in range(len(punches)):
+            #     punch_log.append({
+            #           "video": uploaded_file.name,
+            #           "frame": frame_idx,
+            #           "person": i,
+            #           "timestamp": frame_idx / fps,
+            #           "punch": punches[i] if i < len(punches) else "N/A",
+            #           "posture": postures[i] if i < len(postures) else "N/A",
+            #           "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
+            #           "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+            #       })
 
             frame_idx += 1
             if frame_idx % 5 == 0:
