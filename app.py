@@ -534,9 +534,14 @@ if uploaded_files:
 
         # Group by video or person if needed
         df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+        # df["speed (approx)"] = (
+        #     df.groupby("person")["timestamp"]
+        #     .diff()
+        #     .apply(lambda x: 1 / x if pd.notnull(x) and x > 0 else 0)
+        # )
 
-        st.write("### 🔍 Keypoints Sample")
-        st.json(df['keypoints'].iloc[0])
+        # st.write("### 🔍 Keypoints Sample")
+        # st.json(df['keypoints'].iloc[0])
 
         expanded_df = df.copy()
         keypoint_cols = df['keypoints'].apply(expand_keypoints)
@@ -621,6 +626,20 @@ if uploaded_files:
 
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
+
+
+        st.subheader("📈 Per-Punch Speed Over Time")
+
+        # Ensure timestamp is in seconds
+        df["timestamp_sec"] = df["timestamp"].astype(float)
+
+        # Plot punch speed
+        st.line_chart(
+            df.set_index("timestamp_sec")["speed (approx)"],
+            height=300,
+            use_container_width=True
+        )
+
 
         # Punch Counts
         st.subheader(" Punch Type Distribution")
