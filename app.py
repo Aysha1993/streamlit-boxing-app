@@ -23,8 +23,6 @@ import joblib
 from imblearn.over_sampling import SMOTE
 from sklearn.utils.class_weight import compute_class_weight
 from collections import Counter
-from filterpy.kalman import KalmanFilter
-from collections import deque
 
 
 # Streamlit setup
@@ -310,8 +308,7 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,pid):
-    st.info(f"pid={pid}")
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
@@ -369,67 +366,6 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
     return frame
-# SORT Tracker class
-class Sort:
-    def __init__(self, max_age=10, min_hits=3, iou_threshold=0.3):
-        self.trackers = []
-        self.frame_count = 0
-        self.max_age = max_age
-        self.min_hits = min_hits
-        self.iou_threshold = iou_threshold
-        self.track_id_count = 0
-    def update(self, detections):
-        new_tracks = []
-        for det in detections:
-            new_tracks.append({'center': det[:2], 'keypoints': det[2:], 'id': None})
-
-        assigned = []
-        for track in self.trackers:
-            if 'id' not in track:
-                continue
-            min_dist = float('inf')
-            best_match = None
-            for idx, nt in enumerate(new_tracks):
-                if idx in assigned:
-                    continue
-                dist = np.linalg.norm(np.array(track['center']) - np.array(nt['center']))
-                if dist < min_dist:
-                    min_dist = dist
-                    best_match = idx
-            if best_match is not None:
-                assigned.append(best_match)
-                new_tracks[best_match]['id'] = track['id']
-                new_tracks[best_match]['center'] = new_tracks[best_match]['center']
-
-        for nt in new_tracks:
-            if nt['id'] is None:
-                nt['id'] = self.track_id_count
-                self.track_id_count += 1
-
-        self.trackers = new_tracks
-        return new_tracks
-# Extract detections from MoveNet output
-
-def extract_detections(movenet_output, confidence_threshold=0.3):
-    detections = []
-    keypoints = movenet_output['keypoints']  # Shape: (num_persons, 17, 3)
-    
-    for person in keypoints:
-        if person.shape[0] != 17:
-            continue  # skip malformed keypoints
-
-        if np.mean(person[:, 2]) < confidence_threshold:
-            continue  # skip low confidence person
-
-        center_x = np.mean(person[:, 0])
-        center_y = np.mean(person[:, 1])
-        flat_keypoints = person.flatten()
-
-        detection = np.concatenate([[center_x, center_y], flat_keypoints])
-        detections.append(detection)
-
-    return detections
-
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
@@ -468,9 +404,7 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
-# Manual boxer ID assignment (can change per use-case)
-BOXER_IDS = [0, 1]  # Manually define after initial frame inspection
-tracker = Sort()
+
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
@@ -509,18 +443,10 @@ if uploaded_files:
             img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
-            #st.info(f"results= {results}")
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
 
-            detections = extract_detections(keypoints,0.3)
-            tracked = tracker.update(detections)  
-            st.info(f"Raw Detections:, {detections}")
-            st.info(f"Original keypoints:, {len(keypoints)}")
-            st.info(f"Detections extracted:, {len(detections)}")
 
-     
-                    
             if not keypoints:
                 out_writer.write(frame)
                 continue
@@ -542,42 +468,10 @@ if uploaded_files:
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
 
-             # Track IDs assigned
-            ids_in_frame = [t['id'] for t in tracked]
-            st.text(f"Tracked IDs in frame: {[t['id'] for t in tracked]}")
-            st.text(f"BOXER_IDS: {BOXER_IDS}")
-
-
-            for t in tracked:
-                pid = t['id']
-                if pid not in BOXER_IDS:
-                    continue
-
-                kpts = np.array(t['keypoints']).reshape(17, 3)
-                punch = detect_punch(kpts)
-                posture = check_posture([kpts])[0]
-                gloves = detect_gloves_by_color_and_shape(frame, [kpts])[0]
-
-                frame = draw_annotations(frame, [kpts], [punch], [posture], [gloves], h, w, pid)
-
-                punch_log.append({
-                    "video": uploaded_file.name,
-                    "frame": frame_idx,
-                    "person": pid,
-                    "timestamp": frame_idx / fps,
-                    "punch": punch,
-                    "posture": posture,
-                    "gloves": gloves,
-                    "keypoints": kpts.tolist()
-                })
-
-            # Now write the frame (with only boxer annotations)
-            out_writer.write(frame)           
-            
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
-            #out_writer.write(annotated)
+            out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
             # for i in range(len(punches)):
@@ -596,18 +490,17 @@ if uploaded_files:
             #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
             #   })
             # st.info(f"punches = {punches}")
-
-            # for i in range(len(punches)):
-            #     punch_log.append({
-            #           "video": uploaded_file.name,
-            #           "frame": frame_idx,
-            #           "person": i,
-            #           "timestamp": frame_idx / fps,
-            #           "punch": punches[i] if i < len(punches) else "N/A",
-            #           "posture": postures[i] if i < len(postures) else "N/A",
-            #           "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
-            #           "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-            #       })
+            for i in range(len(punches)):
+                punch_log.append({
+                      "video": uploaded_file.name,
+                      "frame": frame_idx,
+                      "person": i,
+                      "timestamp": frame_idx / fps,
+                      "punch": punches[i] if i < len(punches) else "N/A",
+                      "posture": postures[i] if i < len(postures) else "N/A",
+                      "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
+                      "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+                  })
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -805,7 +698,6 @@ tqdm
 seaborn
 lightgbm
 imbalanced-learn
-filterpy
 plotly
 matplotlib
 '''
