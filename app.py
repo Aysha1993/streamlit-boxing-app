@@ -308,7 +308,8 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,pid):
+    st.info(f"pid={pid}")
     y_offset = 30
     line_height = 20
 
@@ -366,6 +367,64 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                     0.5, (255, 255, 0), 1)
         y_offset += line_height
     return frame
+# SORT Tracker class
+class Sort:
+    def __init__(self, max_age=10, min_hits=3, iou_threshold=0.3):
+        self.trackers = []
+        self.frame_count = 0
+        self.max_age = max_age
+        self.min_hits = min_hits
+        self.iou_threshold = iou_threshold
+        self.track_id_count = 0
+
+    def update(self, detections):
+        new_tracks = []
+        for det in detections:
+            new_tracks.append({'bbox': det[:4], 'keypoints': det[4:], 'id': None})
+
+        # Assign IDs (naive but consistent: center point distance tracking)
+        assigned = []
+        for track in self.trackers:
+            if 'id' not in track: continue
+            min_dist = float('inf')
+            best_match = None
+            for idx, nt in enumerate(new_tracks):
+                if idx in assigned: continue
+                dist = np.linalg.norm(np.array(track['center']) - np.array(nt['bbox'][:2]))
+                if dist < min_dist:
+                    min_dist = dist
+                    best_match = idx
+            if best_match is not None:
+                assigned.append(best_match)
+                new_tracks[best_match]['id'] = track['id']
+                new_tracks[best_match]['center'] = track['center']
+
+        for nt in new_tracks:
+            if nt['id'] is None:
+                nt['id'] = self.track_id_count
+                nt['center'] = nt['bbox'][:2]
+                self.track_id_count += 1
+
+        self.trackers = new_tracks
+        return new_tracks
+# Extract detections from MoveNet output
+def extract_detections(keypoints_with_scores, height, width, threshold=0.2):
+    people = []
+    for person in keypoints_with_scores[0]:
+        kps = person[:51].numpy().reshape(17, 3)
+        score = np.mean(kps[:, 2])
+        if score < threshold:
+            continue
+
+        x1 = np.min(kps[:, 1]) * width
+        y1 = np.min(kps[:, 0]) * height
+        x2 = np.max(kps[:, 1]) * width
+        y2 = np.max(kps[:, 0]) * height
+        bbox = [x1, y1, x2, y2]
+
+        person_data = bbox + kps.flatten().tolist()
+        people.append(person_data)
+    return people
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
@@ -404,7 +463,9 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
-
+# Manual boxer ID assignment (can change per use-case)
+BOXER_IDS = [0, 1]  # Manually define after initial frame inspection
+tracker = Sort()
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
@@ -447,7 +508,14 @@ if uploaded_files:
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
 
+            detections = extract_detections(keypoints, frame.shape[0], frame.shape[1])
+            tracked = tracker.update(detections)
 
+            for t in tracked:
+                pid = t['id']
+                if pid in BOXER_IDS:
+                    annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,pid)
+                    
             if not keypoints:
                 out_writer.write(frame)
                 continue
