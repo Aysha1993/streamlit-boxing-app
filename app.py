@@ -416,6 +416,7 @@ def extract_detections(keypoints, frame_height, frame_width):
     for person in keypoints:
         person = np.array(person)
         if person.shape[0] < 51:
+            st.info("check")
             continue
         kps = person[:51].reshape(17, 3)
         bbox = person[51:56]
@@ -513,7 +514,12 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
 
             detections = extract_detections(keypoints, frame.shape[0], frame.shape[1])
-            tracked = tracker.update(detections)       
+            tracked = tracker.update(detections)  
+            st.info(f"Raw Detections:, {detections}")
+            st.info(f"Original keypoints:, {len(keypoints)}")
+            st.info(f"Detections extracted:, {len(detections)}")
+
+     
                     
             if not keypoints:
                 out_writer.write(frame)
