@@ -513,7 +513,7 @@ if uploaded_files:
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
 
-            detections = extract_detections(keypoints, frame.shape[0], frame.shape[1])
+            detections = extract_detections(results,0.3)
             tracked = tracker.update(detections)  
             st.info(f"Raw Detections:, {detections}")
             st.info(f"Original keypoints:, {len(keypoints)}")
