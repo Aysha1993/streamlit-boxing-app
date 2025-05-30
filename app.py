@@ -443,7 +443,7 @@ if uploaded_files:
             img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
-            st.info(f"results= {results}")
+            #st.info(f"results= {results}")
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
 
