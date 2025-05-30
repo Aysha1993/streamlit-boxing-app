@@ -13,4 +13,5 @@ lightgbm
 imbalanced-learn
 matplotlib
 plotly
+filterpy
 
