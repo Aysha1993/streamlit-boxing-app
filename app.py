@@ -410,26 +410,26 @@ class Sort:
         return new_tracks
 # Extract detections from MoveNet output
 
-
-def extract_detections(keypoints, frame_height, frame_width):
+def extract_detections(movenet_output, confidence_threshold=0.3):
     detections = []
+    keypoints = movenet_output['keypoints']  # Shape: (num_persons, 17, 3)
+    
     for person in keypoints:
-        person = np.array(person)
-        if person.shape[0] < 51:
-            st.info("check")
-            continue
-        kps = person[:51].reshape(17, 3)
-        bbox = person[51:56]
-        kps[:, 0] *= frame_width
-        kps[:, 1] *= frame_height
+        if person.shape[0] != 17:
+            continue  # skip malformed keypoints
 
-        x_center, y_center, _, _, _ = bbox
-        detections.append([
-            x_center * frame_width,  # bbox x
-            y_center * frame_height,  # bbox y
-            *kps.flatten().tolist()   # 17 * 3 = 51 values
-        ])
+        if np.mean(person[:, 2]) < confidence_threshold:
+            continue  # skip low confidence person
+
+        center_x = np.mean(person[:, 0])
+        center_y = np.mean(person[:, 1])
+        flat_keypoints = person.flatten()
+
+        detection = np.concatenate([[center_x, center_y], flat_keypoints])
+        detections.append(detection)
+
     return detections
+
 
 def expand_keypoints(keypoints):
     if isinstance(keypoints, str):
