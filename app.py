@@ -520,9 +520,7 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
 
             detections = extract_detections(keypoints, frame.shape[0], frame.shape[1])
-            tracked = tracker.update(detections)
-
-            
+            tracked = tracker.update(detections)       
                     
             if not keypoints:
                 out_writer.write(frame)
@@ -545,12 +543,31 @@ if uploaded_files:
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
 
+
+            # Track IDs assigned
+            ids_in_frame = [t['id'] for t in tracked]
+
+            # Filter keypoints + punches + posture + gloves by ID
             for t in tracked:
                 pid = t['id']
-                if pid in BOXER_IDS:
-                    annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,pid)
-                    out_writer.write(annotated)
+                if pid not in BOXER_IDS:
+                    continue
 
+                # Get detection that matches tracked ID
+                tidx = tracked.index(t)
+                kpts = rescaledkeypoints[tidx]
+                punch = punches[tidx]
+                posture = postures[tidx]
+                gloves = glove_detections[tidx]
+
+                # Annotate
+                frame = draw_annotations(frame, [kpts], [punch], [posture], [gloves], h, w, pid)
+
+            # Now write the frame (with only boxer annotations)
+            out_writer.write(frame)
+
+            
+            
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
