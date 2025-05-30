@@ -549,11 +549,12 @@ if uploaded_files:
                 pid = t['id']
                 if pid in BOXER_IDS:
                     annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,pid)
+                    out_writer.write(annotated)
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
-            out_writer.write(annotated)
+            #out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
             # for i in range(len(punches)):
