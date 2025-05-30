@@ -23,6 +23,8 @@ import joblib
 from imblearn.over_sampling import SMOTE
 from sklearn.utils.class_weight import compute_class_weight
 from collections import Counter
+from filterpy.kalman import KalmanFilter
+from collections import deque
 
 
 # Streamlit setup
@@ -411,7 +413,7 @@ class Sort:
 def extract_detections(keypoints_with_scores, height, width, threshold=0.2):
     people = []
     for person in keypoints_with_scores[0]:
-        kps = person[:51].numpy().reshape(17, 3)
+        kps = np.array(person[:51]).reshape(17, 3)
         score = np.mean(kps[:, 2])
         if score < threshold:
             continue
@@ -511,10 +513,7 @@ if uploaded_files:
             detections = extract_detections(keypoints, frame.shape[0], frame.shape[1])
             tracked = tracker.update(detections)
 
-            for t in tracked:
-                pid = t['id']
-                if pid in BOXER_IDS:
-                    annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,pid)
+            
                     
             if not keypoints:
                 out_writer.write(frame)
@@ -537,8 +536,13 @@ if uploaded_files:
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
 
+            for t in tracked:
+                pid = t['id']
+                if pid in BOXER_IDS:
+                    annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,pid)
+
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
@@ -767,6 +771,7 @@ tqdm
 seaborn
 lightgbm
 imbalanced-learn
+filterpy
 plotly
 matplotlib
 '''
