@@ -315,18 +315,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
 
-
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
-
-        # # Check location
-        # in_ring = is_inside_ring(kp, h, w)
-
-        # # Update punch tracker
-        # punch_tracker.update(idx, punch)
-
-        # # Skip if in ring but not a boxer
-        # if in_ring and not punch_tracker.is_boxer(idx):
-        #     continue
 
         #Draw keypoints
         for i, (y, x, s) in enumerate(kp):
@@ -456,7 +445,7 @@ if uploaded_files:
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
-            
+
 
             if not keypoints:
                 out_writer.write(frame)
@@ -465,7 +454,7 @@ if uploaded_files:
             postures = check_posture(rescaledkeypoints)
             #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
-            
+
             h, w = frame.shape[:2]
 
             punches = []
@@ -475,7 +464,7 @@ if uploaded_files:
                 person_kpts[:, 1] *= height  # y-coordinate
                 label = detect_punch(person_kpts)
                 punches.append(label)
-                # st.info(f"person_kpts= {person_kpts}")
+                # st.info(f"person_kpts= {person_kpts}") #debug
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
 
@@ -517,7 +506,7 @@ if uploaded_files:
             if frame_idx % 5 == 0:
               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
               progress_bar.progress(min(total_progress, 1.0))
-        
+
         cap.release()
         out_writer.release()
 
@@ -529,7 +518,7 @@ if uploaded_files:
           st.error("FFmpeg failed: " + str(e))
 
         #ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
-        st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
+        #st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
 
         st.video(final_output)
         with open(final_output, "rb") as f:
@@ -589,10 +578,10 @@ if uploaded_files:
         clf.fit(X_train, y_train)
 
         y_pred = clf.predict(X_test)
-        
+
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
-        st.info(f"✅ Accuracy:, {acc}")
+        st.info(f" Accuracy:, {acc}")
 
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
@@ -615,7 +604,7 @@ if uploaded_files:
             file_name="predictions_vs_actual.csv",
             mime="text/csv"
         )
-        
+
         # Heatmap
         plt.figure(figsize=(8,6))
         sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
@@ -625,16 +614,16 @@ if uploaded_files:
         plt.show()
 
         # Detailed Report
-        st.info(f"\n📊 Classification Report:\n= {classification_report(y_test, y_pred)}")      
+        st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
-        st.subheader("📈 Performance Metrics Summary")
+        st.subheader(" Performance Metrics Summary")
 
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
         # Punch Counts
-        st.subheader("🥊 Punch Type Distribution")
+        st.subheader(" Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
@@ -646,7 +635,7 @@ if uploaded_files:
 
         # Punch frequency over time
 
-        st.subheader("📊 Punch Frequency Over Time")
+        st.subheader(" Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
@@ -656,14 +645,13 @@ if uploaded_files:
 
         st.line_chart(time_grouped)
 
-
         # Filter for punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
 
         # Compute punches
         total_punches = len(valid_punches)
 
-        # ⚠️ Use full timestamp range, NOT just punch timestamps!
+        # Use full timestamp range, NOT just punch timestamps!
         start_time = pred_output_df["timestamp"].min()
         end_time = pred_output_df["timestamp"].max()
         duration = end_time - start_time
