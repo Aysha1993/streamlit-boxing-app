@@ -598,9 +598,9 @@ if uploaded_files:
 
         #Only keep existing metadata columns
         meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
-        meta_columns = [col for col in meta_columns if col in df_full.columns]
+        meta_columns = [col for col in meta_columns if col in expanded_df.columns]
 
-        pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
+        pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
 
         pred_output_df = pd.concat([
             pred_meta,
