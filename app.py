@@ -82,7 +82,7 @@ keypoint_index = {
 }
 
 def get_head_height(keypoints):
-    # Use average of nose, left eye, right eye for more robust head estimate
+    # Use mean of nose and eyes for head height
     keypoint_y_values = [
         keypoints[keypoint_index["nose"]][1],
         keypoints[keypoint_index["left_eye"]][1],
@@ -98,7 +98,7 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
 def detect_punch(keypoints):
-    # Extract points
+    # Extract body part coordinates
     lw = keypoints[keypoint_index["left_wrist"]][:2]
     rw = keypoints[keypoint_index["right_wrist"]][:2]
     le = keypoints[keypoint_index["left_elbow"]][:2]
@@ -109,47 +109,44 @@ def detect_punch(keypoints):
     rh = keypoints[keypoint_index["right_hip"]][:2]
     nose = keypoints[keypoint_index["nose"]][:2]
 
-    # Distances from wrists to nose
+    # Distance features
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
 
-    # Elbow angles
+    # Joint angles
     left_elbow_angle = calculate_angle(ls, le, lw)
     right_elbow_angle = calculate_angle(rs, re, rw)
-
-    # Shoulder angles
     left_shoulder_angle = calculate_angle(le, ls, lh)
     right_shoulder_angle = calculate_angle(re, rs, rh)
 
-    # Normalized head height
+    # Torso and head height
     head_height = get_head_height(keypoints)
     shoulder_y = (ls[1] + rs[1]) / 2
     hip_y = (lh[1] + rh[1]) / 2
     torso_height = abs(hip_y - shoulder_y) + 1e-6
+    torso_center = (np.array(ls) + np.array(rs)) / 2
 
-    # ---- Heuristic Rules ----
-    # Jab: Left wrist extended far from nose, and left elbow straight
+    # ---- Punch Classification ----
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
-
-    # Cross: Right wrist extended far from nose, and right elbow straight
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-
-    # Hook: Sharp elbow angle and wide shoulder angle (bent + horizontal)
     elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or \
          (right_elbow_angle < 100 and right_shoulder_angle > 80):
         return "Hook"
-
-    # Duck: Head below shoulders significantly (using body-proportional threshold)
     elif (head_height - shoulder_y) > 0.5 * torso_height:
         return "Duck"
-
-    # Guard: Both wrists near face
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
+    elif (
+        left_elbow_angle < 100 and np.linalg.norm(lw - torso_center) < 60 and lw[1] > le[1]
+    ) or (
+        right_elbow_angle < 100 and np.linalg.norm(rw - torso_center) < 60 and rw[1] > re[1]
+    ):
+        return "Uppercut"
+    else:
+        return "None"
 
-    return "None"
 
 def check_posture(keypoints):
     feedback = []
