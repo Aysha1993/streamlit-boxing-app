@@ -628,7 +628,7 @@ if uploaded_files:
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
 
-        st.subheader("📈 Per-Punch Speed Over Time")
+        st.subheader("📈 Per-Punch Speed Over Time change chart type")
 
         # Ensure timestamp is in seconds
         df["timestamp_sec"] = df["timestamp"].astype(float)
@@ -639,7 +639,6 @@ if uploaded_files:
             height=300,
             use_container_width=True
         )
-
 
         # Punch Counts
         st.subheader(" Punch Type Distribution")
