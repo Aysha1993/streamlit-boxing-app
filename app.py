@@ -634,18 +634,18 @@ if uploaded_files:
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
-        st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
+        # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
 
-        # Ensure timestamp is in seconds
-        pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+        # # Ensure timestamp is in seconds
+        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
 
-        st.bar_chart(
-            pred_output_df.set_index("timestamp_sec")["speed (approx)"],
-            height=300,
-            use_container_width=True
-        )
+        # st.bar_chart(
+        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+        #     height=300,
+        #     use_container_width=True
+        # )
 
-        st.subheader("📈 Per-Punch Speed Over Time change chart type")
+        st.subheader("📈 Per-Punch Speed Over Time")
 
         # Ensure timestamp is in seconds
         pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
