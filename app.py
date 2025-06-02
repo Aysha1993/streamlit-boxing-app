@@ -70,6 +70,7 @@ def calculate_elbow_angle(shoulder, elbow, wrist):
     angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
     return np.degrees(angle)
 
+
 # Map from joint name to index in MoveNet
 keypoint_index = {
     "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
@@ -81,14 +82,6 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-def get_head_height(keypoints):
-    # Use mean of nose and eyes for head height
-    keypoint_y_values = [
-        keypoints[keypoint_index["nose"]][1],
-        keypoints[keypoint_index["left_eye"]][1],
-        keypoints[keypoint_index["right_eye"]][1],
-    ]
-    return np.mean(keypoint_y_values)
 
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
@@ -98,49 +91,58 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
 def detect_punch(keypoints):
-    # Extract body part coordinates
-    lw = keypoints[keypoint_index["left_wrist"]][:2]
-    rw = keypoints[keypoint_index["right_wrist"]][:2]
-    le = keypoints[keypoint_index["left_elbow"]][:2]
-    re = keypoints[keypoint_index["right_elbow"]][:2]
-    ls = keypoints[keypoint_index["left_shoulder"]][:2]
-    rs = keypoints[keypoint_index["right_shoulder"]][:2]
-    lh = keypoints[keypoint_index["left_hip"]][:2]
-    rh = keypoints[keypoint_index["right_hip"]][:2]
-    nose = keypoints[keypoint_index["nose"]][:2]
+    #st.info(f"kp={keypoints}")
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    NOSE = 0
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+    LEFT_HIP = 11
+    RIGHT_HIP = 12
 
-    # Distance features
+    lw = keypoints[LEFT_WRIST][:2]
+    rw = keypoints[RIGHT_WRIST][:2]
+    nose = keypoints[NOSE][:2]
+    le = keypoints[LEFT_ELBOW][:2]
+    re = keypoints[RIGHT_ELBOW][:2]
+    ls = keypoints[LEFT_SHOULDER][:2]
+    rs = keypoints[RIGHT_SHOULDER][:2]
+    lh = keypoints[LEFT_HIP][:2]
+    rh = keypoints[RIGHT_HIP][:2]
+
+    
+
+    # Distances from wrists to nose (used for punches)
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
 
-    # Joint angles
+    # Elbow angles to check punch extension
     left_elbow_angle = calculate_angle(ls, le, lw)
     right_elbow_angle = calculate_angle(rs, re, rw)
+
     left_shoulder_angle = calculate_angle(le, ls, lh)
     right_shoulder_angle = calculate_angle(re, rs, rh)
 
-    # Torso and head height
-    head_height = get_head_height(keypoints)
-    shoulder_y = (ls[1] + rs[1]) / 2
-    hip_y = (lh[1] + rh[1]) / 2
-    torso_height = abs(hip_y - shoulder_y) + 1e-6
-    torso_center = (np.array(ls) + np.array(rs)) / 2
+    # Face position to estimate duck
+    head_height = nose[1]
 
-    # ---- Punch Classification ----
+    # Heuristics
+    # Try punch types first
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or \
-         (right_elbow_angle < 100 and right_shoulder_angle > 80):
+    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
         return "Hook"
-    elif (head_height - shoulder_y) > 0.5 * torso_height:
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         return "Duck"
+    # Guard if both wrists are near the nose AFTER other checks
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
     else:
         return "None"
-
 
 def check_posture(keypoints):
     feedback = []
