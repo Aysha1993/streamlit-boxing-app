@@ -627,6 +627,15 @@ if uploaded_files:
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
+        st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
+
+        st.bar_chart(
+            df.set_index("timestamp_sec")["speed (approx)"],
+            height=300,
+            use_container_width=True
+        )
+
+
 
         st.subheader("📈 Per-Punch Speed Over Time change chart type")
 
