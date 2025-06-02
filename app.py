@@ -89,66 +89,152 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-def detect_punch(keypoints, all_persons_keypoints):
-    # === Calculate person center and distance to ring center ===
-    person_center = np.mean([keypoints[keypoint_index["left_hip"]][:2], keypoints[keypoint_index["right_hip"]][:2]], axis=0)
-    ring_center_x = 640 // 2  # assuming 640px width video
-    distance_to_center = abs(person_center[0] - ring_center_x)
 
-    # === Compute distances of all persons ===
-    person_distances = []
-    for person_kp in all_persons_keypoints:
-        hips = [person_kp[keypoint_index["left_hip"]][:2], person_kp[keypoint_index["right_hip"]][:2]]
-        center = np.mean(hips, axis=0)
-        dist = abs(center[0] - ring_center_x)
-        person_distances.append(dist)
-    sorted_indices = np.argsort(person_distances)
+import numpy as np
 
-    # === Skip if this person is not among top 2 closest to ring center ===
-    this_index = all_persons_keypoints.index(keypoints)
-    if this_index not in sorted_indices[:2]:
-        return "None"
+def detect_punch(keypoints, all_persons_keypoints=None, distance_threshold=200):
+    keypoints = np.array(keypoints)
+    if all_persons_keypoints is None:
+        all_persons_keypoints = []
 
-    # === Extract joints ===
+    # Identify current person's index
+    try:
+        this_index = next(
+            i for i, kp in enumerate(all_persons_keypoints)
+            if np.array_equal(kp, keypoints)
+        )
+    except StopIteration:
+        return "Unknown"
+
+    # --- Heuristic 1: Distance to other persons ---
+    centers = []
+    for kp in all_persons_keypoints:
+        kp = np.array(kp)
+        if kp.shape[0] < 17:
+            continue
+        center = np.mean(kp[:, :2], axis=0)
+        centers.append(center)
+
+    this_center = centers[this_index]
+    distances = [np.linalg.norm(this_center - c) for i, c in enumerate(centers) if i != this_index]
+    close_to_someone = any(d < distance_threshold for d in distances)
+
+    if not close_to_someone and len(all_persons_keypoints) >= 2:
+        return "Referee"  # Likely referee due to distance
+
+    # --- Heuristic 2: Elbow angles (referees stand still) ---
+    def get_angle(a, b, c):
+        ba = a - b
+        bc = c - b
+        cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+        return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
+
+    left_shoulder = keypoints[5][:2]
+    left_elbow = keypoints[7][:2]
+    left_wrist = keypoints[9][:2]
+
+    right_shoulder = keypoints[6][:2]
+    right_elbow = keypoints[8][:2]
+    right_wrist = keypoints[10][:2]
+
+    left_elbow_angle = get_angle(left_shoulder, left_elbow, left_wrist)
+    right_elbow_angle = get_angle(right_shoulder, right_elbow, right_wrist)
+
+    if left_elbow_angle > 160 and right_elbow_angle > 160:
+        return "Referee"
+
+    # --- Punch detection rules ---
     nose = keypoints[0][:2]
-    lw = keypoints[9][:2]
-    rw = keypoints[10][:2]
-    le = keypoints[7][:2]
-    re = keypoints[8][:2]
-    ls = keypoints[5][:2]
-    rs = keypoints[6][:2]
-    lh = keypoints[11][:2]
-    rh = keypoints[12][:2]
 
-    # === Distance heuristics ===
-    dist_lw_nose = np.linalg.norm(lw - nose)
-    dist_rw_nose = np.linalg.norm(rw - nose)
-    wrist_motion = np.linalg.norm(lw - le) + np.linalg.norm(rw - re)
+    def is_jab(wrist, elbow, shoulder):
+        return (wrist[0] < elbow[0] < shoulder[0]) and (abs(wrist[1] - nose[1]) < 50)
 
-    # === Motion and posture filtering ===
-    left_elbow_angle = calculate_angle(ls, le, lw)
-    right_elbow_angle = calculate_angle(rs, re, rw)
-    left_shoulder_angle = calculate_angle(le, ls, lh)
-    right_shoulder_angle = calculate_angle(re, rs, rh)
-    head_height = nose[1]
+    def is_cross(wrist, elbow, shoulder):
+        return (wrist[0] > elbow[0] > shoulder[0]) and (abs(wrist[1] - nose[1]) < 50)
 
-    # === Skip if low motion and bad elbow posture (referee) ===
-    if wrist_motion < 15 and left_elbow_angle > 160 and right_elbow_angle > 160:
-        return "None"
+    def is_hook(wrist, elbow, shoulder):
+        return abs(wrist[0] - elbow[0]) < 30 and (abs(wrist[1] - nose[1]) < 60)
 
-    # === Punch classification ===
-    if dist_lw_nose > 50 and left_elbow_angle > 130:
-        return "Jab"
-    elif dist_rw_nose > 50 and right_elbow_angle > 130:
-        return "Cross"
-    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
-        return "Hook"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-        return "Duck"
-    elif dist_lw_nose < 50 and dist_rw_nose < 50:
-        return "Guard"
-    else:
-        return "None"
+    def is_uppercut(wrist, elbow, shoulder):
+        return (wrist[1] > elbow[1] > shoulder[1]) and abs(wrist[0] - nose[0]) < 60
+
+    label = "None"
+    if is_jab(left_wrist, left_elbow, left_shoulder):
+        label = "Left Jab"
+    elif is_cross(right_wrist, right_elbow, right_shoulder):
+        label = "Right Cross"
+    elif is_hook(left_wrist, left_elbow, left_shoulder):
+        label = "Left Hook"
+    elif is_hook(right_wrist, right_elbow, right_shoulder):
+        label = "Right Hook"
+    elif is_uppercut(left_wrist, left_elbow, left_shoulder):
+        label = "Left Uppercut"
+    elif is_uppercut(right_wrist, right_elbow, right_shoulder):
+        label = "Right Uppercut"
+
+    return label
+
+
+# def detect_punch(keypoints, all_persons_keypoints):
+#     # === Calculate person center and distance to ring center ===
+#     person_center = np.mean([keypoints[keypoint_index["left_hip"]][:2], keypoints[keypoint_index["right_hip"]][:2]], axis=0)
+#     ring_center_x = 640 // 2  # assuming 640px width video
+#     distance_to_center = abs(person_center[0] - ring_center_x)
+
+#     # === Compute distances of all persons ===
+#     person_distances = []
+#     for person_kp in all_persons_keypoints:
+#         hips = [person_kp[keypoint_index["left_hip"]][:2], person_kp[keypoint_index["right_hip"]][:2]]
+#         center = np.mean(hips, axis=0)
+#         dist = abs(center[0] - ring_center_x)
+#         person_distances.append(dist)
+#     sorted_indices = np.argsort(person_distances)
+
+#     # === Skip if this person is not among top 2 closest to ring center ===
+#     this_index = all_persons_keypoints.index(keypoints)
+#     if this_index not in sorted_indices[:2]:
+#         return "None"
+
+#     # === Extract joints ===
+#     nose = keypoints[0][:2]
+#     lw = keypoints[9][:2]
+#     rw = keypoints[10][:2]
+#     le = keypoints[7][:2]
+#     re = keypoints[8][:2]
+#     ls = keypoints[5][:2]
+#     rs = keypoints[6][:2]
+#     lh = keypoints[11][:2]
+#     rh = keypoints[12][:2]
+
+#     # === Distance heuristics ===
+#     dist_lw_nose = np.linalg.norm(lw - nose)
+#     dist_rw_nose = np.linalg.norm(rw - nose)
+#     wrist_motion = np.linalg.norm(lw - le) + np.linalg.norm(rw - re)
+
+#     # === Motion and posture filtering ===
+#     left_elbow_angle = calculate_angle(ls, le, lw)
+#     right_elbow_angle = calculate_angle(rs, re, rw)
+#     left_shoulder_angle = calculate_angle(le, ls, lh)
+#     right_shoulder_angle = calculate_angle(re, rs, rh)
+#     head_height = nose[1]
+
+#     # === Skip if low motion and bad elbow posture (referee) ===
+#     if wrist_motion < 15 and left_elbow_angle > 160 and right_elbow_angle > 160:
+#         return "None"
+
+#     # === Punch classification ===
+#     if dist_lw_nose > 50 and left_elbow_angle > 130:
+#         return "Jab"
+#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
+#         return "Cross"
+#     elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
+#         return "Hook"
+#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+#         return "Duck"
+#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
+#         return "Guard"
+#     else:
+#         return "None"
 
 
 
@@ -551,7 +637,7 @@ if uploaded_files:
 
             punches = []
             for person_kpts in all_persons_keypoints_normalized:
-                label = detect_punch(person_kpts, all_persons_keypoints_normalized)
+                label = detect_punch(person_kpts, all_persons_keypoints_normalized,200)
                 punches.append(label)
 
 
