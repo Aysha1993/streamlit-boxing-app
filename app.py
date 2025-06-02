@@ -596,7 +596,7 @@ if uploaded_files:
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
         # Get metadata from original df_full using the saved indices
-        meta_columns = ["video", "frame", "person", "timestamp"]
+        meta_columns = ["video", "frame", "person", "timestamp","speed (approx)"]
         pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
 
         # Build final DataFrame
@@ -663,7 +663,7 @@ if uploaded_files:
 
         # Punch frequency over time
 
-        st.subheader(" Punch Frequency Over Time")
+        #st.subheader(" Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
@@ -671,7 +671,7 @@ if uploaded_files:
         time_grouped = pred_output_df[pred_output_df["predicted_label"].notna()] \
             .groupby(["time_bin", "predicted_label"]).size().unstack().fillna(0)
 
-        st.line_chart(time_grouped)
+        #st.line_chart(time_grouped)
 
         import altair as alt
         melted = time_grouped.reset_index().melt('time_bin', var_name='Punch', value_name='Count')
