@@ -138,12 +138,6 @@ def detect_punch(keypoints):
         return "Duck"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
-    elif (
-        left_elbow_angle < 100 and np.linalg.norm(lw - torso_center) < 60 and lw[1] > le[1]
-    ) or (
-        right_elbow_angle < 100 and np.linalg.norm(rw - torso_center) < 60 and rw[1] > re[1]
-    ):
-        return "Uppercut"
     else:
         return "None"
 
