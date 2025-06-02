@@ -673,6 +673,20 @@ if uploaded_files:
 
         st.line_chart(time_grouped)
 
+        import altair as alt
+        melted = time_grouped.reset_index().melt('time_bin', var_name='Punch', value_name='Count')
+
+        chart = alt.Chart(melted).mark_bar().encode(
+            x=alt.X("time_bin:O", title="Time (s)"),
+            y=alt.Y("Count:Q", title="Punch Count"),
+            color="Punch:N",
+            tooltip=["time_bin", "Punch", "Count"]
+        ).properties(height=300)
+
+        st.altair_chart(chart, use_container_width=True)
+
+
+
         # Filter for punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
 
