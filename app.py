@@ -630,10 +630,10 @@ if uploaded_files:
         st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
 
         # Ensure timestamp is in seconds
-        pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+        df["timestamp_sec"] = df["timestamp"].astype(float)
 
         st.bar_chart(
-            pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+            df.set_index("timestamp_sec")["speed (approx)"],
             height=300,
             use_container_width=True
         )
