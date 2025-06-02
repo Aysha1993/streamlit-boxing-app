@@ -595,20 +595,42 @@ if uploaded_files:
         true_labels = pd.Series(y_test).reset_index(drop=True)
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
-        # Get metadata from original df_full using the saved indices
-        meta_columns = ["video", "frame", "person", "timestamp","speed (approx)"]
+
+        #Only keep existing metadata columns
+        meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
+        meta_columns = [col for col in meta_columns if col in df_full.columns]
+
         pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
 
-        # Build final DataFrame
-        pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
+        pred_output_df = pd.concat([
+            pred_meta,
+            true_labels.rename("true_label"),
+            pred_labels.rename("predicted_label")
+        ], axis=1)
 
         st.dataframe(pred_output_df.head())
+
         st.download_button(
             "📄 Download Predictions CSV",
             pred_output_df.to_csv(index=False),
             file_name="predictions_vs_actual.csv",
             mime="text/csv"
         )
+
+        # # Get metadata from original df_full using the saved indices
+        # meta_columns = ["video", "frame", "person", "timestamp","speed (approx)"]
+        # pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
+
+        # # Build final DataFrame
+        # pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
+
+        # st.dataframe(pred_output_df.head())
+        # st.download_button(
+        #     "📄 Download Predictions CSV",
+        #     pred_output_df.to_csv(index=False),
+        #     file_name="predictions_vs_actual.csv",
+        #     mime="text/csv"
+        # )
 
         # Heatmap
         plt.figure(figsize=(8,6))
