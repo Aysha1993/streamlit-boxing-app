@@ -658,7 +658,7 @@ if uploaded_files:
         )
 
         # Punch Counts
-        st.subheader(" Punch Type Distribution")
+        st.subheader("📊 Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
@@ -670,7 +670,7 @@ if uploaded_files:
 
         # Punch frequency over time
 
-        st.subheader(" Punch Frequency Over Time")
+        st.subheader("📈 Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
