@@ -112,8 +112,6 @@ def detect_punch(keypoints):
     lh = keypoints[LEFT_HIP][:2]
     rh = keypoints[RIGHT_HIP][:2]
 
-    
-
     # Distances from wrists to nose (used for punches)
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
@@ -672,7 +670,7 @@ if uploaded_files:
 
         # Punch frequency over time
 
-        st.subheader("📈 Punch Frequency Over Time")
+        st.subheader(" Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
