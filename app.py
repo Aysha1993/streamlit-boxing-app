@@ -71,7 +71,7 @@ def calculate_elbow_angle(shoulder, elbow, wrist):
     return np.degrees(angle)
 
 
-# Map from joint name to index in MoveNet
+
 keypoint_index = {
     "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
     "left_shoulder": 5, "right_shoulder": 6,
@@ -82,7 +82,6 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     ba = a - b
@@ -90,44 +89,54 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-def detect_punch(keypoints):
-    #st.info(f"kp={keypoints}")
-    LEFT_WRIST = 9
-    RIGHT_WRIST = 10
-    NOSE = 0
-    LEFT_ELBOW = 7
-    RIGHT_ELBOW = 8
-    LEFT_SHOULDER = 5
-    RIGHT_SHOULDER = 6
-    LEFT_HIP = 11
-    RIGHT_HIP = 12
+def detect_punch(keypoints, all_persons_keypoints):
+    # === Calculate person center and distance to ring center ===
+    person_center = np.mean([keypoints[keypoint_index["left_hip"]][:2], keypoints[keypoint_index["right_hip"]][:2]], axis=0)
+    ring_center_x = 640 // 2  # assuming 640px width video
+    distance_to_center = abs(person_center[0] - ring_center_x)
 
-    lw = keypoints[LEFT_WRIST][:2]
-    rw = keypoints[RIGHT_WRIST][:2]
-    nose = keypoints[NOSE][:2]
-    le = keypoints[LEFT_ELBOW][:2]
-    re = keypoints[RIGHT_ELBOW][:2]
-    ls = keypoints[LEFT_SHOULDER][:2]
-    rs = keypoints[RIGHT_SHOULDER][:2]
-    lh = keypoints[LEFT_HIP][:2]
-    rh = keypoints[RIGHT_HIP][:2]
+    # === Compute distances of all persons ===
+    person_distances = []
+    for person_kp in all_persons_keypoints:
+        hips = [person_kp[keypoint_index["left_hip"]][:2], person_kp[keypoint_index["right_hip"]][:2]]
+        center = np.mean(hips, axis=0)
+        dist = abs(center[0] - ring_center_x)
+        person_distances.append(dist)
+    sorted_indices = np.argsort(person_distances)
 
-    # Distances from wrists to nose (used for punches)
+    # === Skip if this person is not among top 2 closest to ring center ===
+    this_index = all_persons_keypoints.index(keypoints)
+    if this_index not in sorted_indices[:2]:
+        return "None"
+
+    # === Extract joints ===
+    nose = keypoints[0][:2]
+    lw = keypoints[9][:2]
+    rw = keypoints[10][:2]
+    le = keypoints[7][:2]
+    re = keypoints[8][:2]
+    ls = keypoints[5][:2]
+    rs = keypoints[6][:2]
+    lh = keypoints[11][:2]
+    rh = keypoints[12][:2]
+
+    # === Distance heuristics ===
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
+    wrist_motion = np.linalg.norm(lw - le) + np.linalg.norm(rw - re)
 
-    # Elbow angles to check punch extension
+    # === Motion and posture filtering ===
     left_elbow_angle = calculate_angle(ls, le, lw)
     right_elbow_angle = calculate_angle(rs, re, rw)
-
     left_shoulder_angle = calculate_angle(le, ls, lh)
     right_shoulder_angle = calculate_angle(re, rs, rh)
-
-    # Face position to estimate duck
     head_height = nose[1]
 
-    # Heuristics
-    # Try punch types first
+    # === Skip if low motion and bad elbow posture (referee) ===
+    if wrist_motion < 15 and left_elbow_angle > 160 and right_elbow_angle > 160:
+        return "None"
+
+    # === Punch classification ===
     if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
@@ -136,11 +145,85 @@ def detect_punch(keypoints):
         return "Hook"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         return "Duck"
-    # Guard if both wrists are near the nose AFTER other checks
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
     else:
         return "None"
+
+
+
+# # Map from joint name to index in MoveNet
+# keypoint_index = {
+#     "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
+#     "left_shoulder": 5, "right_shoulder": 6,
+#     "left_elbow": 7, "right_elbow": 8,
+#     "left_wrist": 9, "right_wrist": 10,
+#     "left_hip": 11, "right_hip": 12,
+#     "left_knee": 13, "right_knee": 14,
+#     "left_ankle": 15, "right_ankle": 16,
+# }
+
+
+# def calculate_angle(a, b, c):
+#     a, b, c = np.array(a), np.array(b), np.array(c)
+#     ba = a - b
+#     bc = c - b
+#     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+#     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
+
+# def detect_punch(keypoints):
+#     #st.info(f"kp={keypoints}")
+#     LEFT_WRIST = 9
+#     RIGHT_WRIST = 10
+#     NOSE = 0
+#     LEFT_ELBOW = 7
+#     RIGHT_ELBOW = 8
+#     LEFT_SHOULDER = 5
+#     RIGHT_SHOULDER = 6
+#     LEFT_HIP = 11
+#     RIGHT_HIP = 12
+
+#     lw = keypoints[LEFT_WRIST][:2]
+#     rw = keypoints[RIGHT_WRIST][:2]
+#     nose = keypoints[NOSE][:2]
+#     le = keypoints[LEFT_ELBOW][:2]
+#     re = keypoints[RIGHT_ELBOW][:2]
+#     ls = keypoints[LEFT_SHOULDER][:2]
+#     rs = keypoints[RIGHT_SHOULDER][:2]
+#     lh = keypoints[LEFT_HIP][:2]
+#     rh = keypoints[RIGHT_HIP][:2]
+
+#     # Distances from wrists to nose (used for punches)
+#     dist_lw_nose = np.linalg.norm(lw - nose)
+#     dist_rw_nose = np.linalg.norm(rw - nose)
+
+#     # Elbow angles to check punch extension
+#     left_elbow_angle = calculate_angle(ls, le, lw)
+#     right_elbow_angle = calculate_angle(rs, re, rw)
+
+#     left_shoulder_angle = calculate_angle(le, ls, lh)
+#     right_shoulder_angle = calculate_angle(re, rs, rh)
+
+#     # Face position to estimate duck
+#     head_height = nose[1]
+
+#     # Heuristics
+#     # Try punch types first
+#     if left_elbow_angle > 160 and right_elbow_angle > 160:
+#           continue  # Standing still, likely not punching
+#     if dist_lw_nose > 50 and left_elbow_angle > 130:
+#         return "Jab"
+#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
+#         return "Cross"
+#     elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
+#         return "Hook"
+#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+#         return "Duck"
+#     # Guard if both wrists are near the nose AFTER other checks
+#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
+#         return "Guard"
+#     else:
+#         return "None"
 
 def check_posture(keypoints):
     feedback = []
@@ -457,13 +540,28 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
 
+
+
+            all_persons_keypoints_normalized = []
+            for kpts in rescaledkeypoints:
+                kpts = np.array(kpts)
+                kpts[:, 0] *= width
+                kpts[:, 1] *= height
+                all_persons_keypoints_normalized.append(kpts)
+
             punches = []
-            for person_kpts in rescaledkeypoints:
-                person_kpts = np.array(person_kpts)  # Shape: (17, 3)
-                person_kpts[:, 0] *= width  # x-coordinate
-                person_kpts[:, 1] *= height  # y-coordinate
-                label = detect_punch(person_kpts)
+            for person_kpts in all_persons_keypoints_normalized:
+                label = detect_punch(person_kpts, all_persons_keypoints_normalized)
                 punches.append(label)
+
+
+            # punches = []
+            # for person_kpts in rescaledkeypoints:
+            #     person_kpts = np.array(person_kpts)  # Shape: (17, 3)
+            #     person_kpts[:, 0] *= width  # x-coordinate
+            #     person_kpts[:, 1] *= height  # y-coordinate
+            #     label = detect_punch(person_kpts)
+            #     punches.append(label)
                 # st.info(f"person_kpts= {person_kpts}") #debug
                 # st.info(f"label= {label}")
             #st.info(f"punches= {punches}")
@@ -595,14 +693,21 @@ if uploaded_files:
         true_labels = pd.Series(y_test).reset_index(drop=True)
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
-        # Get metadata from original df_full using the saved indices
-        meta_columns = ["video", "frame", "person", "timestamp"]
-        pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
 
-        # Build final DataFrame
-        pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
+        #Only keep existing metadata columns
+        meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
+        meta_columns = [col for col in meta_columns if col in expanded_df.columns]
+
+        pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
+
+        pred_output_df = pd.concat([
+            pred_meta,
+            true_labels.rename("true_label"),
+            pred_labels.rename("predicted_label")
+        ], axis=1)
 
         st.dataframe(pred_output_df.head())
+
         st.download_button(
             "📄 Download Predictions CSV",
             pred_output_df.to_csv(index=False),
@@ -627,21 +732,31 @@ if uploaded_files:
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
+        # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
 
-        st.subheader("📈 Per-Punch Speed Over Time change chart type")
+        # # Ensure timestamp is in seconds
+        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+
+        # st.bar_chart(
+        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+        #     height=300,
+        #     use_container_width=True
+        # )
+
+        st.subheader("📈 Per-Punch Speed Over Time")
 
         # Ensure timestamp is in seconds
-        df["timestamp_sec"] = df["timestamp"].astype(float)
+        pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
 
         # Plot punch speed
         st.line_chart(
-            df.set_index("timestamp_sec")["speed (approx)"],
+            pred_output_df.set_index("timestamp_sec")["speed (approx)"],
             height=300,
             use_container_width=True
         )
 
         # Punch Counts
-        st.subheader(" Punch Type Distribution")
+        st.subheader("📊 Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
@@ -661,7 +776,19 @@ if uploaded_files:
         time_grouped = pred_output_df[pred_output_df["predicted_label"].notna()] \
             .groupby(["time_bin", "predicted_label"]).size().unstack().fillna(0)
 
-        st.line_chart(time_grouped)
+        #st.line_chart(time_grouped)
+
+        import altair as alt
+        melted = time_grouped.reset_index().melt('time_bin', var_name='Punch', value_name='Count')
+
+        chart = alt.Chart(melted).mark_bar().encode(
+            x=alt.X("time_bin:O", title="Time (s)"),
+            y=alt.Y("Count:Q", title="Punch Count"),
+            color="Punch:N",
+            tooltip=["time_bin", "Punch", "Count"]
+        ).properties(height=300)
+
+        st.altair_chart(chart, use_container_width=True)
 
         # Filter for punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
