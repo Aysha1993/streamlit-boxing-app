@@ -617,21 +617,6 @@ if uploaded_files:
             mime="text/csv"
         )
 
-        # # Get metadata from original df_full using the saved indices
-        # meta_columns = ["video", "frame", "person", "timestamp","speed (approx)"]
-        # pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
-
-        # # Build final DataFrame
-        # pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
-
-        # st.dataframe(pred_output_df.head())
-        # st.download_button(
-        #     "📄 Download Predictions CSV",
-        #     pred_output_df.to_csv(index=False),
-        #     file_name="predictions_vs_actual.csv",
-        #     mime="text/csv"
-        # )
-
         # Heatmap
         plt.figure(figsize=(8,6))
         sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
@@ -685,7 +670,7 @@ if uploaded_files:
 
         # Punch frequency over time
 
-        #st.subheader(" Punch Frequency Over Time")
+        st.subheader(" Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
@@ -706,8 +691,6 @@ if uploaded_files:
         ).properties(height=300)
 
         st.altair_chart(chart, use_container_width=True)
-
-
 
         # Filter for punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
