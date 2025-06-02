@@ -595,21 +595,14 @@ if uploaded_files:
         true_labels = pd.Series(y_test).reset_index(drop=True)
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
+        # Get metadata from original df_full using the saved indices
+        meta_columns = ["video", "frame", "person", "timestamp"]
+        pred_meta = df_full.loc[idx_test][meta_columns].reset_index(drop=True)
 
-        #Only keep existing metadata columns
-        meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
-        meta_columns = [col for col in meta_columns if col in expanded_df.columns]
-
-        pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
-
-        pred_output_df = pd.concat([
-            pred_meta,
-            true_labels.rename("true_label"),
-            pred_labels.rename("predicted_label")
-        ], axis=1)
+        # Build final DataFrame
+        pred_output_df = pd.concat([pred_meta, true_labels.rename("true_label"), pred_labels.rename("predicted_label")], axis=1)
 
         st.dataframe(pred_output_df.head())
-
         st.download_button(
             "📄 Download Predictions CSV",
             pred_output_df.to_csv(index=False),
@@ -634,31 +627,21 @@ if uploaded_files:
         # Accuracy display
         st.metric("✅ Accuracy", f"{acc:.2%}")
 
-        # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
 
-        # # Ensure timestamp is in seconds
-        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
-
-        # st.bar_chart(
-        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
-        #     height=300,
-        #     use_container_width=True
-        # )
-
-        st.subheader("📈 Per-Punch Speed Over Time")
+        st.subheader("📈 Per-Punch Speed Over Time change chart type")
 
         # Ensure timestamp is in seconds
-        pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+        df["timestamp_sec"] = df["timestamp"].astype(float)
 
         # Plot punch speed
         st.line_chart(
-            pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+            df.set_index("timestamp_sec")["speed (approx)"],
             height=300,
             use_container_width=True
         )
 
         # Punch Counts
-        st.subheader("📊 Punch Type Distribution")
+        st.subheader(" Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
@@ -678,19 +661,7 @@ if uploaded_files:
         time_grouped = pred_output_df[pred_output_df["predicted_label"].notna()] \
             .groupby(["time_bin", "predicted_label"]).size().unstack().fillna(0)
 
-        #st.line_chart(time_grouped)
-
-        import altair as alt
-        melted = time_grouped.reset_index().melt('time_bin', var_name='Punch', value_name='Count')
-
-        chart = alt.Chart(melted).mark_bar().encode(
-            x=alt.X("time_bin:O", title="Time (s)"),
-            y=alt.Y("Count:Q", title="Punch Count"),
-            color="Punch:N",
-            tooltip=["time_bin", "Punch", "Count"]
-        ).properties(height=300)
-
-        st.altair_chart(chart, use_container_width=True)
+        st.line_chart(time_grouped)
 
         # Filter for punches
         valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
