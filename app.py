@@ -684,13 +684,6 @@ if uploaded_files:
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
-        # Pie chart
-        fig1, ax1 = plt.subplots()
-        ax1.pie(punch_counts, labels=punch_counts.index, autopct='%1.1f%%', startangle=90)
-        ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-        st.pyplot(fig1)
-
-
         import matplotlib.pyplot as plt
 
         fig1, ax1 = plt.subplots()
