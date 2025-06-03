@@ -250,7 +250,7 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
 
     for person in keypoints:
         h, w, _ = frame.shape
-        
+
         if not is_punching_pose(person):
             glove_detections.append({'left_glove': False, 'right_glove': False})
             continue  # Skip glove check if not punching
@@ -356,7 +356,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         person = kp_raw  # use the current person only
         if not is_punching_pose(person):
             #st.info(f"Skipping Person {idx+1} - Not Punching")
-            continue    
+            continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
