@@ -126,57 +126,59 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
+
 def detect_punch(keypoints):
-    for person in keypoints:
-        st.info(f"punch kp ={person}")
-        if not is_punching_pose(person):
-            continue  # Skip this person
+    st.info(f"punch kp={keypoints}")
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    NOSE = 0
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+    LEFT_HIP = 11
+    RIGHT_HIP = 12
 
-        # Now only process people who are punching
-        LEFT_WRIST = 9
-        RIGHT_WRIST = 10
-        NOSE = 0
-        LEFT_ELBOW = 7
-        RIGHT_ELBOW = 8
-        LEFT_SHOULDER = 5
-        RIGHT_SHOULDER = 6
-        LEFT_HIP = 11
-        RIGHT_HIP = 12
+    lw = keypoints[LEFT_WRIST][:2]
+    rw = keypoints[RIGHT_WRIST][:2]
+    nose = keypoints[NOSE][:2]
+    le = keypoints[LEFT_ELBOW][:2]
+    re = keypoints[RIGHT_ELBOW][:2]
+    ls = keypoints[LEFT_SHOULDER][:2]
+    rs = keypoints[RIGHT_SHOULDER][:2]
+    lh = keypoints[LEFT_HIP][:2]
+    rh = keypoints[RIGHT_HIP][:2]
 
-        lw = np.array(person[LEFT_WRIST][:2])
-        rw = np.array(person[RIGHT_WRIST][:2])
-        nose = np.array(person[NOSE][:2])
-        le = np.array(person[LEFT_ELBOW][:2])
-        re = np.array(person[RIGHT_ELBOW][:2])
-        ls = np.array(person[LEFT_SHOULDER][:2])
-        rs = np.array(person[RIGHT_SHOULDER][:2])
-        lh = np.array(person[LEFT_HIP][:2])
-        rh = np.array(person[RIGHT_HIP][:2])
+    # Distances from wrists to nose (used for punches)
+    dist_lw_nose = np.linalg.norm(lw - nose)
+    dist_rw_nose = np.linalg.norm(rw - nose)
 
-        dist_lw_nose = np.linalg.norm(lw - nose)
-        dist_rw_nose = np.linalg.norm(rw - nose)
+    # Elbow angles to check punch extension
+    left_elbow_angle = calculate_angle(ls, le, lw)
+    right_elbow_angle = calculate_angle(rs, re, rw)
 
-        left_elbow_angle = calculate_angle(ls, le, lw)
-        right_elbow_angle = calculate_angle(rs, re, rw)
-        left_shoulder_angle = calculate_angle(le, ls, lh)
-        right_shoulder_angle = calculate_angle(re, rs, rh)
+    left_shoulder_angle = calculate_angle(le, ls, lh)
+    right_shoulder_angle = calculate_angle(re, rs, rh)
 
-        head_height = nose[1]
+    # Face position to estimate duck
+    head_height = nose[1]
 
-        if dist_lw_nose > 50 and left_elbow_angle > 130:
-            return "Jab"
-        elif dist_rw_nose > 50 and right_elbow_angle > 130:
-            return "Cross"
-        elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
-            return "Hook"
-        elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-            return "Duck"
-        elif dist_lw_nose < 50 and dist_rw_nose < 50:
-            return "Guard"
-        else:
-            return "None"
+    # Heuristics
+    # Try punch types first
 
-    return "None"  # No punchers found
+    if dist_lw_nose > 50 and left_elbow_angle > 130:
+        return "Jab"
+    elif dist_rw_nose > 50 and right_elbow_angle > 130:
+        return "Cross"
+    elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
+        return "Hook"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        return "Duck"
+    # Guard if both wrists are near the nose AFTER other checks
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
+        return "Guard"
+    else:
+        return "None"
 
 def check_posture(keypoints):
     feedback = []
