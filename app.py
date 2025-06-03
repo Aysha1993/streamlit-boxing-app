@@ -107,27 +107,7 @@ def is_punching_pose(person):
     # Return True if at least one arm is extended
     return arm_extended(5, 7, 9) or arm_extended(6, 8, 10)  # Left or Right arm
 
-#filter punch for non-boxer
-def is_punching(person):
-    st.info(f"kpfrompunch={person}")
-    """
-    Returns True if person has at least one arm extended (i.e., punch-like posture).
-    Used to filter out referees or non-punching people.
-    """
-    def arm_extended(s_idx, e_idx, w_idx):
-        s, e, w = person[s_idx], person[e_idx], person[w_idx]
-        if s[2] < confidence_threshold or e[2] < confidence_threshold or w[2] < confidence_threshold:
-            return False
 
-        vec1 = np.array([e[0] - s[0], e[1] - s[1]])
-        vec2 = np.array([w[0] - e[0], w[1] - e[1]])
-        if np.linalg.norm(vec1) == 0 or np.linalg.norm(vec2) == 0:
-            return False
-
-        angle = np.arccos(np.clip(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)), -1, 1))
-        return np.degrees(angle) > 150
-
-    return arm_extended(5, 7, 9) or arm_extended(6, 8, 10)
 # Map from joint name to index in MoveNet
 keypoint_index = {
     "nose": 0, "left_eye": 1, "right_eye": 2, "left_ear": 3, "right_ear": 4,
@@ -149,10 +129,6 @@ def calculate_angle(a, b, c):
 
 
 def detect_punch(keypoints):
-    punchkeypoints = np.array(keypoints)
-    if not is_punching(keypoints):
-        return "None"
-    st.info(f"punch kp={punchkeypoints}")
 
     LEFT_WRIST = 9
     RIGHT_WRIST = 10
