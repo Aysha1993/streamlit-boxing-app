@@ -498,7 +498,7 @@ if uploaded_files:
 
             punches = []
             for person_kpts in rescaledkeypoints:
-                person_kpts = np.array(person_kpts)  # Shape: (17, 3)
+                person_kpts = np.array(person_kpts)  # Shape: (17, 3) as pixel values/coordinates
                 person_kpts[:, 0] *= width  # x-coordinate
                 person_kpts[:, 1] *= height  # y-coordinate
                 label = detect_punch(person_kpts)
@@ -545,16 +545,6 @@ if uploaded_files:
         st.video(final_output)
         with open(final_output, "rb") as f:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
-
-        df = pd.DataFrame({"A": [1,2], "B": [3,4]})
-        csv_data = df.to_csv(index=False)
-
-        st.download_button(
-            "Download test CSV",
-            csv_data,
-            file_name="test.csv",
-            mime="text/csv"
-        )
 
         df = pd.DataFrame(punch_log)
         if df.empty:
