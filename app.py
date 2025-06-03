@@ -248,8 +248,7 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
 
     for person in keypoints:
         h, w, _ = frame.shape
-        st.info(f"person= {person}")
-
+        
         if not is_punching_pose(person):
             glove_detections.append({'left_glove': False, 'right_glove': False})
             continue  # Skip glove check if not punching
@@ -353,6 +352,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         for person in keypoints:
+            st.info(f"person anno= {person}")
             if not is_punching_pose(person):
                 continue  # Skip annotation  if not punching
 
