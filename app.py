@@ -128,7 +128,12 @@ def calculate_angle(a, b, c):
 
 
 def detect_punch(keypoints):
-    st.info(f"punch kp={keypoints}")
+    punchkeypoints = np.array(keypoints)  # Ensure shape (17, 3)
+    # Filter out non-punching poses (e.g., referees)
+    if not is_punching_pose(punchkeypoints):
+        return "None"
+    st.info(f"punch kp={punchkeypoints}")
+    
     LEFT_WRIST = 9
     RIGHT_WRIST = 10
     NOSE = 0
