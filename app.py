@@ -697,8 +697,8 @@ if uploaded_files:
             labels=punch_counts.index, 
             autopct='%1.1f%%', 
             startangle=90, 
-            pctdistance=0.85,         # Position of percentage labels
-            labeldistance=1.1         # Position of labels
+            pctdistance=1.9,         # Position of percentage labels
+            labeldistance=1.9         # Position of labels
         )
         ax1.axis('equal')
         st.pyplot(fig1)
