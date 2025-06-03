@@ -546,6 +546,16 @@ if uploaded_files:
         with open(final_output, "rb") as f:
             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
 
+        df = pd.DataFrame({"A": [1,2], "B": [3,4]})
+        csv_data = df.to_csv(index=False)
+
+        st.download_button(
+            "Download test CSV",
+            csv_data,
+            file_name="test.csv",
+            mime="text/csv"
+        )
+
         df = pd.DataFrame(punch_log)
         if df.empty:
             st.warning("⚠️ No punch data found.")
@@ -731,7 +741,6 @@ if uploaded_files:
         # Final punch speed
         punch_speed = total_punches / duration if duration > 0 else 0
         st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
-
 
         # # Count by Person
         # st.subheader("👥 Punch Count per Person")
