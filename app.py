@@ -436,9 +436,6 @@ if uploaded_files:
             ret, frame = cap.read()
             if not ret:
                 break
-            # resized = cv2.resize(frame, (256, 256))
-            # input_tensor = tf.convert_to_tensor(resized[None, ...], dtype=tf.int32)
-            # results = model.signatures['serving_default'](input_tensor)
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
@@ -453,7 +450,6 @@ if uploaded_files:
                 continue
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
             postures = check_posture(rescaledkeypoints)
-            #gloves = detect_gloves(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
 
             h, w = frame.shape[:2]
@@ -475,22 +471,6 @@ if uploaded_files:
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
-            # for i in range(len(punches)):
-            #   punch_label = punches[i]["label"] if punches[i] else "None"
-            #   frame_start = punches[i]["frame_start"] if punches[i] else None
-            #   frame_end = punches[i]["frame_end"] if punches[i] else None
-            #   punch_log.append({
-            #       "video": uploaded_file.name,
-            #       "frame": frame_idx,
-            #       "person": i,
-            #       "punch": punch_label,
-            #       "frame_start": frame_start,
-            #       "frame_end": frame_end,
-            #       "posture": postures[i] if i < len(postures) else "N/A",
-            #       "gloves": gloves[i] if i < len(gloves) else "N/A",
-            #       "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-            #   })
-            # st.info(f"punches = {punches}")
             for i in range(len(punches)):
                 punch_log.append({
                       "video": uploaded_file.name,
@@ -518,7 +498,6 @@ if uploaded_files:
         except ffmpeg.Error as e:
           st.error("FFmpeg failed: " + str(e))
 
-        #ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
         #st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
 
         st.video(final_output)
