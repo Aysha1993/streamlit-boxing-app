@@ -690,6 +690,25 @@ if uploaded_files:
         ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
         st.pyplot(fig1)
 
+        fig1, ax1 = plt.subplots()
+        wedges, texts, autotexts = ax1.pie(
+            punch_counts, 
+            labels=punch_counts.index, 
+            autopct='%1.1f%%', 
+            startangle=90,
+            pctdistance=0.85,
+            labeldistance=1.1
+        )
+
+        # Draw white circle for donut shape
+        centre_circle = plt.Circle((0, 0), 0.70, fc='white')
+        fig1.gca().add_artist(centre_circle)
+
+        ax1.axis('equal')
+        fig1.tight_layout()
+        st.pyplot(fig1)
+
+
         # Punch frequency over time
 
         st.subheader(" Punch Frequency Over Time")
