@@ -733,10 +733,10 @@ if uploaded_files:
         st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
 
 
-        # Count by Person
-        st.subheader("👥 Punch Count per Person")
-        person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
-        st.dataframe(person_punch_counts)
+        # # Count by Person
+        # st.subheader("👥 Punch Count per Person")
+        # person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        # st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
         st.subheader("🔁 Confusion Matrix")
