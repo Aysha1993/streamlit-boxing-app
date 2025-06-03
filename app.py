@@ -109,6 +109,7 @@ def is_punching_pose(person):
 
 #filter punch for non-boxer
 def is_punching(person):
+    st.info(f"kpfrompunch={person}")
     """
     Returns True if person has at least one arm extended (i.e., punch-like posture).
     Used to filter out referees or non-punching people.
