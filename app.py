@@ -690,6 +690,20 @@ if uploaded_files:
         ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
         st.pyplot(fig1)
 
+
+        fig1, ax1 = plt.subplots()
+        ax1.pie(
+            punch_counts, 
+            labels=punch_counts.index, 
+            autopct='%1.1f%%', 
+            startangle=90, 
+            pctdistance=0.85,         # Position of percentage labels
+            labeldistance=1.1         # Position of labels
+        )
+        ax1.axis('equal')
+        st.pyplot(fig1)
+
+
         fig1, ax1 = plt.subplots()
         wedges, texts, autotexts = ax1.pie(
             punch_counts, 
