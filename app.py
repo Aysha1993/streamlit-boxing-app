@@ -70,6 +70,42 @@ def calculate_elbow_angle(shoulder, elbow, wrist):
     angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
     return np.degrees(angle)
 
+confidence_threshold=0.3
+#pose based filtering
+def is_punching_pose(person):
+    """
+    Heuristically detect punch-like posture: one arm extended forward
+    """
+    def arm_extended(shoulder_idx, elbow_idx, wrist_idx):
+        s = person[shoulder_idx]
+        e = person[elbow_idx]
+        w = person[wrist_idx]
+
+        # Confidence check
+        if s[2] < confidence_threshold or e[2] < confidence_threshold or w[2] < confidence_threshold:
+            return False
+
+        # Vector direction
+        sx, sy = s[0], s[1]
+        ex, ey = e[0], e[1]
+        wx, wy = w[0], w[1]
+
+        # Approximate straightness of arm using angle between segments
+        vec1 = np.array([ex - sx, ey - sy])
+        vec2 = np.array([wx - ex, wy - ey])
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        if norm1 == 0 or norm2 == 0:
+            return False
+
+        cos_angle = np.dot(vec1, vec2) / (norm1 * norm2)
+        angle = np.arccos(np.clip(cos_angle, -1, 1)) * 180 / np.pi
+
+        # Angle near 180 means straight arm (punch-like)
+        return angle > 150
+
+    # Return True if at least one arm is extended
+    return arm_extended(5, 7, 9) or arm_extended(6, 8, 10)  # Left or Right arm
 
 # Map from joint name to index in MoveNet
 keypoint_index = {
@@ -212,6 +248,7 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
 
     for person in keypoints:
         h, w, _ = frame.shape
+        st.info(f"person= {person}")
 
         if not is_punching_pose(person):
             glove_detections.append({'left_glove': False, 'right_glove': False})
@@ -415,7 +452,7 @@ if uploaded_files:
     all_logs = []
     progress_bar = st.progress(0)
     for idx, uploaded_file in enumerate(uploaded_files):
-        st.subheader(f"📦frame Processing: {uploaded_file.name}")
+        st.subheader(f"📦Frame Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
         input_path = os.path.join(temp_dir, uploaded_file.name)
 
