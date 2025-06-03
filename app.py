@@ -127,6 +127,10 @@ def calculate_angle(a, b, c):
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
 def detect_punch(keypoints):
+    for person in keypoints:
+        if not is_punching_pose(person):
+            #st.info(f"Skipping Person {idx+1} - Not Punching")
+            continue
     #st.info(f"kp={keypoints}")
     LEFT_WRIST = 9
     RIGHT_WRIST = 10
@@ -353,7 +357,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
         if not is_punching_pose(person):
-            st.info(f"Skipping Person {idx+1} - Not Punching")
+            #st.info(f"Skipping Person {idx+1} - Not Punching")
             continue    
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
