@@ -473,6 +473,8 @@ if uploaded_files:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
         # punch_tracker = PunchTracker(max_frames=30)
+        # Outside loop
+        last_punch_time = {}
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -494,21 +496,39 @@ if uploaded_files:
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
 
             h, w = frame.shape[:2]
-
             punches = []
-            frame_time = frame_idx / fps  # timestamp in seconds
-            
+            timestamp = frame_idx / fps  # timestamp in seconds
 
-            for pid, person_kpts in enumerate(rescaledkeypoints):
-                person_kpts = np.array(person_kpts)  # shape: (17, 3)
-                person_kpts[:, 0] *= width  # x-coordinate
-                person_kpts[:, 1] *= height  # y-coordinate
-                st.info(f"frame_time= {frame_time}") #debug
-                label = detect_punch(person_id=pid, keypoints=person_kpts, timestamp=frame_time)
+            for person_id, person_kpts in enumerate(rescaledkeypoints):
+                person_kpts = np.array(person_kpts)
+                person_kpts[:, 0] *= width
+                person_kpts[:, 1] *= height
+
+                label = detect_punch(person_id, person_kpts, timestamp)
                 punches.append(label)
-                st.info(f"person_kpts= {person_kpts}") #debug
-                st.info(f"label= {label}")
-            st.info(f"punches= {punches}")
+
+                # Debug logs (optional)
+                st.info(f"person_kpts = {person_kpts}")
+                st.info(f"label = {label}")
+
+            st.info(f"punches = {punches}")
+
+
+            # for frame_idx, frame in enumerate(frame):
+            #     timestamp = frame_idx / fps
+
+            #     for person_id, keypoints in enumerate(rescaled_keypoints[frame_idx]):
+            #         label = detect_punch(person_id, keypoints, timestamp)
+            #         if label != "None":
+            #             punches.append({
+            #                 "frame": frame_idx,
+            #                 "time": round(timestamp, 2),
+            #                 "person_id": person_id,
+            #                 "label": label
+            #             })  
+            #     st.info(f"person_kpts= {person_kpts}") #debug
+            #     st.info(f"label= {label}")
+            # st.info(f"punches= {punches}")
 
             #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
