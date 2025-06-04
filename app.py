@@ -504,16 +504,22 @@ if uploaded_files:
                 person_kpts = np.array(person_kpts)
                 person_kpts[:, 0] *= width
                 person_kpts[:, 1] *= height
-
+                # label = detect_punch(person_id, person_kpts, timestamp)
+                # punches.append(label)
                 label = detect_punch(person_id, person_kpts, timestamp)
-                punches.append(label)
+                if label != "None":
+                    punches.append({
+                        "frame": frame_idx,
+                        "time": round(timestamp, 2),
+                        "person_id": person_id,
+                        "label": label
+                    })
 
                 # Debug logs (optional)
                 st.info(f"person_kpts = {person_kpts}")
                 st.info(f"label = {label}")
 
             st.info(f"punches = {punches}")
-
 
             # for frame_idx, frame in enumerate(frame):
             #     timestamp = frame_idx / fps
@@ -531,23 +537,25 @@ if uploaded_files:
             #     st.info(f"label= {label}")
             # st.info(f"punches= {punches}")
 
-            #annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, gloves)
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
-            for i in range(len(punches)):
+            for punch in punches:
+                i = punch["person_id"]
                 punch_log.append({
-                      "video": uploaded_file.name,
-                      "frame": frame_idx,
-                      "person": i,
-                      "timestamp": frame_idx / fps,
-                      "punch": punches[i] if i < len(punches) else "N/A",
-                      "posture": postures[i] if i < len(postures) else "N/A",
-                      "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
-                      "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-                  })
+                    "video": uploaded_file.name,
+                    "frame": punch["frame"],
+                    "person": i,
+                    "timestamp": punch["time"],
+                    "punch": punch["label"],
+                    "posture": postures[i] if i < len(postures) else "N/A",
+                    "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
+                    "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+                })
+
+            
 
             frame_idx += 1
             if frame_idx % 5 == 0:
