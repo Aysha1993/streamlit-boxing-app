@@ -563,7 +563,9 @@ if uploaded_files:
                     "posture": postures[i] if i < len(postures) else "N/A",
                     "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-                })        
+                })
+
+            
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -650,6 +652,8 @@ if uploaded_files:
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
+
+        
 
 
         # Confusion Matrix
