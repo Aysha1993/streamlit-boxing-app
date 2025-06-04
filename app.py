@@ -177,7 +177,7 @@ def detect_punch(person_id, keypoints, timestamp):
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-    elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
+    elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or 
           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
         return "Hook"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
@@ -454,6 +454,26 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
+def extract_bbox_from_keypoints(keypoints, threshold=0.2):
+    x_coords = [kp[0] for kp in keypoints if kp[2] > threshold]
+    y_coords = [kp[1] for kp in keypoints if kp[2] > threshold]
+    if not x_coords or not y_coords:
+        return None
+    x_min, x_max = int(min(x_coords)), int(max(x_coords))
+    y_min, y_max = int(min(y_coords)), int(max(y_coords))
+    return (x_min, y_min, x_max, y_max)
+
+def is_wearing_white(frame, bbox, white_thresh=200):
+    x1, y1, x2, y2 = bbox
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return False
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 60, 255])
+    mask = cv2.inRange(hsv, lower_white, upper_white)
+    white_ratio = np.sum(mask > 0) / (crop.shape[0] * crop.shape[1])
+    return white_ratio > 0.3  # You can tune this
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -508,12 +528,28 @@ if uploaded_files:
             punches = []
             timestamp = frame_idx / fps  # timestamp in seconds
 
+
+            # Initialize referee ID just once
+            if 'referee_id' not in st.session_state:
+                st.session_state['referee_id'] = None
+
             for person_id, person_kpts in enumerate(rescaledkeypoints):
                 person_kpts = np.array(person_kpts)
                 person_kpts[:, 0] *= width
                 person_kpts[:, 1] *= height
-                # label = detect_punch(person_id, person_kpts, timestamp)
-                # punches.append(label)
+
+                # Attempt to detect referee (once)
+                if st.session_state['referee_id'] is None:
+                    bbox = extract_bbox_from_keypoints(person_kpts)
+                    if bbox and is_wearing_white(frame, bbox):
+                        st.session_state['referee_id'] = person_id
+                        st.success(f"✅ Referee Detected (ID={person_id})")
+                        continue  # Skip this frame for referee to avoid confusion
+
+                # Skip referee in every frame after detection
+                if person_id == st.session_state['referee_id']:
+                    continue
+
                 label = detect_punch(person_id, person_kpts, timestamp)
                 if label != "None":
                     punches.append({
@@ -522,13 +558,31 @@ if uploaded_files:
                         "person_id": person_id,
                         "label": label
                     })
-                # Debug logs (optional)
-                # st.info(f"person_kpts = {person_kpts}")
-                # st.info(f"label = {label}")
+
                 st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
 
-            st.info(f"punches = {punches}")
 
+            # for person_id, person_kpts in enumerate(rescaledkeypoints):
+            #     person_kpts = np.array(person_kpts)
+            #     person_kpts[:, 0] *= width
+            #     person_kpts[:, 1] *= height
+            #     # label = detect_punch(person_id, person_kpts, timestamp)
+            #     # punches.append(label)
+            #     label = detect_punch(person_id, person_kpts, timestamp)
+            #     if label != "None":
+            #         punches.append({
+            #             "frame": frame_idx,
+            #             "time": round(timestamp, 2),
+            #             "person_id": person_id,
+            #             "label": label
+            #         })
+            #     # Debug logs (optional)
+            #     # st.info(f"person_kpts = {person_kpts}")
+            #     # st.info(f"label = {label}")
+            #     st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
+
+            # st.info(f"punches = {punches}")
+            
 
 
             # for frame_idx, frame in enumerate(frame):
@@ -542,7 +596,7 @@ if uploaded_files:
             #                 "time": round(timestamp, 2),
             #                 "person_id": person_id,
             #                 "label": label
-            #             })
+            #             })  
             #     st.info(f"person_kpts= {person_kpts}") #debug
             #     st.info(f"label= {label}")
             # st.info(f"punches= {punches}")
@@ -565,7 +619,7 @@ if uploaded_files:
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
                 })
 
-
+            
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -653,7 +707,7 @@ if uploaded_files:
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
 
-
+        
 
 
         # Confusion Matrix
@@ -729,6 +783,16 @@ if uploaded_files:
         st.subheader("📊 Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
+
+        st.subheader("📊 Punch Type Distribution2")
+        # Replace df with filtered_df in all groupby, charts, etc.
+        df_to_use = pred_output_df  # instead of pred_output_df
+
+        # Example
+        st.subheader("👥 Punch Count per Boxer (excluding referee)")
+        punch_counts = df_to_use.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        st.dataframe(punch_counts)
+
 
         import matplotlib.pyplot as plt
 
