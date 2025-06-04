@@ -124,7 +124,7 @@ keypoint_index = {
 
 # Global cooldown tracker (outside function)
 last_punch_time = {}  # {person_id: timestamp}
-PUNCH_COOLDOWN = 0.3  # seconds
+PUNCH_COOLDOWN = 0.2  # seconds
 
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
@@ -361,9 +361,9 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
-        if not is_punching_pose(person):
-            #st.info(f"Skipping Person {idx+1} - Not Punching")
-            continue
+        # if not is_punching_pose(person):
+        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
+        #     continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
