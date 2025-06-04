@@ -156,26 +156,35 @@ def detect_punch(person_id, keypoints, timestamp):
     right_shoulder_angle = calculate_angle(re, rs, rh)
 
     head_height = nose[1]
-    
-    def allow_punch(punch_type):
-        key = (person_id, punch_type)
-        last_time = last_punch_time.get(key, -999)
+
+    last_punch_time = {}  # {(person_id): timestamp}
+
+    def allow_punch(person_id, timestamp):
+        last_time = last_punch_time.get(person_id, -999)
         if timestamp - last_time > PUNCH_COOLDOWN:
-            last_punch_time[key] = timestamp
+            last_punch_time[person_id] = timestamp
             return True
         return False
+  
+    # def allow_punch(punch_type):
+    #     key = (person_id, punch_type)
+    #     last_time = last_punch_time.get(key, -999)
+    #     if timestamp - last_time > PUNCH_COOLDOWN:
+    #         last_punch_time[key] = timestamp
+    #         return True
+    #     return False
 
     # Punch detection with cooldown
-    if dist_lw_nose > 50 and left_elbow_angle > 130 and allow_punch("Jab"):
+    if dist_lw_nose > 50 and left_elbow_angle > 130 and allow_punch(person_id, timestamp):
         return "Jab"
-    elif dist_rw_nose > 50 and right_elbow_angle > 130 and allow_punch("Cross"):
+    elif dist_rw_nose > 50 and right_elbow_angle > 130 and allow_punch(person_id, timestamp):
         return "Cross"
     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or 
-          (right_elbow_angle < 100 and right_shoulder_angle > 80)) and allow_punch("Hook"):
+          (right_elbow_angle < 100 and right_shoulder_angle > 80)) and allow_punch(person_id, timestamp):
         return "Hook"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40 and allow_punch("Duck"):
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40 and allow_punch(person_id, timestamp):
         return "Duck"
-    elif dist_lw_nose < 50 and dist_rw_nose < 50 and allow_punch("Guard"):
+    elif dist_lw_nose < 50 and dist_rw_nose < 50 and allow_punch(person_id, timestamp):
         return "Guard"
     else:
         return "None"
