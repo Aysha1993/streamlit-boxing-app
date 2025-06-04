@@ -640,8 +640,9 @@ if uploaded_files:
         X = df_full[keypoint_cols].values
         y = df_full["punch"]
         indices = df_full["index"]  # This holds row index from original DataFrame
+        st.write("Punch label counts:\n", y.value_counts())
 
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, stratify=y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=0.2, random_state=42)
 
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train, y_train)
@@ -651,6 +652,9 @@ if uploaded_files:
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
+
+        
+
 
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
