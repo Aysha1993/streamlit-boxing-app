@@ -121,8 +121,9 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-# Cooldown tracker
-last_punch_time = {}  # {(person_id, punch_type): timestamp}
+
+# Global cooldown tracker (outside function)
+last_punch_time = {}  # {person_id: timestamp}
 PUNCH_COOLDOWN = 0.3  # seconds
 
 def calculate_angle(a, b, c):
@@ -132,15 +133,24 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
+def allow_punch(person_id, timestamp):
+    last_time = last_punch_time.get(person_id, -999)
+    if timestamp - last_time > PUNCH_COOLDOWN:
+        last_punch_time[person_id] = timestamp
+        return True
+    return False
+
 def detect_punch(person_id, keypoints, timestamp):
+    # Define keypoint indices
+    NOSE, LEFT_SHOULDER, RIGHT_SHOULDER = 0, 5, 6
+    LEFT_ELBOW, RIGHT_ELBOW = 7, 8
     LEFT_WRIST, RIGHT_WRIST = 9, 10
-    NOSE, LEFT_ELBOW, RIGHT_ELBOW = 0, 7, 8
-    LEFT_SHOULDER, RIGHT_SHOULDER = 5, 6
     LEFT_HIP, RIGHT_HIP = 11, 12
 
+    # Get coordinates
+    nose = keypoints[NOSE][:2]
     lw = keypoints[LEFT_WRIST][:2]
     rw = keypoints[RIGHT_WRIST][:2]
-    nose = keypoints[NOSE][:2]
     le = keypoints[LEFT_ELBOW][:2]
     re = keypoints[RIGHT_ELBOW][:2]
     ls = keypoints[LEFT_SHOULDER][:2]
@@ -148,6 +158,7 @@ def detect_punch(person_id, keypoints, timestamp):
     lh = keypoints[LEFT_HIP][:2]
     rh = keypoints[RIGHT_HIP][:2]
 
+    # Distances and angles
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
     left_elbow_angle = calculate_angle(ls, le, lw)
@@ -157,37 +168,25 @@ def detect_punch(person_id, keypoints, timestamp):
 
     head_height = nose[1]
 
-    last_punch_time = {}  # {(person_id): timestamp}
+    # Only one punch allowed per person per cooldown
+    if not allow_punch(person_id, timestamp):
+        return "None"
 
-    def allow_punch(person_id, timestamp):
-        last_time = last_punch_time.get(person_id, -999)
-        if timestamp - last_time > PUNCH_COOLDOWN:
-            last_punch_time[person_id] = timestamp
-            return True
-        return False
-  
-    # def allow_punch(punch_type):
-    #     key = (person_id, punch_type)
-    #     last_time = last_punch_time.get(key, -999)
-    #     if timestamp - last_time > PUNCH_COOLDOWN:
-    #         last_punch_time[key] = timestamp
-    #         return True
-    #     return False
-
-    # Punch detection with cooldown
-    if dist_lw_nose > 50 and left_elbow_angle > 130 and allow_punch(person_id, timestamp):
+    # Punch detection rules
+    if dist_lw_nose > 50 and left_elbow_angle > 130:
         return "Jab"
-    elif dist_rw_nose > 50 and right_elbow_angle > 130 and allow_punch(person_id, timestamp):
+    elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or 
-          (right_elbow_angle < 100 and right_shoulder_angle > 80)) and allow_punch(person_id, timestamp):
+          (right_elbow_angle < 100 and right_shoulder_angle > 80)):
         return "Hook"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40 and allow_punch(person_id, timestamp):
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         return "Duck"
-    elif dist_lw_nose < 50 and dist_rw_nose < 50 and allow_punch(person_id, timestamp):
+    elif dist_lw_nose < 50 and dist_rw_nose < 50:
         return "Guard"
-    else:
-        return "None"
+
+    return "None"
+
 
 def check_posture(keypoints):
     feedback = []
@@ -523,12 +522,14 @@ if uploaded_files:
                         "person_id": person_id,
                         "label": label
                     })
-
                 # Debug logs (optional)
-                st.info(f"person_kpts = {person_kpts}")
-                st.info(f"label = {label}")
+                # st.info(f"person_kpts = {person_kpts}")
+                # st.info(f"label = {label}")
+                st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
 
             st.info(f"punches = {punches}")
+            
+
 
             # for frame_idx, frame in enumerate(frame):
             #     timestamp = frame_idx / fps
