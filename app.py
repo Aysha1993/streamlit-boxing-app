@@ -563,9 +563,7 @@ if uploaded_files:
                     "posture": postures[i] if i < len(postures) else "N/A",
                     "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
-                })
-
-            
+                })        
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -652,8 +650,6 @@ if uploaded_files:
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
-
-        
 
 
         # Confusion Matrix
@@ -796,10 +792,10 @@ if uploaded_files:
         punch_speed = total_punches / duration if duration > 0 else 0
         st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
 
-        # # Count by Person
-        # st.subheader("👥 Punch Count per Person")
-        # person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
-        # st.dataframe(person_punch_counts)
+        # Count by Person
+        st.subheader("👥 Punch Count per Person")
+        person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
         st.subheader("🔁 Confusion Matrix")
