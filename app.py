@@ -475,6 +475,7 @@ if uploaded_files:
         # punch_tracker = PunchTracker(max_frames=30)
         # Outside loop
         last_punch_time = {}
+        #frame loop
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -491,7 +492,7 @@ if uploaded_files:
             if not keypoints:
                 out_writer.write(frame)
                 continue
-            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))
+            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))  # list of keypoints for all persons in a single frame
             postures = check_posture(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
 
