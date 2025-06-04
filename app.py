@@ -177,7 +177,7 @@ def detect_punch(person_id, keypoints, timestamp):
         return "Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
         return "Cross"
-    elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or 
+    elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
         return "Hook"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
@@ -528,7 +528,7 @@ if uploaded_files:
                 st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
 
             st.info(f"punches = {punches}")
-            
+
 
 
             # for frame_idx, frame in enumerate(frame):
@@ -542,7 +542,7 @@ if uploaded_files:
             #                 "time": round(timestamp, 2),
             #                 "person_id": person_id,
             #                 "label": label
-            #             })  
+            #             })
             #     st.info(f"person_kpts= {person_kpts}") #debug
             #     st.info(f"label= {label}")
             # st.info(f"punches= {punches}")
@@ -565,7 +565,7 @@ if uploaded_files:
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
                 })
 
-            
+
 
             frame_idx += 1
             if frame_idx % 5 == 0:
@@ -653,7 +653,7 @@ if uploaded_files:
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
 
-        
+
 
 
         # Confusion Matrix
