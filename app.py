@@ -180,69 +180,6 @@ def detect_punch(person_id, keypoints, timestamp):
     else:
         return "None"
 
-
-
-# def calculate_angle(a, b, c):
-#     a, b, c = np.array(a), np.array(b), np.array(c)
-#     ba = a - b
-#     bc = c - b
-#     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
-#     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
-
-
-# def detect_punch(keypoints):
-
-#     LEFT_WRIST = 9
-#     RIGHT_WRIST = 10
-#     NOSE = 0
-#     LEFT_ELBOW = 7
-#     RIGHT_ELBOW = 8
-#     LEFT_SHOULDER = 5
-#     RIGHT_SHOULDER = 6
-#     LEFT_HIP = 11
-#     RIGHT_HIP = 12
-
-#     lw = keypoints[LEFT_WRIST][:2]
-#     rw = keypoints[RIGHT_WRIST][:2]
-#     nose = keypoints[NOSE][:2]
-#     le = keypoints[LEFT_ELBOW][:2]
-#     re = keypoints[RIGHT_ELBOW][:2]
-#     ls = keypoints[LEFT_SHOULDER][:2]
-#     rs = keypoints[RIGHT_SHOULDER][:2]
-#     lh = keypoints[LEFT_HIP][:2]
-#     rh = keypoints[RIGHT_HIP][:2]
-
-#     # Distances from wrists to nose (used for punches)
-#     dist_lw_nose = np.linalg.norm(lw - nose)
-#     dist_rw_nose = np.linalg.norm(rw - nose)
-
-#     # Elbow angles to check punch extension
-#     left_elbow_angle = calculate_angle(ls, le, lw)
-#     right_elbow_angle = calculate_angle(rs, re, rw)
-
-#     left_shoulder_angle = calculate_angle(le, ls, lh)
-#     right_shoulder_angle = calculate_angle(re, rs, rh)
-
-#     # Face position to estimate duck
-#     head_height = nose[1]
-
-#     # Heuristics
-#     # Try punch types first
-
-#     if dist_lw_nose > 50 and left_elbow_angle > 130:
-#         return "Jab"
-#     elif dist_rw_nose > 50 and right_elbow_angle > 130:
-#         return "Cross"
-#     elif (left_elbow_angle < 100 and left_shoulder_angle > 80) or (right_elbow_angle < 100 and right_shoulder_angle > 80):
-#         return "Hook"
-#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-#         return "Duck"
-#     # Guard if both wrists are near the nose AFTER other checks
-#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
-#         return "Guard"
-#     else:
-#         return "None"
-
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
@@ -560,11 +497,13 @@ if uploaded_files:
 
             punches = []
             frame_time = frame_idx / fps  # timestamp in seconds
+            
 
             for pid, person_kpts in enumerate(rescaledkeypoints):
                 person_kpts = np.array(person_kpts)  # shape: (17, 3)
                 person_kpts[:, 0] *= width  # x-coordinate
                 person_kpts[:, 1] *= height  # y-coordinate
+                st.info(f"frame_time= {frame_time}") #debug
                 label = detect_punch(person_id=pid, keypoints=person_kpts, timestamp=frame_time)
                 punches.append(label)
                 st.info(f"person_kpts= {person_kpts}") #debug
