@@ -563,8 +563,8 @@ if uploaded_files:
 
             for pid, person_kpts in enumerate(rescaledkeypoints):
                 person_kpts = np.array(person_kpts)  # shape: (17, 3)
-                # person_kpts[:, 0] *= width  # x-coordinate
-                # person_kpts[:, 1] *= height  # y-coordinate
+                person_kpts[:, 0] *= width  # x-coordinate
+                person_kpts[:, 1] *= height  # y-coordinate
                 label = detect_punch(person_id=pid, keypoints=person_kpts, timestamp=frame_time)
                 punches.append(label)
                 st.info(f"person_kpts= {person_kpts}") #debug
