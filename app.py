@@ -807,9 +807,9 @@ if uploaded_files:
         st.pyplot(fig2)
 
         # Classification report
-        st.subheader("📋 Classification Report")
-        report_str = classification_report(y_test, y_pred, output_dict=False)
-        st.text(report_str)
+        # st.subheader("📋 Classification Report")
+        # report_str = classification_report(y_test, y_pred, output_dict=False)
+        # st.text(report_str)
 
     progress_bar.empty()
 
