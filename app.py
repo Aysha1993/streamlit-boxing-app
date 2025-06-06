@@ -706,7 +706,6 @@ if uploaded_files:
             autopct='%1.1f%%', 
             startangle=90
         )
-        ax.set_title("Predicted Label Distribution")
         ax.axis('equal')  # Equal aspect ratio for a circle
 
         # Display in Streamlit
@@ -745,7 +744,7 @@ if uploaded_files:
 
         #st.subheader("📊 Punch Type Distribution2")
         # Replace df with filtered_df in all groupby, charts, etc.
-        df_to_use = pred_output_df  # instead of pred_output_df
+        df_to_use = expanded_df  # instead of pred_output_df
         
         # Punch frequency over time
 
