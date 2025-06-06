@@ -751,13 +751,22 @@ if uploaded_files:
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
-        st.subheader(" Performance Metrics Summary")
-        plt.figure(figsize=(5, 5))
-        pred_output_df.plot(kind='pie', autopct='%1.1f%%', startangle=90,subplots=True)
-        plt.title("Predicted Punch Distribution")
-        plt.ylabel("")  # Hide y-label
-        plt.tight_layout()
-        st.pyplot(plt)
+        # Count the number of each predicted label
+        label_counts = pred_output_df['predicted_label'].value_counts()
+
+        # Plot pie chart
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.pie(
+            label_counts.values, 
+            labels=label_counts.index, 
+            autopct='%1.1f%%', 
+            startangle=90
+        )
+        ax.set_title("Predicted Label Distribution")
+        ax.axis('equal')  # Equal aspect ratio for a circle
+
+        # Display in Streamlit
+        st.pyplot(fig)
 
 
         # Accuracy display
