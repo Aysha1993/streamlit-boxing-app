@@ -360,8 +360,8 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
-        if person_id == 2:
-            continue
+        # if person_id == 2:
+        #     continue
         person = kp_raw  # use the current person only
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
