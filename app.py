@@ -536,7 +536,7 @@ if uploaded_files:
                         continue  # Skip this frame for referee to avoid confusion
 
                 # Skip referee in every frame after detection
-                if person_id == 2:
+                if person_id == 2 && 3:
                     continue
 
                 label = detect_punch(person_id, person_kpts, timestamp)
