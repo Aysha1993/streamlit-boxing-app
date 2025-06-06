@@ -354,13 +354,15 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_id):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,referee_id):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
+        if idx == referee_id:
+            continue
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
         #     continue
@@ -605,7 +607,7 @@ if uploaded_files:
             #     st.info(f"label= {label}")
             # st.info(f"punches= {punches}")
 
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,person_id)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,st.session_state['referee_id'])
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
