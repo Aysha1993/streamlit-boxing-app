@@ -354,12 +354,14 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_id):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
+        if person_id == 2:
+            continue
         person = kp_raw  # use the current person only
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
@@ -605,7 +607,7 @@ if uploaded_files:
             #     st.info(f"label= {label}")
             # st.info(f"punches= {punches}")
 
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,person_id)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
@@ -708,8 +710,6 @@ if uploaded_files:
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
-
-
 
 
         # Confusion Matrix
