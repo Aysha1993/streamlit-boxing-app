@@ -354,16 +354,13 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,referee_id):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
-        if idx == referee_id:
-            st.info(f"referee_id = {referee_id}")
-            continue
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
         #     continue
@@ -388,18 +385,6 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                 pt2 = int(x2 * w), int(y2 * h)
                 if 0 <= pt1[0] < w and 0 <= pt1[1] < h and 0 <= pt2[0] < w and 0 <= pt2[1] < h:
                     cv2.line(frame, pt1, pt2, (255, 0, 0), 2)
-
-        # for side, wrist_idx in zip(["L", "R"], [9, 10]):
-        #     y, x, s = kp[wrist_idx]
-        #     if s > 0.2:
-        #         cx, cy = int(x * w), int(y * h)
-        #         pad = 15
-        #         has_glove = glove.get('left' if side == 'L' else 'right', False)
-        #         color = (0, 0, 255) if has_glove else (0, 255, 255)
-        #         cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), color, 2)
-        #         cv2.putText(frame, f"{side} Glove", (cx - pad, cy - pad - 5),
-        #                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
         #Draw gloves
         for side, kp_idx in [('left', 9), ('right', 10)]:
             if glovedetected.get(f"{side}_glove"):
@@ -483,8 +468,6 @@ def is_wearing_white(frame, bbox, white_thresh=200):
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
-    #model = load_model()
-    #model = tf.saved_model.load("PATH_TO_YOUR_MOVENET_MODEL")  # Preload model once
 
     all_logs = []
     progress_bar = st.progress(0)
@@ -505,8 +488,7 @@ if uploaded_files:
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
-        # punch_tracker = PunchTracker(max_frames=30)
-        # Outside loop
+        
         last_punch_time = {}
         #frame loop
         while cap.isOpened():
@@ -566,49 +548,8 @@ if uploaded_files:
                         "label": label
                     })
 
-                st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
-
-
-            # for person_id, person_kpts in enumerate(rescaledkeypoints):
-            #     person_kpts = np.array(person_kpts)
-            #     person_kpts[:, 0] *= width
-            #     person_kpts[:, 1] *= height
-            #     # label = detect_punch(person_id, person_kpts, timestamp)
-            #     # punches.append(label)
-            #     label = detect_punch(person_id, person_kpts, timestamp)
-            #     if label != "None":
-            #         punches.append({
-            #             "frame": frame_idx,
-            #             "time": round(timestamp, 2),
-            #             "person_id": person_id,
-            #             "label": label
-            #         })
-            #     # Debug logs (optional)
-            #     # st.info(f"person_kpts = {person_kpts}")
-            #     # st.info(f"label = {label}")
-            #     st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
-
-            # st.info(f"punches = {punches}")
-
-
-
-            # for frame_idx, frame in enumerate(frame):
-            #     timestamp = frame_idx / fps
-
-            #     for person_id, keypoints in enumerate(rescaled_keypoints[frame_idx]):
-            #         label = detect_punch(person_id, keypoints, timestamp)
-            #         if label != "None":
-            #             punches.append({
-            #                 "frame": frame_idx,
-            #                 "time": round(timestamp, 2),
-            #                 "person_id": person_id,
-            #                 "label": label
-            #             })
-            #     st.info(f"person_kpts= {person_kpts}") #debug
-            #     st.info(f"label= {label}")
-            # st.info(f"punches= {punches}")
-
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w,st.session_state['referee_id'])
+                # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
@@ -674,7 +615,7 @@ if uploaded_files:
             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
 
         all_logs.extend(punch_log)
-        st.write("All columns:", expanded_df.columns.tolist())
+        # st.write("All columns:", expanded_df.columns.tolist())
 
 
         df_log = pd.DataFrame(punch_log)
@@ -688,8 +629,8 @@ if uploaded_files:
         for i in range(17):
             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
 
-        st.write("df_full columns:", df_full.columns.tolist())
-        st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
+        # st.write("df_full columns:", df_full.columns.tolist())
+        # st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
 
 
         # Add index to track row
@@ -755,7 +696,7 @@ if uploaded_files:
 
         # === Performance Metrics Summary ===
         # Count the number of each predicted label
-        st.subheader("🥧 Punch Count (Pie Chart)")
+        st.subheader("🍩 Punch Count (Pie Chart)")
         label_counts = pred_output_df['predicted_label'].value_counts()
 
         # Plot pie chart
@@ -807,11 +748,6 @@ if uploaded_files:
         #st.subheader("📊 Punch Type Distribution2")
         # Replace df with filtered_df in all groupby, charts, etc.
         df_to_use = pred_output_df  # instead of pred_output_df
-
-        # # Example
-        # st.subheader("👥 Punch Count per Boxer (excluding referee)")
-        # punch_counts = df_to_use.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
-        # st.dataframe(punch_counts)
         
         # Punch frequency over time
 
