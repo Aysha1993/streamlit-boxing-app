@@ -640,7 +640,7 @@ if uploaded_files:
         X = df_full[keypoint_cols].values
         y = df_full["punch"]
         indices = df_full["index"]  # This holds row index from original DataFrame
-        st.write("Punch label counts:\n", y.value_counts())
+        
 
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=0.2, random_state=42)
 
@@ -661,13 +661,13 @@ if uploaded_files:
         true_labels = pd.Series(y_test).reset_index(drop=True)
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
-
+        st.write("Punch label counts:\n", y.value_counts())
         #Only keep existing metadata columns
         meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
         meta_columns = [col for col in meta_columns if col in expanded_df.columns]
 
         pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
-
+        
         pred_output_df = pd.concat([
             pred_meta,
             true_labels.rename("true_label"),
