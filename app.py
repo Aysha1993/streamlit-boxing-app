@@ -661,6 +661,8 @@ if uploaded_files:
         true_labels = pd.Series(y_test).reset_index(drop=True)
         pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
+         # === Performance Metrics Summary ===
+
         st.write("Punch label counts:\n", y.value_counts())
         #Only keep existing metadata columns
         meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
@@ -694,7 +696,7 @@ if uploaded_files:
         # Detailed Report
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
-        # === Performance Metrics Summary ===
+       
         # Count the number of each predicted label
         st.subheader("🍩 Punch Count (Pie Chart)")
         label_counts = pred_output_df['predicted_label'].value_counts()
