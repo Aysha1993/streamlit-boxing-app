@@ -361,9 +361,9 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
-        if not is_punching_pose(person):
-            #st.info(f"Skipping Person {idx+1} - Not Punching")
-            continue
+        # if not is_punching_pose(person):
+        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
+        #     continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
@@ -542,9 +542,9 @@ if uploaded_files:
 
                 # Attempt to detect referee (once)
                 if st.session_state['referee_id'] is None:
-                    st.info("test")
+                    #st.info("test")
                     bbox = extract_bbox_from_keypoints(person_kpts)
-                    st.info(f"bbox ={bbox}")
+                    #st.info(f"bbox ={bbox}")
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
                         st.success(f"✅ Referee Detected (ID={person_id})")
