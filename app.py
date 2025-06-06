@@ -812,10 +812,10 @@ if uploaded_files:
         labels = punch_counts.index
         counts = [10, 20, 15]
         # Formatting
-        for text in texts:
-            text.set_fontsize(10)
-        for autotext in autotexts:
-            autotext.set_fontsize(9)
+        # for text in texts:
+        #     text.set_fontsize(10)
+        # for autotext in autotexts:
+        #     autotext.set_fontsize(9)
             
         ax1.pie(counts, labels=labels, autopct='%1.1f%%')
         plt.show()
