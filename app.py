@@ -755,7 +755,7 @@ if uploaded_files:
 
         st.subheader(" Performance Metrics Summary")
         plt.figure(figsize=(5, 5))
-        pred_counts.plot(kind='pie', autopct='%1.1f%%', startangle=90)
+        pred_output_df.plot(kind='pie', autopct='%1.1f%%', startangle=90)
         plt.title("Predicted Punch Distribution")
         plt.ylabel("")  # Hide y-label
         plt.tight_layout()
