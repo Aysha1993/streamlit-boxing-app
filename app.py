@@ -20,7 +20,7 @@ from sklearn.metrics import accuracy_score, classification_report
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
 import joblib
-from imblearn.over_sampling import SMOTE
+# from imblearn.over_sampling import SMOTE
 from sklearn.utils.class_weight import compute_class_weight
 from collections import Counter
 import numpy as np
