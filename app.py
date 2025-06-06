@@ -542,9 +542,9 @@ if uploaded_files:
 
                 # Attempt to detect referee (once)
                 if st.session_state['referee_id'] is None:
-                    st.inf("test")
+                    st.info("test")
                     bbox = extract_bbox_from_keypoints(person_kpts)
-                    st.inf(f"bbox ={bbox}")
+                    st.info(f"bbox ={bbox}")
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
                         st.success(f"✅ Referee Detected (ID={person_id})")
