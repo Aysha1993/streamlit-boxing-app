@@ -740,7 +740,7 @@ if uploaded_files:
 
         # Punch Counts
         st.subheader("📊 Punch Type Distribution")
-        punch_counts = pred_output_df['predicted_label'].value_counts()
+        punch_counts =expanded_df['punch'].value_counts()
         st.bar_chart(punch_counts)
 
         #st.subheader("📊 Punch Type Distribution2")
@@ -751,11 +751,11 @@ if uploaded_files:
 
         st.subheader("📉 Punch Frequency Over Time")
         # Round timestamps to 1 second
-        pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
+        pred_output_df["time_bin"] = expanded_df["timestamp"].round(0)
 
         # Count punches per second
-        time_grouped = pred_output_df[pred_output_df["predicted_label"].notna()] \
-            .groupby(["time_bin", "predicted_label"]).size().unstack().fillna(0)
+        time_grouped = expanded_df[expanded_df["punch"].notna()] \
+            .groupby(["time_bin", "punch"]).size().unstack().fillna(0)
 
         #st.line_chart(time_grouped)
 
@@ -772,14 +772,14 @@ if uploaded_files:
         st.altair_chart(chart, use_container_width=True)
 
         # Filter for punches
-        valid_punches = pred_output_df[pred_output_df["predicted_label"].notna()]
+        valid_punches = expanded_df[expanded_df["punch"].notna()]
 
         # Compute punches
         total_punches = len(valid_punches)
 
         # Use full timestamp range, NOT just punch timestamps!
-        start_time = pred_output_df["timestamp"].min()
-        end_time = pred_output_df["timestamp"].max()
+        start_time = expanded_df["timestamp"].min()
+        end_time = expanded_df["timestamp"].max()
         duration = end_time - start_time
 
         # Debug print (optional)
@@ -791,7 +791,7 @@ if uploaded_files:
 
         # Count by Person
         st.subheader("👥 Punch Count per Person")
-        person_punch_counts = pred_output_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        person_punch_counts = expanded_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
         st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
