@@ -474,7 +474,9 @@ def is_wearing_white(frame, bbox, white_thresh=200):
     mask = cv2.inRange(hsv, lower_white, upper_white)
     white_ratio = np.sum(mask > 0) / (crop.shape[0] * crop.shape[1])
     return white_ratio > 0.3  # You can tune this
-
+def detect_referee(keypoints, frame):
+    bbox = extract_bbox_from_keypoints(person_kpts)
+    return bbox and is_wearing_white(frame, bbox)
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
@@ -540,7 +542,13 @@ if uploaded_files:
 
                 # Attempt to detect referee (once)
                 if st.session_state['referee_id'] is None:
+                    st.info("test")
                     bbox = extract_bbox_from_keypoints(person_kpts)
+                    st.inf(f"bbox ={bbox}")
+                    if detect_referee(person_kpts, frame):
+                        st.session_state['referee_id'] = person_id
+                        st.success(f"✅ Referee Detected (ID={person_id})")
+                        continue  # Skip this frame to avoid misclassification
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
                         st.success(f"✅ Referee Detected (ID={person_id})")
@@ -558,6 +566,8 @@ if uploaded_files:
                         "person_id": person_id,
                         "label": label
                     })
+
+                
 
                 st.write(f"[DEBUG] person: {person_id}, time: {round(timestamp, 2)}, label: {label}")
 
