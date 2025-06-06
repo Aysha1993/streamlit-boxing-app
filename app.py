@@ -767,31 +767,31 @@ if uploaded_files:
         #     use_container_width=True
         # )
 
-        st.subheader("📈 Per-Punch Speed Over Time")
+        # st.subheader("📈 Per-Punch Speed Over Time")
 
-        # Ensure timestamp is in seconds
-        pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+        # # Ensure timestamp is in seconds
+        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
 
-        # Plot punch speed
-        st.line_chart(
-            pred_output_df.set_index("timestamp_sec")["speed (approx)"],
-            height=300,
-            use_container_width=True
-        )
+        # # Plot punch speed
+        # st.line_chart(
+        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+        #     height=300,
+        #     use_container_width=True
+        # )
 
         # Punch Counts
         st.subheader("📊 Punch Type Distribution")
         punch_counts = pred_output_df['predicted_label'].value_counts()
         st.bar_chart(punch_counts)
 
-        st.subheader("📊 Punch Type Distribution2")
+        #st.subheader("📊 Punch Type Distribution2")
         # Replace df with filtered_df in all groupby, charts, etc.
         df_to_use = pred_output_df  # instead of pred_output_df
 
-        # Example
-        st.subheader("👥 Punch Count per Boxer (excluding referee)")
-        punch_counts = df_to_use.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
-        st.dataframe(punch_counts)
+        # # Example
+        # st.subheader("👥 Punch Count per Boxer (excluding referee)")
+        # punch_counts = df_to_use.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        # st.dataframe(punch_counts)
         
         # Punch frequency over time
 
