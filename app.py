@@ -752,7 +752,7 @@ if uploaded_files:
 
         # === Performance Metrics Summary ===
         # Count the number of each predicted label
-        st.subheader("🍩 Punch Count (Pie Chart)")
+        st.subheader("🥧 Punch Count (Pie Chart)")
         label_counts = pred_output_df['predicted_label'].value_counts()
 
         # Plot pie chart
