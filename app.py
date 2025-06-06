@@ -258,9 +258,9 @@ def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3,
     for person in keypoints:
         h, w, _ = frame.shape
 
-        # if not is_punching_pose(person):
-        #     glove_detections.append({'left_glove': False, 'right_glove': False})
-        #     continue  # Skip glove check if not punching
+        if not is_punching_pose(person):
+            glove_detections.append({'left_glove': False, 'right_glove': False})
+            continue  # Skip glove check if not punching
 
         def crop_wrist_region(wrist_index):
             kp = person[wrist_index]
@@ -361,9 +361,9 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
-        # if not is_punching_pose(person):
-        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
-        #     continue
+        if not is_punching_pose(person):
+            #st.info(f"Skipping Person {idx+1} - Not Punching")
+            continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
@@ -454,7 +454,26 @@ def rescale_keypoints(keypoints, input_size, original_size):
             kp_person.append((y_unpad / orig_height, x_unpad / orig_width, s))  # back to normalized
         rescaled.append(kp_person)
     return rescaled
+def extract_bbox_from_keypoints(keypoints, threshold=0.2):
+    x_coords = [kp[0] for kp in keypoints if kp[2] > threshold]
+    y_coords = [kp[1] for kp in keypoints if kp[2] > threshold]
+    if not x_coords or not y_coords:
+        return None
+    x_min, x_max = int(min(x_coords)), int(max(x_coords))
+    y_min, y_max = int(min(y_coords)), int(max(y_coords))
+    return (x_min, y_min, x_max, y_max)
 
+def is_wearing_white(frame, bbox, white_thresh=200):
+    x1, y1, x2, y2 = bbox
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return False
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 60, 255])
+    mask = cv2.inRange(hsv, lower_white, upper_white)
+    white_ratio = np.sum(mask > 0) / (crop.shape[0] * crop.shape[1])
+    return white_ratio > 0.3  # You can tune this
 # def detect_referee(person_kpts, frame):
 #     bbox = extract_bbox_from_keypoints(person_kpts)
 #     return bbox and is_wearing_white(frame, bbox)
