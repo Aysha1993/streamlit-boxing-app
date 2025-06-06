@@ -763,10 +763,10 @@ if uploaded_files:
         melted = time_grouped.reset_index().melt('timestamp', var_name='Punch', value_name='Count')
 
         chart = alt.Chart(melted).mark_bar().encode(
-            x=alt.X("time_bin:O", title="Time (s)"),
+            x=alt.X("timestamp:O", title="Time (s)"),
             y=alt.Y("Count:Q", title="Punch Count"),
             color="Punch:N",
-            tooltip=["time_bin", "Punch", "Count"]
+            tooltip=["timestamp", "Punch", "Count"]
         ).properties(height=300)
 
         st.altair_chart(chart, use_container_width=True)
