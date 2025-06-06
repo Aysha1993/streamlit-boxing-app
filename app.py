@@ -715,7 +715,6 @@ if uploaded_files:
         # Display in Streamlit
         st.pyplot(fig)
 
-
         # Accuracy display
         #st.metric("✅ Accuracy", f"{acc:.2%}")
 
@@ -753,7 +752,7 @@ if uploaded_files:
         
         # Punch frequency over time
 
-        st.subheader(" Punch Frequency Over Time")
+        st.subheader("📉 Punch Frequency Over Time")
         # Round timestamps to 1 second
         pred_output_df["time_bin"] = pred_output_df["timestamp"].round(0)
 
