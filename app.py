@@ -791,7 +791,7 @@ if uploaded_files:
 
         # Count by Person
         st.subheader("👥 Punch Count per Person")
-        person_punch_counts = expanded_df.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
+        person_punch_counts = expanded_df.groupby("person")["punch"].value_counts().unstack().fillna(0)
         st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
