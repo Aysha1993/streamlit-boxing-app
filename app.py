@@ -755,7 +755,7 @@ if uploaded_files:
 
         # Count punches per second
         time_grouped = expanded_df[expanded_df["punch"].notna()] \
-            .groupby(["time_bin", "punch"]).size().unstack().fillna(0)
+            .groupby(["timestamp", "punch"]).size().unstack().fillna(0)
 
         #st.line_chart(time_grouped)
 
