@@ -563,7 +563,7 @@ if uploaded_files:
                         "label": label
                     })
 
-                st.write(f"[DEBUG] person: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
+                st.write(f"[DEBUG] person: {person}, time: {round(timestamp, 2)}, label: {label}")
 
 
             # for person_id, person_kpts in enumerate(rescaledkeypoints):
