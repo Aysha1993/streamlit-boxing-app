@@ -794,35 +794,7 @@ if uploaded_files:
         st.dataframe(punch_counts)
 
 
-        import matplotlib.pyplot as plt
-
-        fig1, ax1 = plt.subplots()
         
-
-        # # Safe unpacking because autopct is set
-        # wedges, texts, autotexts = ax1.pie(
-        #     punch_counts,
-        #     labels=punch_counts.index,
-        #     autopct='%1.1f%%',
-        #     startangle=90,
-        #     pctdistance=0.75,
-        #     labeldistance=1.15
-        # )
-
-        labels = punch_counts.index
-        counts = [10, 20, 15]
-        # Formatting
-        # for text in texts:
-        #     text.set_fontsize(10)
-        # for autotext in autotexts:
-        #     autotext.set_fontsize(9)
-            
-        ax1.pie(counts, labels=labels, autopct='%1.1f%%')
-        plt.show()
-        # ax1.axis('equal')
-        # fig1.tight_layout()
-        # st.pyplot(fig1)
-
         # Punch frequency over time
 
         st.subheader(" Punch Frequency Over Time")
