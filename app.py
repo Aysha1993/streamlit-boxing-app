@@ -751,7 +751,16 @@ if uploaded_files:
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
+        st.subheader("Punch Distribution")
+
         st.subheader(" Performance Metrics Summary")
+        plt.figure(figsize=(5, 5))
+        pred_counts.plot(kind='pie', autopct='%1.1f%%', startangle=90)
+        plt.title("Predicted Punch Distribution")
+        plt.ylabel("")  # Hide y-label
+        plt.tight_layout()
+        st.pyplot(plt)
+
 
         # Accuracy display
         #st.metric("✅ Accuracy", f"{acc:.2%}")
