@@ -360,8 +360,8 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
-        # if person_id == 2:
-        #     continue
+        if person_id == 2:
+            continue
         person = kp_raw  # use the current person only
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
@@ -565,7 +565,7 @@ if uploaded_files:
                         "label": label
                     })
 
-                st.write(f"[DEBUG] person: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
+                st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
 
 
             # for person_id, person_kpts in enumerate(rescaledkeypoints):
