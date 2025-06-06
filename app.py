@@ -646,22 +646,18 @@ if uploaded_files:
 
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train, y_train)
-
         y_pred = clf.predict(X_test)
 
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
         st.info(f" Accuracy:, {acc}")
 
-
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
 
         # Reconstruct predictions DataFrame with correct alignment
         true_labels = pd.Series(y_test).reset_index(drop=True)
-        pred_labels = pd.Series(y_pred).reset_index(drop=True)
-
-         # === Performance Metrics Summary ===
+        pred_labels = pd.Series(y_pred).reset_index(drop=True)    
 
         st.write("Punch label counts:\n", y.value_counts())
         #Only keep existing metadata columns
@@ -696,10 +692,11 @@ if uploaded_files:
         # Detailed Report
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
-       
+        # === Performance Metrics Summary ===
+      
         # Count the number of each predicted label
         st.subheader("🍩 Punch Count (Pie Chart)")
-        label_counts = pred_output_df['predicted_label'].value_counts()
+        label_counts = expanded_df['punch'].value_counts()
 
         # Plot pie chart
         fig, ax = plt.subplots(figsize=(5, 5))
