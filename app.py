@@ -751,11 +751,9 @@ if uploaded_files:
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
-        st.subheader("Punch Distribution")
-
         st.subheader(" Performance Metrics Summary")
         plt.figure(figsize=(5, 5))
-        pred_output_df.plot(kind='pie', autopct='%1.1f%%', startangle=90)
+        pred_output_df.plot(kind='pie', autopct='%1.1f%%', startangle=90,subplots=True)
         plt.title("Predicted Punch Distribution")
         plt.ylabel("")  # Hide y-label
         plt.tight_layout()
