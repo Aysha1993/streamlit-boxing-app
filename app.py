@@ -782,12 +782,12 @@ if uploaded_files:
         end_time = expanded_df["timestamp"].max()
         duration = end_time - start_time
 
-        # Debug print (optional)
-        st.write(f"Start Time: {start_time}, End Time: {end_time}, Duration: {duration:.2f}s, Punches: {total_punches}")
+        # # Debug print (optional)
+        # st.write(f"Start Time: {start_time}, End Time: {end_time}, Duration: {duration:.2f}s, Punches: {total_punches}")
 
-        # Final punch speed
-        punch_speed = total_punches / duration if duration > 0 else 0
-        st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
+        # # Final punch speed
+        # punch_speed = total_punches / duration if duration > 0 else 0
+        # st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
 
         # Count by Person
         st.subheader("👥 Punch Count per Person")
