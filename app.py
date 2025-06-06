@@ -754,7 +754,7 @@ if uploaded_files:
         st.subheader(" Performance Metrics Summary")
 
         # Accuracy display
-        st.metric("✅ Accuracy", f"{acc:.2%}")
+        #st.metric("✅ Accuracy", f"{acc:.2%}")
 
         # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
 
@@ -792,8 +792,6 @@ if uploaded_files:
         st.subheader("👥 Punch Count per Boxer (excluding referee)")
         punch_counts = df_to_use.groupby("person")["predicted_label"].value_counts().unstack().fillna(0)
         st.dataframe(punch_counts)
-
-
         
         # Punch frequency over time
 
