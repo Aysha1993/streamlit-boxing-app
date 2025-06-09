@@ -488,7 +488,7 @@ if uploaded_files:
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
-        
+
         last_punch_time = {}
         #frame loop
         while cap.isOpened():
@@ -532,7 +532,7 @@ if uploaded_files:
                     #st.info(f"bbox ={bbox}")
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
-                        st.success(f"✅ Referee Detected (ID={person_id})")
+                        #st.success(f"✅ Referee Detected (ID={person_id})")
                         continue  # Skip this frame for referee to avoid confusion
 
                 # Skip referee in every frame after detection
@@ -640,7 +640,7 @@ if uploaded_files:
         X = df_full[keypoint_cols].values
         y = df_full["punch"]
         indices = df_full["index"]  # This holds row index from original DataFrame
-        
+
 
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=0.2, random_state=42)
 
@@ -657,7 +657,7 @@ if uploaded_files:
 
         # Reconstruct predictions DataFrame with correct alignment
         true_labels = pd.Series(y_test).reset_index(drop=True)
-        pred_labels = pd.Series(y_pred).reset_index(drop=True)    
+        pred_labels = pd.Series(y_pred).reset_index(drop=True)
 
         st.write("Punch label counts:\n", y.value_counts())
         #Only keep existing metadata columns
@@ -665,7 +665,7 @@ if uploaded_files:
         meta_columns = [col for col in meta_columns if col in expanded_df.columns]
 
         pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
-        
+
         pred_output_df = pd.concat([
             pred_meta,
             true_labels.rename("true_label"),
@@ -693,7 +693,7 @@ if uploaded_files:
         st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
-      
+
         # Count the number of each predicted label
         st.subheader("🍩 Punch Count (Pie Chart)")
         label_counts = expanded_df['punch'].value_counts()
@@ -701,9 +701,9 @@ if uploaded_files:
         # Plot pie chart
         fig, ax = plt.subplots(figsize=(5, 5))
         ax.pie(
-            label_counts.values, 
-            labels=label_counts.index, 
-            autopct='%1.1f%%', 
+            label_counts.values,
+            labels=label_counts.index,
+            autopct='%1.1f%%',
             startangle=90
         )
         ax.axis('equal')  # Equal aspect ratio for a circle
@@ -745,7 +745,7 @@ if uploaded_files:
         #st.subheader("📊 Punch Type Distribution2")
         # Replace df with filtered_df in all groupby, charts, etc.
         df_to_use = expanded_df  # instead of pred_output_df
-        
+
         # Punch frequency over time
 
         st.subheader("📉 Punch Frequency Over Time")
