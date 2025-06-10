@@ -122,10 +122,21 @@ keypoint_index = {
 }
 
 
-# Global cooldown tracker (outside function)
-last_punch_time = {}  # {person_id: timestamp}
-PUNCH_COOLDOWN = 0.2  # seconds
+# Updated cooldown logic with per-type filtering
+def allow_punch(person_id, timestamp, punch_type):
+    last_time = last_punch_time.get(person_id, -999)
+    last_type = last_punch_type.get(person_id, "")
 
+    # Only accept new punch if:
+    # 1. cooldown passed OR
+    # 2. punch type is different from previous (avoids rapid same-type detection)
+    if (timestamp - last_time > PUNCH_COOLDOWN) or (punch_type != last_type):
+        last_punch_time[person_id] = timestamp
+        last_punch_type[person_id] = punch_type
+        return True
+    return False
+
+# Angle utility remains same
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     ba = a - b
@@ -133,32 +144,23 @@ def calculate_angle(a, b, c):
     cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
     return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-def allow_punch(person_id, timestamp):
-    last_time = last_punch_time.get(person_id, -999)
-    if timestamp - last_time > PUNCH_COOLDOWN:
-        last_punch_time[person_id] = timestamp
-        return True
-    return False
+# Global cooldown tracker
+last_punch_time = {}  # {person_id: timestamp}
+last_punch_type = {}  # {person_id: "Jab" / "Cross" / ...}
+PUNCH_COOLDOWN = 0.6  # Increased to 0.6s to reduce overcounting
 
 def detect_punch(person_id, keypoints, timestamp):
-    # Define keypoint indices
     NOSE, LEFT_SHOULDER, RIGHT_SHOULDER = 0, 5, 6
     LEFT_ELBOW, RIGHT_ELBOW = 7, 8
     LEFT_WRIST, RIGHT_WRIST = 9, 10
     LEFT_HIP, RIGHT_HIP = 11, 12
 
-    # Get coordinates
     nose = keypoints[NOSE][:2]
-    lw = keypoints[LEFT_WRIST][:2]
-    rw = keypoints[RIGHT_WRIST][:2]
-    le = keypoints[LEFT_ELBOW][:2]
-    re = keypoints[RIGHT_ELBOW][:2]
-    ls = keypoints[LEFT_SHOULDER][:2]
-    rs = keypoints[RIGHT_SHOULDER][:2]
-    lh = keypoints[LEFT_HIP][:2]
-    rh = keypoints[RIGHT_HIP][:2]
+    lw, rw = keypoints[LEFT_WRIST][:2], keypoints[RIGHT_WRIST][:2]
+    le, re = keypoints[LEFT_ELBOW][:2], keypoints[RIGHT_ELBOW][:2]
+    ls, rs = keypoints[LEFT_SHOULDER][:2], keypoints[RIGHT_SHOULDER][:2]
+    lh, rh = keypoints[LEFT_HIP][:2], keypoints[RIGHT_HIP][:2]
 
-    # Distances and angles
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
     left_elbow_angle = calculate_angle(ls, le, lw)
@@ -168,24 +170,30 @@ def detect_punch(person_id, keypoints, timestamp):
 
     head_height = nose[1]
 
-    # Only one punch allowed per person per cooldown
-    if not allow_punch(person_id, timestamp):
-        return "None"
+    punch_type = "None"
 
-    # Punch detection rules
+    # Rule-based detection
     if dist_lw_nose > 50 and left_elbow_angle > 130:
-        return "Jab"
+        punch_type = "Left Jab"
     elif dist_rw_nose > 50 and right_elbow_angle > 130:
-        return "Cross"
+        punch_type = "Right Cross"
     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
-        return "Hook"
+        punch_type = "Hook"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-        return "Duck"
+        punch_type = "Duck"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
-        return "Guard"
+        punch_type = "Guard"
 
-    return "None"
+    # Skip if "None"
+    if punch_type == "None":
+        return "None"
+
+    # Apply cooldown filter per person
+    if not allow_punch(person_id, timestamp, punch_type):
+        return "None"
+
+    return punch_type
 
 
 def check_posture(keypoints):
