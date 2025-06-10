@@ -650,7 +650,7 @@ if uploaded_files:
 
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
-        st.info(f" Accuracy:, {acc}")
+        #st.info(f" Accuracy:, {acc}")
 
         # Confusion Matrix
         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
