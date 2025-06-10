@@ -690,7 +690,7 @@ if uploaded_files:
         plt.show()
 
         # Detailed Report
-        st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
+        # st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
 
         # === Performance Metrics Summary ===
 
