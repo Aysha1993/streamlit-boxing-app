@@ -6,6 +6,7 @@ import streamlit as st
 import tempfile
 import os
 import base64
+from collections import defaultdict
 
 # --- Load MoveNet MultiPose Model ---
 movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
@@ -31,6 +32,17 @@ def detect_persons(frame):
         })
     return persons
 
+def iou(bb1, bb2):
+    x1, y1, x2, y2 = bb1
+    xx1, yy1, xx2, yy2 = bb2
+    xi1, yi1 = max(x1, xx1), max(y1, yy1)
+    xi2, yi2 = min(x2, xx2), min(y2, yy2)
+    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+    bb1_area = (x2 - x1) * (y2 - y1)
+    bb2_area = (xx2 - xx1) * (yy2 - yy1)
+    union_area = bb1_area + bb2_area - inter_area
+    return inter_area / union_area if union_area > 0 else 0
+
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
     for tid, person in tracked:
@@ -46,79 +58,97 @@ def draw_ids(frame, tracked):
             cv2.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
     return frame
 
+def estimate_punch_activity(keypoints_seq):
+    count = 0
+    for i in range(1, len(keypoints_seq)):
+        prev = keypoints_seq[i-1]
+        curr = keypoints_seq[i]
+        if prev is None or curr is None:
+            continue
+        lw_dist = np.linalg.norm(curr[9] - prev[9])
+        rw_dist = np.linalg.norm(curr[10] - prev[10])
+        if lw_dist > 0.03 or rw_dist > 0.03:
+            count += 1
+    return count
+
 def process_video(video_path, output_path="output_sort.mp4"):
     cap = cv2.VideoCapture(video_path)
     width, height = int(cap.get(3)), int(cap.get(4))
     fps = cap.get(cv2.CAP_PROP_FPS)
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    tracked_positions = {}  # {temp_id: [(cx, cy)]}
-    movement_scores = {}    # {temp_id: float}
-    id_counter = 1
-    frame_num = 0
-    id_map = {}             # temporary id to assigned boxer ID (1 or 2)
-    boxer_ids = set()
+    player_boxes = {}
+    initialized = False
+    person_history = defaultdict(list)
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        frame_num += 1
 
         persons = detect_persons(frame)
-        person_with_boxes = []
+        person_with_abs_boxes = []
         for person in persons:
             x1n, y1n, x2n, y2n = person['bbox_norm']
             x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
-            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-            person_with_boxes.append((person, [x1, y1, x2, y2], (cx, cy)))
+            person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
 
-        # Assign temp IDs
-        new_tracked = []
-        for person, abs_box, center in person_with_boxes:
-            matched_temp_id = None
-            for tid, positions in tracked_positions.items():
-                prev_cx, prev_cy = positions[-1]
-                dist = np.linalg.norm(np.array(center) - np.array([prev_cx, prev_cy]))
-                if dist < 80:
-                    matched_temp_id = tid
+        tracked = []
+        for person, abs_box in person_with_abs_boxes:
+            matched_id = None
+            for pid, ref_box in player_boxes.items():
+                if iou(abs_box, ref_box) > 0.4:
+                    matched_id = pid
+                    player_boxes[pid] = abs_box
                     break
 
-            if matched_temp_id is None:
-                matched_temp_id = id_counter
-                id_counter += 1
+            if not matched_id:
+                new_pid = max(player_boxes.keys(), default=0) + 1
+                player_boxes[new_pid] = abs_box
+                matched_id = new_pid
 
-            # Update movement history
-            if matched_temp_id not in tracked_positions:
-                tracked_positions[matched_temp_id] = [center]
-                movement_scores[matched_temp_id] = 0
-            else:
-                prev_cx, prev_cy = tracked_positions[matched_temp_id][-1]
-                dx = center[0] - prev_cx
-                dy = center[1] - prev_cy
-                movement_scores[matched_temp_id] += np.sqrt(dx**2 + dy**2)
-                tracked_positions[matched_temp_id].append(center)
+            tracked.append((matched_id, person))
+            person_history[matched_id].append(person['keypoints'])
 
-            new_tracked.append((matched_temp_id, person))
-
-        # After 100 frames, choose 2 most active IDs as boxers
-        if frame_num == 100 and len(movement_scores) >= 2:
-            top_ids = sorted(movement_scores.items(), key=lambda x: x[1], reverse=True)[:2]
-            boxer_ids = set([tid for tid, _ in top_ids])
-            id_map = {tid: bid + 1 for bid, tid in enumerate(boxer_ids)}
-
-        # Final tracked list with boxer IDs only
-        final_tracked = []
-        for tid, person in new_tracked:
-            if tid in boxer_ids:
-                final_tracked.append((id_map[tid], person))
-
-        annotated = draw_ids(frame, final_tracked)
+        annotated = draw_ids(frame, tracked)
         out.write(annotated)
 
     cap.release()
     out.release()
-    st.info(f"✅ Constant ID tracking (boxers only) saved: {output_path}")
+
+    punch_counts = {pid: estimate_punch_activity(seq) for pid, seq in person_history.items()}
+    top_2_punchers = sorted(punch_counts.items(), key=lambda x: x[1], reverse=True)[:2]
+    valid_pids = set(pid for pid, _ in top_2_punchers)
+
+    # Rerun to create new video with only top 2 punchers (boxers)
+    cap = cv2.VideoCapture(video_path)
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    player_boxes.clear()
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        persons = detect_persons(frame)
+        person_with_abs_boxes = []
+        for person in persons:
+            x1n, y1n, x2n, y2n = person['bbox_norm']
+            x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
+            person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
+
+        tracked = []
+        for person, abs_box in person_with_abs_boxes:
+            for pid, seq in person_history.items():
+                if person in seq and pid in valid_pids:
+                    tracked.append((pid, person))
+                    break
+
+        annotated = draw_ids(frame, tracked)
+        out.write(annotated)
+
+    cap.release()
+    out.release()
+    st.info(f"✅ Tracked video with punch-based PID filtering saved: {output_path}")
 
 def play_video(video_path):
     with open(video_path, 'rb') as video_file:
@@ -132,7 +162,7 @@ def play_video(video_path):
         st.markdown(video_html, unsafe_allow_html=True)
 
 # --- Streamlit UI ---
-st.title("🥊 Boxing Analyzer - Constant ID Tracking (Boxers Only)")
+st.title("🎥 Boxing Analyzer with Punch-Based Boxer Detection")
 
 uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
@@ -146,7 +176,7 @@ for uploaded_file in uploaded_files:
         output_path = os.path.join(temp_dir, "output_sort.mp4")
         process_video(temp_video_path, output_path)
 
-        st.success("✅ Processed video with constant ID tracking.")
+        st.success("✅ Processed video with punch-based PID filtering.")
         play_video(output_path)
 
         with open(output_path, "rb") as file:
@@ -174,3 +204,4 @@ matplotlib
 with open("requirements.txt", "w") as f:
     f.write(requirements)
 print("✅ requirements.txt saved")
+
