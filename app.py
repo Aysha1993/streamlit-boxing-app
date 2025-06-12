@@ -8,6 +8,8 @@ from scipy.optimize import linear_sum_assignment
 import streamlit as st
 import tempfile
 import os
+import base64
+
 
 # --- SORT Tracker ---
 class Track:
@@ -165,7 +167,40 @@ for uploaded_file in uploaded_files:
         # Now call your process_video function
         process_video(temp_video_path)
 
+def play_video(video_path):
+    with open(video_path, 'rb') as video_file:
+        video_bytes = video_file.read()
+        b64_encoded = base64.b64encode(video_bytes).decode()
+        video_html = f'''
+            <video width="700" controls>
+                <source src="data:video/mp4;base64,{b64_encoded}" type="video/mp4">
+            </video>
+        '''
+        st.markdown(video_html, unsafe_allow_html=True)
 
+
+
+output_path = os.path.join(temp_dir, "output_sort.mp4")
+process_video(temp_video_path, output_path)
+st.success("✅ Processed video with ID tracking.")
+play_video(output_path)
+
+with open(output_path, "rb") as file:
+    st.download_button("📥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
+
+    
+# Call this after processing
+output_path = os.path.join(temp_dir, "output_sort.mp4")
+process_video(temp_video_path, output_path)
+st.success("✅ Processed video with ID tracking.")
+play_video(output_path)
+
+
+with open(output_path, "rb") as file:
+    st.download_button(label="📥 Download Tracked Video",
+                       data=file,
+                       file_name="tracked_output.mp4",
+                       mime="video/mp4")
 
 requirements = '''streamlit
 tensorflow
