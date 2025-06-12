@@ -147,10 +147,10 @@ for uploaded_file in uploaded_files:
     if uploaded_file is not None:
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp()
-        
+
         # Define a path for the uploaded video
         temp_video_path = os.path.join(temp_dir, uploaded_file.name)
-        
+
         # Save the uploaded video to disk
         with open(temp_video_path, 'wb') as f:
             f.write(uploaded_file.read())
