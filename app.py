@@ -6,6 +6,7 @@ import streamlit as st
 import tempfile
 import os
 import base64
+from collections import defaultdict
 
 # --- Load MoveNet MultiPose Model ---
 movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
@@ -42,19 +43,6 @@ def iou(bb1, bb2):
     union_area = bb1_area + bb2_area - inter_area
     return inter_area / union_area if union_area > 0 else 0
 
-def detect_punch(keypoints):
-    # Heuristic: use movement of wrist relative to shoulder
-    LEFT_WRIST, RIGHT_WRIST = 9, 10
-    LEFT_ELBOW, RIGHT_ELBOW = 7, 8
-    LEFT_SHOULDER, RIGHT_SHOULDER = 5, 6
-
-    left_dist = np.linalg.norm(keypoints[LEFT_WRIST] - keypoints[LEFT_SHOULDER])
-    right_dist = np.linalg.norm(keypoints[RIGHT_WRIST] - keypoints[RIGHT_SHOULDER])
-
-    if left_dist > 0.15 or right_dist > 0.15:
-        return 1
-    return 0
-
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
     for tid, person in tracked:
@@ -70,16 +58,30 @@ def draw_ids(frame, tracked):
             cv2.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
     return frame
 
+def detect_punch(keypoints):
+    LEFT_SHOULDER, RIGHT_SHOULDER = 5, 6
+    LEFT_WRIST, RIGHT_WRIST = 9, 10
+
+    ls = keypoints[LEFT_SHOULDER]
+    rs = keypoints[RIGHT_SHOULDER]
+    lw = keypoints[LEFT_WRIST]
+    rw = keypoints[RIGHT_WRIST]
+
+    left_dist = np.linalg.norm(lw - ls)
+    right_dist = np.linalg.norm(rw - rs)
+
+    return left_dist > 0.1 or right_dist > 0.1
+
 def process_video(video_path, output_path="output_sort.mp4"):
     cap = cv2.VideoCapture(video_path)
     width, height = int(cap.get(3)), int(cap.get(4))
     fps = cap.get(cv2.CAP_PROP_FPS)
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    player_boxes = {}  # {player_id: bbox_abs}
-    punch_counts = {}  # {player_id: count}
+    player_boxes = {}
+    punch_counts = defaultdict(int)
     initialized = False
-    punch_threshold = 5
+    punch_threshold = 2
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -88,19 +90,16 @@ def process_video(video_path, output_path="output_sort.mp4"):
 
         persons = detect_persons(frame)
 
-        # Get absolute bboxes
         person_with_abs_boxes = []
         for person in persons:
             x1n, y1n, x2n, y2n = person['bbox_norm']
             x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
             person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
 
-        # First frame: choose top 3 biggest boxes
-        if not initialized and len(person_with_abs_boxes) >= 3:
+        if not initialized and len(person_with_abs_boxes) >= 2:
             sorted_persons = sorted(person_with_abs_boxes, key=lambda x: (x[1][2] - x[1][0]) * (x[1][3] - x[1][1]), reverse=True)
             player_boxes[1] = sorted_persons[0][1]
             player_boxes[2] = sorted_persons[1][1]
-            player_boxes[3] = sorted_persons[2][1]
             initialized = True
 
         tracked = []
@@ -109,15 +108,14 @@ def process_video(video_path, output_path="output_sort.mp4"):
             for pid, ref_box in player_boxes.items():
                 if iou(abs_box, ref_box) > 0.4:
                     matched_id = pid
-                    player_boxes[pid] = abs_box  # update
+                    player_boxes[pid] = abs_box
                     break
 
-            if matched_id is not None:
-                if matched_id not in punch_counts:
-                    punch_counts[matched_id] = 0
-                punch_counts[matched_id] += detect_punch(person['keypoints'])
-
-                if punch_counts[matched_id] >= punch_threshold:
+            if matched_id:
+                if detect_punch(person['keypoints']):
+                    punch_counts[matched_id] += 1
+                current_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+                if punch_counts[matched_id] >= punch_threshold or current_frame < 30:
                     tracked.append((matched_id, person))
 
         annotated = draw_ids(frame, tracked)
@@ -139,7 +137,7 @@ def play_video(video_path):
         st.markdown(video_html, unsafe_allow_html=True)
 
 # --- Streamlit UI ---
-st.title("🎥 Boxing Analyzer with Constant ID Tracking and Referee Filtering")
+st.title("🎥 Boxing Analyzer with Punch-based Referee Filtering")
 
 uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
@@ -153,7 +151,7 @@ for uploaded_file in uploaded_files:
         output_path = os.path.join(temp_dir, "output_sort.mp4")
         process_video(temp_video_path, output_path)
 
-        st.success("✅ Processed video with constant ID tracking.")
+        st.success("✅ Processed video with punch-based ID filtering.")
         play_video(output_path)
 
         with open(output_path, "rb") as file:
@@ -181,3 +179,4 @@ matplotlib
 with open("requirements.txt", "w") as f:
     f.write(requirements)
 print("✅ requirements.txt saved")
+
