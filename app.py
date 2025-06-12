@@ -31,17 +31,6 @@ def detect_persons(frame):
         })
     return persons
 
-def iou(bb1, bb2):
-    x1, y1, x2, y2 = bb1
-    xx1, yy1, xx2, yy2 = bb2
-    xi1, yi1 = max(x1, xx1), max(y1, yy1)
-    xi2, yi2 = min(x2, xx2), min(y2, yy2)
-    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
-    bb1_area = (x2 - x1) * (y2 - y1)
-    bb2_area = (xx2 - xx1) * (yy2 - yy1)
-    union_area = bb1_area + bb2_area - inter_area
-    return inter_area / union_area if union_area > 0 else 0
-
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
     for tid, person in tracked:
@@ -63,48 +52,73 @@ def process_video(video_path, output_path="output_sort.mp4"):
     fps = cap.get(cv2.CAP_PROP_FPS)
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    player_boxes = {}  # {player_id: bbox_abs}
-    initialized = False
+    tracked_positions = {}  # {temp_id: [(cx, cy)]}
+    movement_scores = {}    # {temp_id: float}
+    id_counter = 1
+    frame_num = 0
+    id_map = {}             # temporary id to assigned boxer ID (1 or 2)
+    boxer_ids = set()
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+        frame_num += 1
 
         persons = detect_persons(frame)
-
-        # Get absolute bboxes
-        person_with_abs_boxes = []
+        person_with_boxes = []
         for person in persons:
             x1n, y1n, x2n, y2n = person['bbox_norm']
             x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
-            person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            person_with_boxes.append((person, [x1, y1, x2, y2], (cx, cy)))
 
-        # First frame: choose top 2 biggest boxes as players
-        if not initialized and len(person_with_abs_boxes) >= 2:
-            sorted_persons = sorted(person_with_abs_boxes, key=lambda x: (x[1][2] - x[1][0]) * (x[1][3] - x[1][1]), reverse=True)
-            player_boxes[1] = sorted_persons[0][1]
-            player_boxes[2] = sorted_persons[1][1]
-            initialized = True
-
-        tracked = []
-        for person, abs_box in person_with_abs_boxes:
-            matched_id = None
-            for pid, ref_box in player_boxes.items():
-                if iou(abs_box, ref_box) > 0.4:
-                    matched_id = pid
-                    player_boxes[pid] = abs_box  # update
+        # Assign temp IDs
+        new_tracked = []
+        for person, abs_box, center in person_with_boxes:
+            matched_temp_id = None
+            for tid, positions in tracked_positions.items():
+                prev_cx, prev_cy = positions[-1]
+                dist = np.linalg.norm(np.array(center) - np.array([prev_cx, prev_cy]))
+                if dist < 80:
+                    matched_temp_id = tid
                     break
 
-            if matched_id:
-                tracked.append((matched_id, person))
+            if matched_temp_id is None:
+                matched_temp_id = id_counter
+                id_counter += 1
 
-        annotated = draw_ids(frame, tracked)
+            # Update movement history
+            if matched_temp_id not in tracked_positions:
+                tracked_positions[matched_temp_id] = [center]
+                movement_scores[matched_temp_id] = 0
+            else:
+                prev_cx, prev_cy = tracked_positions[matched_temp_id][-1]
+                dx = center[0] - prev_cx
+                dy = center[1] - prev_cy
+                movement_scores[matched_temp_id] += np.sqrt(dx**2 + dy**2)
+                tracked_positions[matched_temp_id].append(center)
+
+            new_tracked.append((matched_temp_id, person))
+
+        # After 100 frames, choose 2 most active IDs as boxers
+        if frame_num == 100 and len(movement_scores) >= 2:
+            top_ids = sorted(movement_scores.items(), key=lambda x: x[1], reverse=True)[:2]
+            boxer_ids = set([tid for tid, _ in top_ids])
+            id_map = {tid: bid + 1 for bid, tid in enumerate(boxer_ids)}
+
+        # Final tracked list with boxer IDs only
+        final_tracked = []
+        for tid, person in new_tracked:
+            if tid in boxer_ids:
+                final_tracked.append((id_map[tid], person))
+
+        annotated = draw_ids(frame, final_tracked)
         out.write(annotated)
 
     cap.release()
     out.release()
-    st.info(f"✅ Constant ID tracking video saved: {output_path}")
+    st.info(f"✅ Constant ID tracking (boxers only) saved: {output_path}")
 
 def play_video(video_path):
     with open(video_path, 'rb') as video_file:
@@ -118,7 +132,7 @@ def play_video(video_path):
         st.markdown(video_html, unsafe_allow_html=True)
 
 # --- Streamlit UI ---
-st.title("🎥 Boxing Analyzer with Constant ID Tracking")
+st.title("🥊 Boxing Analyzer - Constant ID Tracking (Boxers Only)")
 
 uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
