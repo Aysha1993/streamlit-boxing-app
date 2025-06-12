@@ -6,6 +6,8 @@ import streamlit as st
 import tempfile
 import os
 import base64
+import streamlit as st
+
 
 # --- Load MoveNet MultiPose Model ---
 movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
@@ -21,11 +23,12 @@ def detect_persons(frame):
         if person[55] < 0.2:
             continue
         keypoints = person[:51].reshape((17, 3))
-        bbox = person[51:55]
+        bbox = person[51:55]  # [ymin, xmin, ymax, xmax]
         kps = np.array([[kp[1], kp[0]] for kp in keypoints])
         scores = keypoints[:, 2]
-        persons.append({'keypoints': kps, 'scores': scores, 'bbox': bbox})
-        boxes.append(bbox)
+        # Convert to [xmin, ymin, xmax, ymax] for OpenCV usage
+        boxes.append([bbox[1], bbox[0], bbox[3], bbox[2]])
+        persons.append({'keypoints': kps, 'scores': scores, 'bbox': [bbox[1], bbox[0], bbox[3], bbox[2]]})
     return persons, boxes
 
 def iou(bb1, bb2):
@@ -43,7 +46,7 @@ def draw_ids(frame, tracked):
     h, w, _ = frame.shape
     for tid, person in tracked:
         x1, y1, x2, y2 = person['bbox']
-        x1, y1, x2, y2 = int(x1*w), int(y1*h), int(x2*w), int(y2*h)
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
         cv2.putText(frame, f"ID: {tid}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         for x, y in person['keypoints']:
@@ -77,7 +80,8 @@ def process_video(video_path, output_path="output_sort.mp4"):
         tracked = []
         for person in persons:
             pb = person['bbox']
-            abs_box = [int(pb[0]*width), int(pb[1]*height), int(pb[2]*width), int(pb[3]*height)]
+            x1, y1, x2, y2 = int(pb[0]*width), int(pb[1]*height), int(pb[2]*width), int(pb[3]*height)
+            abs_box = [x1, y1, x2, y2]
 
             matched_id = None
             for pid, ref_box in player_boxes.items():
@@ -122,11 +126,11 @@ for uploaded_file in uploaded_files:
         output_path = os.path.join(temp_dir, "output_sort.mp4")
         process_video(temp_video_path, output_path)
 
-        st.success("\u2705 Processed video with constant ID tracking.")
+        st.success(" Processed video with constant ID tracking.")
         play_video(output_path)
 
         with open(output_path, "rb") as file:
-            st.download_button("🎥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
+            st.download_button(" Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
 
 # --- requirements.txt generator ---
 requirements = '''streamlit
@@ -149,4 +153,4 @@ matplotlib
 
 with open("requirements.txt", "w") as f:
     f.write(requirements)
-print("\u2705 requirements.txt saved")
+print(" requirements.txt saved")
