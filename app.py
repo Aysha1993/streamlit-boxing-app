@@ -5,6 +5,7 @@ import tensorflow as tf
 import tensorflow_hub as hub
 from filterpy.kalman import KalmanFilter
 from scipy.optimize import linear_sum_assignment
+import streamlit as st
 
 # --- SORT Tracker ---
 class Track:
@@ -139,9 +140,9 @@ def process_video(video_path, output_path="output_sort.mp4"):
         out.write(annotated)
     cap.release()
     out.release()
-    print("✅ SORT tracking video saved:", output_path)
-uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+    st.info(f"✅ SORT tracking video saved: {output_path}")
 
+uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
     if uploaded_file is not None:
         # Create a temporary directory
