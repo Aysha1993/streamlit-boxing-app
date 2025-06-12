@@ -94,18 +94,23 @@ def detect_persons(frame):
     input_img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
     input_img = tf.cast(input_img, dtype=tf.int32)
     outputs = movenet(input_img)
-    kp_scores = outputs["output_0"].numpy()[:, 0, :, :]
+    keypoints_with_scores = outputs['output_0'].numpy()  # shape: (1, 6, 56)
+
     persons, boxes = [], []
-    for kp in kp_scores:
-        if kp[0, 2] < 0.1: continue
-        kps = kp[:, :2]
-        scores = kp[:, 2]
-        min_x, min_y = np.min(kps[:, 0]), np.min(kps[:, 1])
-        max_x, max_y = np.max(kps[:, 0]), np.max(kps[:, 1])
-        bbox = [min_x, min_y, max_x, max_y]
+    for person in keypoints_with_scores[0]:
+        # confidence score for person detection is last value (index 55)
+        if person[55] < 0.2:  # filter out low-confidence
+            continue
+        keypoints = person[:51].reshape((17, 3))  # (x, y, score) for 17 keypoints
+        bbox = person[51:55]  # (ymin, xmin, ymax, xmax)
+
+        # Normalize keypoints from (y, x, score)
+        kps = np.array([[kp[1], kp[0]] for kp in keypoints])  # convert to (x, y)
+        scores = keypoints[:, 2]
         persons.append({'keypoints': kps, 'scores': scores, 'bbox': bbox})
         boxes.append(bbox)
     return persons, boxes
+
 
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
