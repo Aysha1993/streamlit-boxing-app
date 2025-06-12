@@ -6,8 +6,6 @@ import streamlit as st
 import tempfile
 import os
 import base64
-import streamlit as st
-
 
 # --- Load MoveNet MultiPose Model ---
 movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
@@ -18,18 +16,20 @@ def detect_persons(frame):
     outputs = movenet(input_img)
     keypoints_with_scores = outputs['output_0'].numpy()  # shape: (1, 6, 56)
 
-    persons, boxes = [], []
+    persons = []
     for person in keypoints_with_scores[0]:
         if person[55] < 0.2:
             continue
         keypoints = person[:51].reshape((17, 3))
         bbox = person[51:55]  # [ymin, xmin, ymax, xmax]
-        kps = np.array([[kp[1], kp[0]] for kp in keypoints])
+        kps = np.array([[kp[1], kp[0]] for kp in keypoints])  # (x, y)
         scores = keypoints[:, 2]
-        # Convert to [xmin, ymin, xmax, ymax] for OpenCV usage
-        boxes.append([bbox[1], bbox[0], bbox[3], bbox[2]])
-        persons.append({'keypoints': kps, 'scores': scores, 'bbox': [bbox[1], bbox[0], bbox[3], bbox[2]]})
-    return persons, boxes
+        persons.append({
+            'keypoints': kps,
+            'scores': scores,
+            'bbox_norm': [bbox[1], bbox[0], bbox[3], bbox[2]]  # [xmin, ymin, xmax, ymax]
+        })
+    return persons
 
 def iou(bb1, bb2):
     x1, y1, x2, y2 = bb1
@@ -45,10 +45,13 @@ def iou(bb1, bb2):
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
     for tid, person in tracked:
-        x1, y1, x2, y2 = person['bbox']
-        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+        x1n, y1n, x2n, y2n = person['bbox_norm']
+        x1, y1, x2, y2 = int(x1n * w), int(y1n * h), int(x2n * w), int(y2n * h)
+
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
-        cv2.putText(frame, f"ID: {tid}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(frame, f"ID: {tid}", (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
         for x, y in person['keypoints']:
             cx, cy = int(x * w), int(y * h)
             cv2.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
@@ -60,7 +63,7 @@ def process_video(video_path, output_path="output_sort.mp4"):
     fps = cap.get(cv2.CAP_PROP_FPS)
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    player_boxes = {}  # {player_id: bbox}
+    player_boxes = {}  # {player_id: bbox_abs}
     initialized = False
 
     while cap.isOpened():
@@ -68,26 +71,29 @@ def process_video(video_path, output_path="output_sort.mp4"):
         if not ret:
             break
 
-        persons, boxes = detect_persons(frame)
-        boxes_abs = [[int(b[0]*width), int(b[1]*height), int(b[2]*width), int(b[3]*height)] for b in boxes]
+        persons = detect_persons(frame)
 
-        if not initialized and len(boxes_abs) >= 2:
-            sorted_persons = sorted(zip(persons, boxes_abs), key=lambda x: (x[1][2]-x[1][0])*(x[1][3]-x[1][1]), reverse=True)
+        # Get absolute bboxes
+        person_with_abs_boxes = []
+        for person in persons:
+            x1n, y1n, x2n, y2n = person['bbox_norm']
+            x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
+            person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
+
+        # First frame: choose top 2 biggest boxes as players
+        if not initialized and len(person_with_abs_boxes) >= 2:
+            sorted_persons = sorted(person_with_abs_boxes, key=lambda x: (x[1][2] - x[1][0]) * (x[1][3] - x[1][1]), reverse=True)
             player_boxes[1] = sorted_persons[0][1]
             player_boxes[2] = sorted_persons[1][1]
             initialized = True
 
         tracked = []
-        for person in persons:
-            pb = person['bbox']
-            x1, y1, x2, y2 = int(pb[0]*width), int(pb[1]*height), int(pb[2]*width), int(pb[3]*height)
-            abs_box = [x1, y1, x2, y2]
-
+        for person, abs_box in person_with_abs_boxes:
             matched_id = None
             for pid, ref_box in player_boxes.items():
                 if iou(abs_box, ref_box) > 0.4:
                     matched_id = pid
-                    player_boxes[pid] = abs_box
+                    player_boxes[pid] = abs_box  # update
                     break
 
             if matched_id:
@@ -98,7 +104,7 @@ def process_video(video_path, output_path="output_sort.mp4"):
 
     cap.release()
     out.release()
-    st.info(f"Constant ID tracking video saved: {output_path}")
+    st.info(f"✅ Constant ID tracking video saved: {output_path}")
 
 def play_video(video_path):
     with open(video_path, 'rb') as video_file:
@@ -112,7 +118,7 @@ def play_video(video_path):
         st.markdown(video_html, unsafe_allow_html=True)
 
 # --- Streamlit UI ---
-st.title(" Boxing Analyzer with Constant ID Tracking")
+st.title("🎥 Boxing Analyzer with Constant ID Tracking")
 
 uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
@@ -126,11 +132,11 @@ for uploaded_file in uploaded_files:
         output_path = os.path.join(temp_dir, "output_sort.mp4")
         process_video(temp_video_path, output_path)
 
-        st.success(" Processed video with constant ID tracking.")
+        st.success("✅ Processed video with constant ID tracking.")
         play_video(output_path)
 
         with open(output_path, "rb") as file:
-            st.download_button(" Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
+            st.download_button("📥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
 
 # --- requirements.txt generator ---
 requirements = '''streamlit
@@ -153,4 +159,4 @@ matplotlib
 
 with open("requirements.txt", "w") as f:
     f.write(requirements)
-print(" requirements.txt saved")
+print("✅ requirements.txt saved")
