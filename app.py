@@ -1,96 +1,14 @@
-# sort.py + MoveNet MultiPose Integration for Boxing Analyzer
 import numpy as np
 import cv2
 import tensorflow as tf
 import tensorflow_hub as hub
-from filterpy.kalman import KalmanFilter
-from scipy.optimize import linear_sum_assignment
 import streamlit as st
 import tempfile
 import os
 import base64
 
-
-# --- SORT Tracker ---
-class Track:
-    def __init__(self, bbox, track_id):
-        self.kf = KalmanFilter(dim_x=7, dim_z=4)
-        self.kf.F = np.array([[1, 0, 0, 0, 1, 0, 0],
-                              [0, 1, 0, 0, 0, 1, 0],
-                              [0, 0, 1, 0, 0, 0, 1],
-                              [0, 0, 0, 1, 0, 0, 0],
-                              [0, 0, 0, 0, 1, 0, 0],
-                              [0, 0, 0, 0, 0, 1, 0],
-                              [0, 0, 0, 0, 0, 0, 1]])
-        self.kf.H = np.array([[1, 0, 0, 0, 0, 0, 0],
-                              [0, 1, 0, 0, 0, 0, 0],
-                              [0, 0, 1, 0, 0, 0, 0],
-                              [0, 0, 0, 1, 0, 0, 0]])
-        self.kf.R[2:,2:] *= 10.
-        self.kf.P[4:,4:] *= 1000.
-        self.kf.P *= 10.
-        self.kf.Q[-1,-1] *= 0.01
-        self.kf.Q[4:,4:] *= 0.01
-        self.kf.x[:4] = np.array(bbox).reshape((4, 1))
-        self.track_id = track_id
-
-    def predict(self):
-        self.kf.predict()
-        return self.kf.x[:4].reshape((4,))
-
-    def update(self, bbox):
-        self.kf.update(np.array(bbox))
-
-class Sort:
-    def __init__(self, iou_threshold=0.3):
-        self.trackers = []
-        self.next_id = 0
-        self.iou_threshold = iou_threshold
-
-    def update(self, detections):
-        updated_tracks = []
-        for trk in self.trackers:
-            trk.predict()
-
-        iou_matrix = np.zeros((len(self.trackers), len(detections)), dtype=np.float32)
-        for t, trk in enumerate(self.trackers):
-            for d, det in enumerate(detections):
-                iou_matrix[t, d] = iou(det, trk.kf.x[:4].reshape((4,)))
-
-        matched_indices = linear_sum_assignment(-iou_matrix)
-        matched, unmatched_dets, unmatched_trks = [], list(range(len(detections))), list(range(len(self.trackers)))
-        for t, d in zip(*matched_indices):
-            if iou_matrix[t, d] < self.iou_threshold: continue
-            matched.append((t, d))
-            unmatched_dets.remove(d)
-            unmatched_trks.remove(t)
-
-        for t, d in matched:
-            self.trackers[t].update(detections[d])
-            updated_tracks.append((self.trackers[t].track_id, detections[d]))
-
-        for d in unmatched_dets:
-            new_trk = Track(detections[d], self.next_id)
-            self.next_id += 1
-            self.trackers.append(new_trk)
-            updated_tracks.append((new_trk.track_id, detections[d]))
-
-        self.trackers = [trk for i, trk in enumerate(self.trackers) if i not in unmatched_trks]
-        return updated_tracks
-
-def iou(bb1, bb2):
-    x1, y1, x2, y2 = bb1
-    xx1, yy1, xx2, yy2 = bb2
-    xi1, yi1, xi2, yi2 = max(x1, xx1), max(y1, yy1), min(x2, xx2), min(y2, yy2)
-    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
-    bb1_area = (x2 - x1) * (y2 - y1)
-    bb2_area = (xx2 - xx1) * (yy2 - yy1)
-    union_area = bb1_area + bb2_area - inter_area
-    return inter_area / union_area if union_area > 0 else 0
-
-# --- Movenet + Tracker ---
+# --- Load MoveNet MultiPose Model ---
 movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
-tracker = Sort()
 
 def detect_persons(frame):
     input_img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
@@ -100,19 +18,26 @@ def detect_persons(frame):
 
     persons, boxes = [], []
     for person in keypoints_with_scores[0]:
-        # confidence score for person detection is last value (index 55)
-        if person[55] < 0.2:  # filter out low-confidence
+        if person[55] < 0.2:
             continue
-        keypoints = person[:51].reshape((17, 3))  # (x, y, score) for 17 keypoints
-        bbox = person[51:55]  # (ymin, xmin, ymax, xmax)
-
-        # Normalize keypoints from (y, x, score)
-        kps = np.array([[kp[1], kp[0]] for kp in keypoints])  # convert to (x, y)
+        keypoints = person[:51].reshape((17, 3))
+        bbox = person[51:55]
+        kps = np.array([[kp[1], kp[0]] for kp in keypoints])
         scores = keypoints[:, 2]
         persons.append({'keypoints': kps, 'scores': scores, 'bbox': bbox})
         boxes.append(bbox)
     return persons, boxes
 
+def iou(bb1, bb2):
+    x1, y1, x2, y2 = bb1
+    xx1, yy1, xx2, yy2 = bb2
+    xi1, yi1 = max(x1, xx1), max(y1, yy1)
+    xi2, yi2 = min(x2, xx2), min(y2, yy2)
+    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+    bb1_area = (x2 - x1) * (y2 - y1)
+    bb2_area = (xx2 - xx1) * (yy2 - yy1)
+    union_area = bb1_area + bb2_area - inter_area
+    return inter_area / union_area if union_area > 0 else 0
 
 def draw_ids(frame, tracked):
     h, w, _ = frame.shape
@@ -131,41 +56,45 @@ def process_video(video_path, output_path="output_sort.mp4"):
     width, height = int(cap.get(3)), int(cap.get(4))
     fps = cap.get(cv2.CAP_PROP_FPS)
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
+    player_boxes = {}  # {player_id: bbox}
+    initialized = False
+
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret: break
+        if not ret:
+            break
+
         persons, boxes = detect_persons(frame)
         boxes_abs = [[int(b[0]*width), int(b[1]*height), int(b[2]*width), int(b[3]*height)] for b in boxes]
-        tracks = tracker.update(boxes_abs)
+
+        if not initialized and len(boxes_abs) >= 2:
+            sorted_persons = sorted(zip(persons, boxes_abs), key=lambda x: (x[1][2]-x[1][0])*(x[1][3]-x[1][1]), reverse=True)
+            player_boxes[1] = sorted_persons[0][1]
+            player_boxes[2] = sorted_persons[1][1]
+            initialized = True
+
         tracked = []
-        for track_id, bbox in tracks:
-            for person in persons:
-                pb = person['bbox']
-                abs_box = [int(pb[0]*width), int(pb[1]*height), int(pb[2]*width), int(pb[3]*height)]
-                if np.allclose(abs_box, bbox, atol=20):
-                    tracked.append((track_id, person))
+        for person in persons:
+            pb = person['bbox']
+            abs_box = [int(pb[0]*width), int(pb[1]*height), int(pb[2]*width), int(pb[3]*height)]
+
+            matched_id = None
+            for pid, ref_box in player_boxes.items():
+                if iou(abs_box, ref_box) > 0.4:
+                    matched_id = pid
+                    player_boxes[pid] = abs_box
                     break
+
+            if matched_id:
+                tracked.append((matched_id, person))
+
         annotated = draw_ids(frame, tracked)
         out.write(annotated)
+
     cap.release()
     out.release()
-    st.info(f"✅ SORT tracking video saved: {output_path}")
-
-uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
-for uploaded_file in uploaded_files:
-    if uploaded_file is not None:
-        # Create a temporary directory
-        temp_dir = tempfile.mkdtemp()
-
-        # Define a path for the uploaded video
-        temp_video_path = os.path.join(temp_dir, uploaded_file.name)
-
-        # Save the uploaded video to disk
-        with open(temp_video_path, 'wb') as f:
-            f.write(uploaded_file.read())
-
-        # Now call your process_video function
-        process_video(temp_video_path)
+    st.info(f"\u2705 Constant ID tracking video saved: {output_path}")
 
 def play_video(video_path):
     with open(video_path, 'rb') as video_file:
@@ -178,30 +107,28 @@ def play_video(video_path):
         '''
         st.markdown(video_html, unsafe_allow_html=True)
 
+# --- Streamlit UI ---
+st.title("\ud83c\udfa5 Boxing Analyzer with Constant ID Tracking")
 
+uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+for uploaded_file in uploaded_files:
+    if uploaded_file is not None:
+        temp_dir = tempfile.mkdtemp()
+        temp_video_path = os.path.join(temp_dir, uploaded_file.name)
 
-output_path = os.path.join(temp_dir, "output_sort.mp4")
-process_video(temp_video_path, output_path)
-st.success("✅ Processed video with ID tracking.")
-play_video(output_path)
+        with open(temp_video_path, 'wb') as f:
+            f.write(uploaded_file.read())
 
-with open(output_path, "rb") as file:
-    st.download_button("📥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
+        output_path = os.path.join(temp_dir, "output_sort.mp4")
+        process_video(temp_video_path, output_path)
 
-    
-# Call this after processing
-output_path = os.path.join(temp_dir, "output_sort.mp4")
-process_video(temp_video_path, output_path)
-st.success("✅ Processed video with ID tracking.")
-play_video(output_path)
+        st.success("\u2705 Processed video with constant ID tracking.")
+        play_video(output_path)
 
+        with open(output_path, "rb") as file:
+            st.download_button("\ud83d\udcc5 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
 
-with open(output_path, "rb") as file:
-    st.download_button(label="📥 Download Tracked Video",
-                       data=file,
-                       file_name="tracked_output.mp4",
-                       mime="video/mp4")
-
+# --- requirements.txt generator ---
 requirements = '''streamlit
 tensorflow
 tensorflow_hub
@@ -222,6 +149,4 @@ matplotlib
 
 with open("requirements.txt", "w") as f:
     f.write(requirements)
-print("✅ requirements.txt saved")
-
-
+print("\u2705 requirements.txt saved")
