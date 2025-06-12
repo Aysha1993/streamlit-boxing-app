@@ -528,7 +528,7 @@ if uploaded_files:
                     #st.info(f"bbox ={bbox}")
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
-                        #st.success(f"✅ Referee Detected (ID={person_id})")
+                        st.success(f"✅ Referee Detected (ID={person_id})")
                         continue  # Skip this frame for referee to avoid confusion
 
                 # Skip referee in every frame after detection
