@@ -94,7 +94,7 @@ def process_video(video_path, output_path="output_sort.mp4"):
 
     cap.release()
     out.release()
-    st.info(f"\u2705 Constant ID tracking video saved: {output_path}")
+    st.info(f"Constant ID tracking video saved: {output_path}")
 
 def play_video(video_path):
     with open(video_path, 'rb') as video_file:
@@ -108,7 +108,7 @@ def play_video(video_path):
         st.markdown(video_html, unsafe_allow_html=True)
 
 # --- Streamlit UI ---
-st.title("\ud83c\udfa5 Boxing Analyzer with Constant ID Tracking")
+st.title(" Boxing Analyzer with Constant ID Tracking")
 
 uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 for uploaded_file in uploaded_files:
@@ -126,7 +126,7 @@ for uploaded_file in uploaded_files:
         play_video(output_path)
 
         with open(output_path, "rb") as file:
-            st.download_button("\ud83d\udcc5 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
+            st.download_button("🎥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
 
 # --- requirements.txt generator ---
 requirements = '''streamlit
