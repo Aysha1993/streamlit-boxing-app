@@ -108,10 +108,19 @@ if uploaded_file:
             if person["id"] not in boxer_ids:
                 continue
             kps = person["keypoints"]
+            # Draw skeleton keypoints
             for x, y, c in kps:
                 if c > 0.2:
                     cv2.circle(frame, (int(x), int(y)), 3, (0, 255, 0), -1)
-            cv2.putText(frame, f"Boxer {person['id']}", (int(kps[0][0]), int(kps[0][1])-10),
+
+            # Draw bounding box
+            bbox = get_bbox_from_keypoints(kps)
+            if bbox:
+                x, y, w, h = map(int, bbox)
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
+
+            # Draw label
+            cv2.putText(frame, f"Boxer {person['id']}", (int(kps[0][0]), int(kps[0][1]) - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
         out.write(frame)
@@ -123,7 +132,6 @@ if uploaded_file:
 
     with open(output_path, "rb") as f:
         st.download_button("📥 Download Annotated Video", f, file_name="annotated_output.mp4")
-
 
 
 # --- requirements.txt generator ---
