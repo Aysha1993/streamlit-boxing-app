@@ -28,7 +28,12 @@ def detect_keypoints(frame):
     image = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
     input_img = tf.cast(image, dtype=tf.int32)
     outputs = model(input_img)
-    return outputs["output_0"].numpy()[0]
+    keypoints = outputs["output_0"].numpy()[0]
+
+    input_h, input_w = frame.shape[:2]
+    scale_y = input_h / 256
+    scale_x = input_w / 256
+    return keypoints, scale_x, scale_y
 
 def get_persons_from_output(output, threshold=0.2):
     persons = []
@@ -77,11 +82,15 @@ if uploaded_file:
         if not ret:
             break
         input_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        keypoints_with_scores = detect_keypoints(input_frame)
+        keypoints_with_scores, scale_x, scale_y = detect_keypoints(input_frame)
         persons = get_persons_from_output(keypoints_with_scores)
 
         boxes = []
         for person in persons:
+            # Scale keypoints to original frame size
+            person["keypoints"][:, 0] *= scale_x
+            person["keypoints"][:, 1] *= scale_y
+
             bbox = get_bbox_from_keypoints(person["keypoints"])
             if bbox:
                 boxes.append(bbox)
@@ -132,6 +141,7 @@ if uploaded_file:
 
     with open(output_path, "rb") as f:
         st.download_button("📥 Download Annotated Video", f, file_name="annotated_output.mp4")
+
 
 
 # --- requirements.txt generator ---
