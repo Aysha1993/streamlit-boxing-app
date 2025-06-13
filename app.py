@@ -1,161 +1,130 @@
-import numpy as np
+import streamlit as st
 import cv2
+import tempfile
+import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
-import streamlit as st
-import tempfile
 import os
-import base64
-from collections import defaultdict
+from datetime import datetime
 
-# --- Load MoveNet MultiPose Model ---
-movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1").signatures['serving_default']
+# ------------------ SORT Tracker (Simplified) ------------------
+class Sort:
+    def __init__(self):
+        self.counter = 0
 
-def detect_persons(frame):
-    input_img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
-    input_img = tf.cast(input_img, dtype=tf.int32)
-    outputs = movenet(input_img)
-    keypoints_with_scores = outputs['output_0'].numpy()  # shape: (1, 6, 56)
+    def update(self, detections):
+        results = []
+        for det in detections:
+            self.counter += 1
+            x, y, w, h = det
+            results.append([x, y, w, h, self.counter % 2])  # Fake ID 0 or 1
+        return results
 
+# ------------------ MoveNet Utilities ------------------
+movenet = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
+model = movenet.signatures['serving_default']
+
+def detect_keypoints(frame):
+    image = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
+    input_img = tf.cast(image, dtype=tf.int32)
+    outputs = model(input_img)
+    return outputs["output_0"].numpy()[0]
+
+def get_persons_from_output(output, threshold=0.2):
     persons = []
-    for person in keypoints_with_scores[0]:
-        if person[55] < 0.2:
-            continue
+    for person in output:
         keypoints = person[:51].reshape((17, 3))
-        bbox = person[51:55]  # [ymin, xmin, ymax, xmax]
-        kps = np.array([[kp[1], kp[0]] for kp in keypoints])  # (x, y)
-        scores = keypoints[:, 2]
-        persons.append({
-            'keypoints': kps,
-            'scores': scores,
-            'bbox_norm': [bbox[1], bbox[0], bbox[3], bbox[2]]  # [xmin, ymin, xmax, ymax]
-        })
+        if keypoints[0, 2] < threshold:
+            continue
+        persons.append({"keypoints": keypoints})
     return persons
 
-def iou(bb1, bb2):
-    x1, y1, x2, y2 = bb1
-    xx1, yy1, xx2, yy2 = bb2
-    xi1, yi1 = max(x1, xx1), max(y1, yy1)
-    xi2, yi2 = min(x2, xx2), min(y2, yy2)
-    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
-    bb1_area = (x2 - x1) * (y2 - y1)
-    bb2_area = (xx2 - xx1) * (yy2 - yy1)
-    union_area = bb1_area + bb2_area - inter_area
-    return inter_area / union_area if union_area > 0 else 0
+def get_bbox_from_keypoints(keypoints):
+    valid = keypoints[keypoints[:, 2] > 0.2][:, :2]
+    if len(valid) == 0:
+        return None
+    x1, y1 = valid.min(axis=0)
+    x2, y2 = valid.max(axis=0)
+    return [x1, y1, x2 - x1, y2 - y1]
 
-def draw_ids(frame, tracked):
-    h, w, _ = frame.shape
-    for tid, person in tracked:
-        x1n, y1n, x2n, y2n = person['bbox_norm']
-        x1, y1, x2, y2 = int(x1n * w), int(y1n * h), int(x2n * w), int(y2n * h)
+# ------------------ Streamlit App ------------------
+st.set_page_config(layout="wide")
+st.title("🎣 MoveNet MultiPose + SORT Boxer Tracker")
 
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
-        cv2.putText(frame, f"ID: {tid}", (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+uploaded_file = st.file_uploader("Upload a boxing video", type=["mp4"])
 
-        for x, y in person['keypoints']:
-            cx, cy = int(x * w), int(y * h)
-            cv2.circle(frame, (cx, cy), 3, (0, 255, 0), -1)
-    return frame
+if uploaded_file:
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    tfile.write(uploaded_file.read())
 
-def detect_punch(keypoints):
-    LEFT_SHOULDER, RIGHT_SHOULDER = 5, 6
-    LEFT_WRIST, RIGHT_WRIST = 9, 10
+    cap = cv2.VideoCapture(tfile.name)
+    tracker = Sort()
+    boxer_ids = set()
 
-    ls = keypoints[LEFT_SHOULDER]
-    rs = keypoints[RIGHT_SHOULDER]
-    lw = keypoints[LEFT_WRIST]
-    rw = keypoints[RIGHT_WRIST]
-
-    left_dist = np.linalg.norm(lw - ls)
-    right_dist = np.linalg.norm(rw - rs)
-
-    return left_dist > 0.1 or right_dist > 0.1
-
-def process_video(video_path, output_path="output_sort.mp4"):
-    cap = cv2.VideoCapture(video_path)
-    width, height = int(cap.get(3)), int(cap.get(4))
+    # Get video properties
+    width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+
+    # Define output video
+    output_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    player_boxes = {}
-    punch_counts = defaultdict(int)
-    initialized = False
-    punch_threshold = 2
+    stframe = st.empty()
+    frame_count = 0
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+        input_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        keypoints_with_scores = detect_keypoints(input_frame)
+        persons = get_persons_from_output(keypoints_with_scores)
 
-        persons = detect_persons(frame)
-
-        person_with_abs_boxes = []
+        boxes = []
         for person in persons:
-            x1n, y1n, x2n, y2n = person['bbox_norm']
-            x1, y1, x2, y2 = int(x1n * width), int(y1n * height), int(x2n * width), int(y2n * height)
-            person_with_abs_boxes.append((person, [x1, y1, x2, y2]))
+            bbox = get_bbox_from_keypoints(person["keypoints"])
+            if bbox:
+                boxes.append(bbox)
 
-        if not initialized and len(person_with_abs_boxes) >= 2:
-            sorted_persons = sorted(person_with_abs_boxes, key=lambda x: (x[1][2] - x[1][0]) * (x[1][3] - x[1][1]), reverse=True)
-            player_boxes[1] = sorted_persons[0][1]
-            player_boxes[2] = sorted_persons[1][1]
-            initialized = True
+        if len(boxes) == 0:
+            out.write(frame)
+            stframe.image(frame, channels="BGR")
+            continue
 
-        tracked = []
-        for person, abs_box in person_with_abs_boxes:
-            matched_id = None
-            for pid, ref_box in player_boxes.items():
-                if iou(abs_box, ref_box) > 0.4:
-                    matched_id = pid
-                    player_boxes[pid] = abs_box
-                    break
+        track_results = tracker.update(np.array(boxes))
 
-            if matched_id:
-                if detect_punch(person['keypoints']):
-                    punch_counts[matched_id] += 1
-                current_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
-                if punch_counts[matched_id] >= punch_threshold or current_frame < 30:
-                    tracked.append((matched_id, person))
+        for person, track in zip(persons, track_results):
+            x, y, w, h, track_id = track
+            track_id = int(track_id)
+            person["id"] = track_id
 
-        annotated = draw_ids(frame, tracked)
-        out.write(annotated)
+        if frame_count < 30:
+            for person in persons:
+                boxer_ids.add(person["id"])
+            boxer_ids = set(list(boxer_ids)[:2])
+        frame_count += 1
+
+        for person in persons:
+            if person["id"] not in boxer_ids:
+                continue
+            kps = person["keypoints"]
+            for x, y, c in kps:
+                if c > 0.2:
+                    cv2.circle(frame, (int(x), int(y)), 3, (0, 255, 0), -1)
+            cv2.putText(frame, f"Boxer {person['id']}", (int(kps[0][0]), int(kps[0][1])-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+
+        out.write(frame)
+        stframe.image(frame, channels="BGR")
 
     cap.release()
     out.release()
-    st.info(f"✅ Constant ID tracking video saved: {output_path}")
+    st.success("🚀 Video Processing Complete!")
 
-def play_video(video_path):
-    with open(video_path, 'rb') as video_file:
-        video_bytes = video_file.read()
-        b64_encoded = base64.b64encode(video_bytes).decode()
-        video_html = f'''
-            <video width="700" controls>
-                <source src="data:video/mp4;base64,{b64_encoded}" type="video/mp4">
-            </video>
-        '''
-        st.markdown(video_html, unsafe_allow_html=True)
+    with open(output_path, "rb") as f:
+        st.download_button("📥 Download Annotated Video", f, file_name="annotated_output.mp4")
 
-# --- Streamlit UI ---
-st.title("🎥 Boxing Analyzer with Punch-based Referee Filtering")
 
-uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
-for uploaded_file in uploaded_files:
-    if uploaded_file is not None:
-        temp_dir = tempfile.mkdtemp()
-        temp_video_path = os.path.join(temp_dir, uploaded_file.name)
-
-        with open(temp_video_path, 'wb') as f:
-            f.write(uploaded_file.read())
-
-        output_path = os.path.join(temp_dir, "output_sort.mp4")
-        process_video(temp_video_path, output_path)
-
-        st.success("✅ Processed video with punch-based ID filtering.")
-        play_video(output_path)
-
-        with open(output_path, "rb") as file:
-            st.download_button("📥 Download Tracked Video", file, "tracked_output.mp4", "video/mp4")
 
 # --- requirements.txt generator ---
 requirements = '''streamlit
@@ -179,4 +148,3 @@ matplotlib
 with open("requirements.txt", "w") as f:
     f.write(requirements)
 print("✅ requirements.txt saved")
-
