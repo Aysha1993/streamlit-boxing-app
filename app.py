@@ -598,15 +598,8 @@ if uploaded_files:
                 jersey = get_jersey_color(frame, person_keypoints)
                 st.write(f"Person {i+1} jersey color: {jersey}")
                 # Display label
-                cv2.putText(
-                    frame,
-                    f"Player ({jersey})",
-                    (int(keypoints[0][1]*w), int(keypoints[0][0]*h)-10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
+                cv2.putText(frame, f" Punches: {jersey}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
 
             if not keypoints:
                 out_writer.write(frame)
