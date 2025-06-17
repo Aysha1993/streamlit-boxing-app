@@ -463,32 +463,39 @@ def is_wearing_white(frame, bbox, white_thresh=200):
 #     return bbox and is_wearing_white(frame, bbox)
 
 # ------------------ Detect Jersey Color ------------------
-
-def get_jersey_color(frame, keypoints):
-    if keypoints is None or len(keypoints) == 0:
-        return "unknown"
-
-    keypoints = np.array(keypoints)
-    if keypoints.ndim != 2 or keypoints.shape[1] < 2:
-        return "unknown"
+def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
+    if keypoints is None or len(keypoints) < 13:
+        return "unknown1"
 
     h, w, _ = frame.shape
+    keypoints = np.array(keypoints)  # shape: (17, 3)
 
-    x_coords = keypoints[:, 1]
-    y_coords = keypoints[:, 0]
+    # Use only upper body (shoulders to hips)
+    torso_indices = [5, 6, 11, 12]  # L/R shoulder, L/R hip
+    valid_points = []
 
-    x_min = int(np.clip(np.min(x_coords) * w, 0, w - 1))
-    x_max = int(np.clip(np.max(x_coords) * w, 0, w - 1))
-    y_min = int(np.clip(np.min(y_coords) * h, 0, h - 1))
-    y_max = int(np.clip(np.max(y_coords) * h, 0, h - 1))
+    for i in torso_indices:
+        y, x, conf = keypoints[i]
+        if conf > confidence_thresh:
+            valid_points.append((x * w, y * h))  # pixel coords
+
+    if len(valid_points) < 2:
+        return "unknown2"
+
+    xs, ys = zip(*valid_points)
+    x_min = int(np.clip(min(xs), 0, w - 1))
+    x_max = int(np.clip(max(xs), 0, w - 1))
+    y_min = int(np.clip(min(ys), 0, h - 1))
+    y_max = int(np.clip(max(ys), 0, h - 1))
 
     if y_max <= y_min or x_max <= x_min:
-        return "unknown"
+        return "unknown3"
 
     cropped = frame[y_min:y_max, x_min:x_max]
     if cropped.size == 0:
-        return "unknown"
+        return "unknown4"
 
+    # Average color
     b, g, r = np.mean(cropped, axis=(0, 1))
 
     if r > 1.2 * b:
@@ -496,7 +503,9 @@ def get_jersey_color(frame, keypoints):
     elif b > 1.2 * r:
         return "blue"
     else:
-        return "unknown"
+        return "unknown5"
+
+
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -538,7 +547,7 @@ if uploaded_files:
 
             jersey = get_jersey_color(frame, keypoints)
             label = f"{jersey.upper()}"
-            st.info(f"label = {label}")
+            st.info(f"jersey = {label}")
 
 
             if not keypoints:
