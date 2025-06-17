@@ -599,7 +599,7 @@ if uploaded_files:
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
-            st.info(f"Keypoints shape:{np.array(keypoints).shape}")
+            #st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
             
             if not keypoints:
@@ -629,15 +629,15 @@ if uploaded_files:
                 jersey_color = get_jersey_color(frame, person_kpts)
 
                 y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
-                cv2.putText(
-                    frame,
-                    f"{boxer_label}",
-                    (x, y - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2
-                )
+                # cv2.putText(
+                #     frame,
+                #     f"{boxer_label}",
+                #     (x, y - 10),
+                #     cv2.FONT_HERSHEY_SIMPLEX,
+                #     0.6,
+                #     (0, 255, 0),
+                #     2
+                # )
 
             # # Print jersey color info
             # for i, person_kpts in enumerate(keypoints):
