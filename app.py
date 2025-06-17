@@ -586,6 +586,9 @@ if uploaded_files:
             if not ret:
                 break
 
+            h, w = frame.shape[:2]
+            timestamp = frame_idx / fps
+
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
             input_tensor = tf.cast(img, dtype=tf.int32)
@@ -594,36 +597,39 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
             st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
+            
+            if not keypoints:
+                out_writer.write(frame)
+                continue
+
+
+            # Assign unique IDs to each person
             tracked = tracker.assign_ids(keypoints)
 
-            # Step 3: Iterate over tracked persons
+            # Display tracked player labels with jersey color
             for track in tracked:
                 person_id = track["id"]
-                keypoints = track["keypoints"]
+                person_kpts = track["keypoints"]
+                st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
+                jersey_color = get_jersey_color(frame, person_kpts)
 
-                # Get jersey color
-                jersey_color = get_jersey_color(frame, keypoints)
-
-                # Display label
+                y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
                 cv2.putText(
                     frame,
                     f"Player {person_id} ({jersey_color})",
-                    (int(keypoints[0][1]*w), int(keypoints[0][0]*h)-10),
+                    (x, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     (0, 255, 0),
                     2
                 )
 
-            for i, person_keypoints in enumerate(keypoints):  # person_keypoints shape: (17, 3)
-                jersey = get_jersey_color(frame, person_keypoints)
+            # Print jersey color info
+            for i, person_kpts in enumerate(keypoints):
+                jersey = get_jersey_color(frame, person_kpts)
                 st.write(f"Person {i+1} jersey color: {jersey}")
-                # Display label
-            
 
-            if not keypoints:
-                out_writer.write(frame)
-                continue
+
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))  # list of keypoints for all persons in a single frame
             postures = check_posture(rescaledkeypoints)
             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
