@@ -613,7 +613,7 @@ if uploaded_files:
             for track in tracked:
                 person_id = track["id"]
                 person_kpts = track["keypoints"]
-                st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
+                # st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
 
                 # Assign stable jersey identity once
                 if person_id not in st.session_state['jersey_colors_map']:
