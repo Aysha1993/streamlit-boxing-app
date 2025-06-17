@@ -15,17 +15,19 @@ def load_model():
     return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 
 movenet = load_model()
-
 # ------------------ Pose Detection ------------------
+
 def detect_pose(image):
     input_img = tf.image.resize_with_pad(tf.expand_dims(image, axis=0), 256, 256)
     input_img = tf.cast(input_img, dtype=tf.int32)
-    outputs = movenet(input_img)
-    keypoints_all = outputs["output_0"].numpy()  # (1, 6, 56)
+    outputs = movenet.signatures["serving_default"](input_img)
+    keypoints_all = outputs["output_0"].numpy()  # shape: (1, 6, 56)
     if keypoints_all.shape[-1] < 51:
         return []
     keypoints = keypoints_all[0, :, :51].reshape((6, 17, 3))
     return keypoints
+
+
 
 # ------------------ Detect Jersey Color ------------------
 def get_jersey_color(frame, keypoints):
