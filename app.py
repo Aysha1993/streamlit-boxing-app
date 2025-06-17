@@ -122,6 +122,16 @@ if uploaded_file is not None:
         st.success("✅ Video processing complete!")
         st.subheader("🎥 Annotated Video Output")
         st.video(output_path)
+        with open(output_path, "rb") as f:
+            video_bytes = f.read()
+
+      st.download_button(
+          label="📥 Download Annotated Video",
+          data=video_bytes,
+          file_name="annotated_boxing_video.mp4",
+          mime="video/mp4"
+      )
+
 
 
 
