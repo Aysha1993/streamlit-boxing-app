@@ -131,9 +131,7 @@ def process_video(video_path):
         cv2.putText(frame, f"Red Punches: {red_punches}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         cv2.putText(frame, f"Blue Punches: {blue_punches}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-        # cv2.imshow("Boxing Detection", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        
 
     cap.release()
     cv2.destroyAllWindows()
