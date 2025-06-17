@@ -627,7 +627,6 @@ if uploaded_files:
 
                 boxer_label = st.session_state['jersey_colors_map'][person_id]
 
-
                 jersey_color = get_jersey_color(frame, person_kpts)
 
                 y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
