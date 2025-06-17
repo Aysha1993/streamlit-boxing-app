@@ -77,8 +77,7 @@ def detect_punch(wrist_history, new_point):
     return movement > PUNCH_DISTANCE_THRESHOLD
 
 
-uploaded = files.upload()
-video_path = list(uploaded.keys())[0]  # get uploaded filename
+uploaded_file = st.file_uploader("Upload a boxing video", type=["mp4", "mov", "avi"])
 # Main processing
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -130,8 +129,14 @@ def process_video(video_path):
     cap.release()
     cv2.destroyAllWindows()
 
-process_video(video_path)
+if uploaded_file is not None:
+    # Save to temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    temp_file.write(uploaded_file.read())
+    video_path = temp_file.name
 
+    if st.button("Start Processing"):
+        process_video(video_path)
 
 
 requirements = '''streamlit
