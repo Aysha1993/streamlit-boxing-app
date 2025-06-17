@@ -29,18 +29,17 @@ upper_blue = np.array([130, 255, 255])
 # Punch thresholds
 PUNCH_DISTANCE_THRESHOLD = 50  # pixel movement of wrist
 
-
-
 def detect_pose(image):
     input_img = tf.image.resize_with_pad(tf.expand_dims(image, axis=0), 256, 256)
     input_img = tf.cast(input_img, dtype=tf.int32)
     outputs = movenet(input_img)
 
-    # MultiPose: [1, 6, 56] => reshape to [6, 17, 3]
-    keypoints_all = outputs['output_0'].numpy()
-    keypoints_all = keypoints_all.reshape((1, 6, 17, 3))[0]
-    return keypoints_all
+    keypoints_all = outputs['output_0'].numpy()  # Shape: (1, N, 56)
+    num_persons = keypoints_all.shape[1]
 
+    # Reshape (1, N, 56) → (N, 17, 3)
+    keypoints_all = keypoints_all.reshape((num_persons, 17, 3))
+    return keypoints_all
 
 # Crop upper body to detect jersey color
 def get_torso_patch(frame, keypoints):
