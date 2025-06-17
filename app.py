@@ -622,8 +622,8 @@ if uploaded_files:
                         st.session_state['jersey_colors_map'][person_id] = "redboxer"
                     elif jersey == "blue":
                         st.session_state['jersey_colors_map'][person_id] = "blueboxer"
-                    else:
-                        st.session_state['jersey_colors_map'][person_id] = f"boxer_{person_id}"
+                    # else:
+                    #     st.session_state['jersey_colors_map'][person_id] = f"boxer_{person_id}"
 
                 boxer_label = st.session_state['jersey_colors_map'][person_id]
 
