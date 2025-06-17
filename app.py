@@ -599,7 +599,7 @@ if uploaded_files:
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
-            #st.info(f"Keypoints shape:{np.array(keypoints).shape}")
+            st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
             
             if not keypoints:
@@ -622,11 +622,10 @@ if uploaded_files:
                         st.session_state['jersey_colors_map'][person_id] = "redboxer"
                     elif jersey == "blue":
                         st.session_state['jersey_colors_map'][person_id] = "blueboxer"
-                    # else:
-                    #     st.session_state['jersey_colors_map'][person_id] = f"boxer_{person_id}"
+                    else:
+                        st.session_state['jersey_colors_map'][person_id] = f"boxer_{person_id}"
 
                 boxer_label = st.session_state['jersey_colors_map'][person_id]
-
                 jersey_color = get_jersey_color(frame, person_kpts)
 
                 y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
