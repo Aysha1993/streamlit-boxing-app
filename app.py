@@ -1,149 +1,126 @@
+import streamlit as st
 import cv2
+import tempfile
 import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
-import streamlit as st
-import tempfile
+import os
 
+st.set_page_config(page_title="🥊 Boxing Analyzer", layout="wide")
+st.title("🥊 Boxing Punch Detection (Red vs Blue Jerseys)")
 
-# Load MoveNet MultiPose
-model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
-movenet = model.signatures['serving_default']
+# ------------------ Load MoveNet MultiPose ------------------
+@st.cache_resource
+def load_model():
+    return hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
 
-# Constants
-KEYPOINT_NAMES = [
-    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
-    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist", "left_hip", "right_hip",
-    "left_knee", "right_knee", "left_ankle", "right_ankle"
-]
+movenet = load_model()
 
-# HSV ranges for red and blue jerseys
-lower_red1 = np.array([0, 100, 100])
-upper_red1 = np.array([10, 255, 255])
-lower_red2 = np.array([160, 100, 100])
-upper_red2 = np.array([179, 255, 255])
-lower_blue = np.array([100, 100, 100])
-upper_blue = np.array([130, 255, 255])
-
-# Punch thresholds
-PUNCH_DISTANCE_THRESHOLD = 50  # pixel movement of wrist
-
-
-
+# ------------------ Pose Detection ------------------
 def detect_pose(image):
     input_img = tf.image.resize_with_pad(tf.expand_dims(image, axis=0), 256, 256)
     input_img = tf.cast(input_img, dtype=tf.int32)
     outputs = movenet(input_img)
-
-    # Shape: (1, N, 56), where N = number of detected persons
-    keypoints_all = outputs['output_0'].numpy()
-    num_persons = keypoints_all.shape[1]
-
-    # (1, N, 56) → (N, 17, 3): first 51 values are 17 keypoints * 3 (y, x, score)
-    keypoints = keypoints_all[0, :, :51].reshape((num_persons, 17, 3))
+    keypoints_all = outputs["output_0"].numpy()  # (1, 6, 56)
+    if keypoints_all.shape[-1] < 51:
+        return []
+    keypoints = keypoints_all[0, :, :51].reshape((6, 17, 3))
     return keypoints
 
-
-# Crop upper body to detect jersey color
-def get_torso_patch(frame, keypoints):
+# ------------------ Detect Jersey Color ------------------
+def get_jersey_color(frame, keypoints):
     h, w, _ = frame.shape
-    left_shoulder = keypoints[5][:2] * [w, h]
-    right_shoulder = keypoints[6][:2] * [w, h]
-    left_hip = keypoints[11][:2] * [w, h]
-    right_hip = keypoints[12][:2] * [w, h]
+    x_coords = keypoints[:, 1]
+    y_coords = keypoints[:, 0]
+    x_min = int(np.min(x_coords) * w)
+    x_max = int(np.max(x_coords) * w)
+    y_min = int(np.min(y_coords) * h)
+    y_max = int(np.max(y_coords) * h)
+    cropped = frame[y_min:y_max, x_min:x_max]
+    if cropped.size == 0:
+        return "unknown"
+    b, g, r = np.mean(cropped, axis=(0, 1))
+    if r > 1.2 * b:
+        return "red"
+    elif b > 1.2 * r:
+        return "blue"
+    return "unknown"
 
-    x1 = int(min(left_shoulder[0], right_shoulder[0]))
-    x2 = int(max(left_shoulder[0], right_shoulder[0]))
-    y1 = int(min(left_shoulder[1], right_shoulder[1]))
-    y2 = int(max(left_hip[1], right_hip[1]))
+# ------------------ Punch Detection ------------------
+def is_punching(kp):
+    lw = kp[9]     # left wrist
+    rw = kp[10]    # right wrist
+    ls = kp[5]     # left shoulder
+    rs = kp[6]     # right shoulder
 
-    return frame[y1:y2, x1:x2]
+    lw_punch = abs(lw[1] - ls[1]) > 0.15 and lw[2] > 0.3
+    rw_punch = abs(rw[1] - rs[1]) > 0.15 and rw[2] > 0.3
 
-# Detect jersey color
-def detect_color(patch):
-    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
-    red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-    red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-    red_mask = red_mask1 + red_mask2
-    blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
-    red_score = cv2.countNonZero(red_mask)
-    blue_score = cv2.countNonZero(blue_mask)
-    if red_score > blue_score and red_score > 200:
-        return 'red'
-    elif blue_score > red_score and blue_score > 200:
-        return 'blue'
-    return 'unknown'
+    if lw_punch:
+        return "Left Punch"
+    elif rw_punch:
+        return "Right Punch"
+    return None
 
-# Punch detection by wrist movement
-def detect_punch(wrist_history, new_point):
-    if len(wrist_history) < 1:
-        wrist_history.append(new_point)
-        return False
-    last = wrist_history[-1]
-    movement = np.linalg.norm(np.array(new_point) - np.array(last))
-    wrist_history.append(new_point)
-    return movement > PUNCH_DISTANCE_THRESHOLD
+# ------------------ Process Video ------------------
+def process_video(input_path):
+    cap = cv2.VideoCapture(input_path)
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps    = cap.get(cv2.CAP_PROP_FPS)
 
+    out_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
+    writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
-uploaded_file = st.file_uploader("Upload a boxing video", type=["mp4", "mov", "avi"])
-# Main processing
-def process_video(video_path):
-    cap = cv2.VideoCapture(video_path)
-    red_punches = 0
-    blue_punches = 0
-    red_history = []
-    blue_history = []
-
-    while True:
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        keypoints = detect_pose(frame)[0:6]  # up to 6 persons
-        h, w, _ = frame.shape
 
-        for person in keypoints:
-            if person[0][2] < 0.2:
+        keypoints_list = detect_pose(frame)
+
+        for kp in keypoints_list:
+            if kp[0][2] < 0.3:
                 continue
-            kps = person[:17]
-            torso_patch = get_torso_patch(frame, kps)
-            if torso_patch.size == 0:
-                continue
-            jersey_color = detect_color(torso_patch)
 
-            left_wrist = kps[9][:2] * [w, h]
-            right_wrist = kps[10][:2] * [w, h]
+            jersey = get_jersey_color(frame, kp)
+            punch = is_punching(kp)
 
-            wrist_center = ((left_wrist[0]+right_wrist[0])/2, (left_wrist[1]+right_wrist[1])/2)
+            for (y, x, c) in kp:
+                if c > 0.3:
+                    cx, cy = int(x * width), int(y * height)
+                    color = (0, 0, 255) if jersey == "red" else (255, 0, 0)
+                    cv2.circle(frame, (cx, cy), 4, color, -1)
 
-            if jersey_color == 'red':
-                if detect_punch(red_history, wrist_center):
-                    red_punches += 1
-                    cv2.putText(frame, "Red Punch!", (int(wrist_center[0]), int(wrist_center[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                cv2.circle(frame, (int(wrist_center[0]), int(wrist_center[1])), 6, (0, 0, 255), -1)
-            elif jersey_color == 'blue':
-                if detect_punch(blue_history, wrist_center):
-                    blue_punches += 1
-                    cv2.putText(frame, "Blue Punch!", (int(wrist_center[0]), int(wrist_center[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-                cv2.circle(frame, (int(wrist_center[0]), int(wrist_center[1])), 6, (255, 0, 0), -1)
+            label = f"{jersey.upper()}"
+            if punch:
+                label += f" - {punch}"
+            x_nose = int(kp[0][1] * width)
+            y_nose = int(kp[0][0] * height)
+            cv2.putText(frame, label, (x_nose, y_nose - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Show counter
-        cv2.putText(frame, f"Red Punches: {red_punches}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.putText(frame, f"Blue Punches: {blue_punches}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-
-        
+        writer.write(frame)
 
     cap.release()
-    cv2.destroyAllWindows()
+    writer.release()
+    return out_path
+
+# ------------------ Streamlit UI ------------------
+uploaded_file = st.file_uploader("📤 Upload a boxing video", type=["mp4", "avi", "mov"])
 
 if uploaded_file is not None:
-    # Save to temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    temp_file.write(uploaded_file.read())
-    video_path = temp_file.name
+    with st.spinner("Processing video..."):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        temp_file.write(uploaded_file.read())
+        temp_file.close()
+        video_path = temp_file.name
 
-    if st.button("Start Processing"):
-        process_video(video_path)
+        output_path = process_video(video_path)
+
+        st.success("✅ Video processing complete!")
+        st.subheader("🎥 Annotated Video Output")
+        st.video(output_path)
+
 
 
 requirements = '''streamlit
