@@ -687,6 +687,7 @@ if uploaded_files:
                     "person": i,
                     "timestamp": punch["time"],
                     "punch": punch["label"],
+                    "jersey_color": punch["jersey_color"],
                     "posture": postures[i] if i < len(postures) else "N/A",
                     "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
