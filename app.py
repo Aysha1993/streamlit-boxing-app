@@ -497,9 +497,9 @@ def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
 
     b, g, r = np.mean(cropped, axis=(0, 1))
 
-    if r > 1.2 * b:
+    if r > 1.1 * b:
         return "red"
-    elif b > 1.2 * r:
+    elif b > 1.1 * r:
         return "blue"
     else:
         return "unknown5"
@@ -579,6 +579,10 @@ if uploaded_files:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
 
+        # Initialize jersey color identity map (only once)
+        if 'jersey_colors_map' not in st.session_state:
+            st.session_state['jersey_colors_map'] = {}
+
         last_punch_time = {}
         #frame loop
         while cap.isOpened():
@@ -602,7 +606,6 @@ if uploaded_files:
                 out_writer.write(frame)
                 continue
 
-
             # Assign unique IDs to each person
             tracked = tracker.assign_ids(keypoints)
 
@@ -611,12 +614,26 @@ if uploaded_files:
                 person_id = track["id"]
                 person_kpts = track["keypoints"]
                 st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
+
+                # Assign stable jersey identity once
+                if person_id not in st.session_state['jersey_colors_map']:
+                    jersey = get_jersey_color(frame, person_kpts)
+                    if jersey == "red":
+                        st.session_state['jersey_colors_map'][person_id] = "redboxer"
+                    elif jersey == "blue":
+                        st.session_state['jersey_colors_map'][person_id] = "blueboxer"
+                    else:
+                        st.session_state['jersey_colors_map'][person_id] = f"boxer_{person_id}"
+
+                boxer_label = st.session_state['jersey_colors_map'][person_id]
+
+
                 jersey_color = get_jersey_color(frame, person_kpts)
 
                 y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
                 cv2.putText(
                     frame,
-                    f"Player {person_id} ({jersey_color})",
+                    f"{boxer_label}",
                     (x, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
@@ -624,10 +641,10 @@ if uploaded_files:
                     2
                 )
 
-            # Print jersey color info
-            for i, person_kpts in enumerate(keypoints):
-                jersey = get_jersey_color(frame, person_kpts)
-                st.write(f"Person {i+1} jersey color: {jersey}")
+            # # Print jersey color info
+            # for i, person_kpts in enumerate(keypoints):
+            #     jersey = get_jersey_color(frame, person_kpts)
+            #     st.write(f"Person {i+1} jersey color: {jersey}")
 
 
             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))  # list of keypoints for all persons in a single frame
@@ -689,7 +706,8 @@ if uploaded_files:
                 punch_log.append({
                     "video": uploaded_file.name,
                     "frame": punch["frame"],
-                    "person": i,
+                    # "person": i,
+                    "person": st.session_state['jersey_colors_map'].get(i, f"boxer_{i}"),
                     "timestamp": punch["time"],
                     "punch": punch["label"],
                     "jersey_color": punch["jersey_color"],
