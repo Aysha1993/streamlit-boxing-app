@@ -664,11 +664,13 @@ if uploaded_files:
 
                 label = detect_punch(person_id, person_kpts, timestamp)
                 if label != "None":
+                    color = get_jersey_color(frame, person_kpts)
                     punches.append({
                         "frame": frame_idx,
                         "time": round(timestamp, 2),
                         "person_id": person_id,
-                        "label": label
+                        "label": label,
+                        "jersey_color":color
                     })
 
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
