@@ -504,6 +504,56 @@ def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
     else:
         return "unknown5"
 
+
+class SimpleIDTracker:
+    def __init__(self):
+        self.next_id = 0
+        self.tracks = []
+
+    def assign_ids(self, persons):
+        updated_tracks = []
+        for person in persons:
+            found = False
+            for track in self.tracks:
+                if self._iou(person, track["keypoints"]) > 0.4:
+                    updated_tracks.append({"id": track["id"], "keypoints": person})
+                    found = True
+                    break
+            if not found:
+                updated_tracks.append({"id": self.next_id, "keypoints": person})
+                self.next_id += 1
+        self.tracks = updated_tracks
+        return self.tracks
+
+    def _iou(self, k1, k2):
+        # Simple IOU on shoulder-hip box
+        k1 = np.array(k1)
+        k2 = np.array(k2)
+        try:
+            x1_min = np.min(k1[[5, 6, 11, 12], 1])
+            y1_min = np.min(k1[[5, 6, 11, 12], 0])
+            x1_max = np.max(k1[[5, 6, 11, 12], 1])
+            y1_max = np.max(k1[[5, 6, 11, 12], 0])
+
+            x2_min = np.min(k2[[5, 6, 11, 12], 1])
+            y2_min = np.min(k2[[5, 6, 11, 12], 0])
+            x2_max = np.max(k2[[5, 6, 11, 12], 1])
+            y2_max = np.max(k2[[5, 6, 11, 12], 0])
+
+            xi1 = max(x1_min, x2_min)
+            yi1 = max(y1_min, y2_min)
+            xi2 = min(x1_max, x2_max)
+            yi2 = min(y1_max, y2_max)
+
+            inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+            box1_area = (x1_max - x1_min) * (y1_max - y1_min)
+            box2_area = (x2_max - x2_min) * (y2_max - y2_min)
+
+            union_area = box1_area + box2_area - inter_area
+            return inter_area / union_area if union_area else 0
+        except:
+            return 0
+tracker = SimpleIDTracker()
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
@@ -523,6 +573,7 @@ if uploaded_files:
         fps = cap.get(cv2.CAP_PROP_FPS)
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
 
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -546,10 +597,16 @@ if uploaded_files:
             for i, person_keypoints in enumerate(keypoints):  # person_keypoints shape: (17, 3)
                 jersey = get_jersey_color(frame, person_keypoints)
                 st.write(f"Person {i+1} jersey color: {jersey}")
-
-
-          
-
+                # Display label
+                cv2.putText(
+                    frame,
+                    f"Player ({jersey})",
+                    (int(keypoints[0][1]*w), int(keypoints[0][0]*h)-10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
 
             if not keypoints:
                 out_writer.write(frame)
