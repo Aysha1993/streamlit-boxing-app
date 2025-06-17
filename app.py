@@ -594,12 +594,32 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
             st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
+            tracked = tracker.assign_ids(keypoints)
+
+            # Step 3: Iterate over tracked persons
+            for track in tracked:
+                person_id = track["id"]
+                keypoints = track["keypoints"]
+
+                # Get jersey color
+                jersey_color = get_jersey_color(frame, keypoints)
+
+                # Display label
+                cv2.putText(
+                    frame,
+                    f"Player {person_id} ({jersey_color})",
+                    (int(keypoints[0][1]*w), int(keypoints[0][0]*h)-10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+
             for i, person_keypoints in enumerate(keypoints):  # person_keypoints shape: (17, 3)
                 jersey = get_jersey_color(frame, person_keypoints)
                 st.write(f"Person {i+1} jersey color: {jersey}")
                 # Display label
-              cv2.putText(frame, f" Punches: Person {i+1} {jersey}", (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
+            
 
             if not keypoints:
                 out_writer.write(frame)
