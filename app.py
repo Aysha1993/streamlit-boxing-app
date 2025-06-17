@@ -463,14 +463,12 @@ def is_wearing_white(frame, bbox, white_thresh=200):
 #     return bbox and is_wearing_white(frame, bbox)
 
 # ------------------ Detect Jersey Color ------------------
+
 def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
-    if keypoints is None or len(keypoints) < 13:
+    if keypoints is None or keypoints.shape != (17, 3):
         return "unknown1"
 
     h, w, _ = frame.shape
-    keypoints = np.array(keypoints)  # shape: (17, 3)
-
-    # Use only upper body (shoulders to hips)
     torso_indices = [5, 6, 11, 12]  # L/R shoulder, L/R hip
     valid_points = []
 
@@ -495,7 +493,6 @@ def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
     if cropped.size == 0:
         return "unknown4"
 
-    # Average color
     b, g, r = np.mean(cropped, axis=(0, 1))
 
     if r > 1.2 * b:
@@ -504,8 +501,6 @@ def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
         return "blue"
     else:
         return "unknown5"
-
-
 
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
@@ -546,9 +541,12 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
             st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
-            jersey = get_jersey_color(frame, keypoints)
-            label = f"{jersey.upper()}"
-            st.info(f"jersey = {label}")
+            for i, person_keypoints in enumerate(keypoints):  # person_keypoints shape: (17, 3)
+                jersey = get_jersey_color(frame, person_keypoints)
+                st.write(f"Person {i+1} jersey color: {jersey}")
+
+
+          
 
 
             if not keypoints:
