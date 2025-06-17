@@ -465,7 +465,9 @@ def is_wearing_white(frame, bbox, white_thresh=200):
 # ------------------ Detect Jersey Color ------------------
 
 def get_jersey_color(frame, keypoints, confidence_thresh=0.3):
-    if keypoints is None or keypoints.shape != (17, 3):
+    keypoints = np.array(keypoints)  # Ensure it's a NumPy array
+
+    if keypoints.shape != (17, 3):
         return "unknown1"
 
     h, w, _ = frame.shape
