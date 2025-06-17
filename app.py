@@ -463,23 +463,41 @@ def is_wearing_white(frame, bbox, white_thresh=200):
 #     return bbox and is_wearing_white(frame, bbox)
 
 # ------------------ Detect Jersey Color ------------------
+
 def get_jersey_color(frame, keypoints):
+    if keypoints is None or len(keypoints) == 0:
+        return "unknown"
+
+    keypoints = np.array(keypoints)
+    if keypoints.ndim != 2 or keypoints.shape[1] < 2:
+        return "unknown"
+
     h, w, _ = frame.shape
+
     x_coords = keypoints[:, 1]
     y_coords = keypoints[:, 0]
-    x_min = int(np.min(x_coords) * w)
-    x_max = int(np.max(x_coords) * w)
-    y_min = int(np.min(y_coords) * h)
-    y_max = int(np.max(y_coords) * h)
+
+    x_min = int(np.clip(np.min(x_coords) * w, 0, w - 1))
+    x_max = int(np.clip(np.max(x_coords) * w, 0, w - 1))
+    y_min = int(np.clip(np.min(y_coords) * h, 0, h - 1))
+    y_max = int(np.clip(np.max(y_coords) * h, 0, h - 1))
+
+    if y_max <= y_min or x_max <= x_min:
+        return "unknown"
+
     cropped = frame[y_min:y_max, x_min:x_max]
     if cropped.size == 0:
         return "unknown"
+
     b, g, r = np.mean(cropped, axis=(0, 1))
+
     if r > 1.2 * b:
         return "red"
     elif b > 1.2 * r:
         return "blue"
-    return "unknown"
+    else:
+        return "unknown"
+
 # File uploader
 uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
