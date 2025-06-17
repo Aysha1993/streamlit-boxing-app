@@ -544,6 +544,7 @@ if uploaded_files:
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
             #st.info(f"keypoints= {keypoints}")
+            st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
             jersey = get_jersey_color(frame, keypoints)
             label = f"{jersey.upper()}"
