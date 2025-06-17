@@ -937,6 +937,15 @@ if uploaded_files:
         # punch_speed = total_punches / duration if duration > 0 else 0
         # st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
 
+        # 🎯 Map person_id to jersey color
+        color_map = st.session_state.get("jersey_colors_map", {})
+        expanded_df["boxer"] = expanded_df["person"].map(color_map).fillna("unknown")
+
+        # 👥 Count punches per boxer (red/blue)
+        st.subheader("👥 Punch Count per Boxer")
+        boxer_punch_counts = expanded_df.groupby("boxer")["punch"].value_counts().unstack().fillna(0)
+        st.dataframe(boxer_punch_counts)
+
         # Count by Person
         st.subheader("👥 Punch Count per Person")
         person_punch_counts = expanded_df.groupby("person")["punch"].value_counts().unstack().fillna(0)
