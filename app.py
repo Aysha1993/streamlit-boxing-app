@@ -664,7 +664,12 @@ if uploaded_files:
 
                 label = detect_punch(person_id, person_kpts, timestamp)
                 if label != "None":
-                    color = get_jersey_color(frame, person_kpts)
+                    # ✅ Normalize for jersey color extraction
+                    normalized_kpts = person_kpts.copy()
+                    normalized_kpts[:, 0] /= width
+                    normalized_kpts[:, 1] /= height
+
+                    color = get_jersey_color(frame, normalized_kpts)
                     punches.append({
                         "frame": frame_idx,
                         "time": round(timestamp, 2),
