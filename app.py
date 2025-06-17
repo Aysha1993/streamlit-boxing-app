@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
+from google.colab import files
+
 
 # Load MoveNet MultiPose
 model = hub.load("https://tfhub.dev/google/movenet/multipose/lightning/1")
@@ -74,6 +76,9 @@ def detect_punch(wrist_history, new_point):
     wrist_history.append(new_point)
     return movement > PUNCH_DISTANCE_THRESHOLD
 
+
+uploaded = files.upload()
+video_path = list(uploaded.keys())[0]  # get uploaded filename
 # Main processing
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -124,6 +129,9 @@ def process_video(video_path):
 
     cap.release()
     cv2.destroyAllWindows()
+
+process_video(video_path)
+
 
 
 requirements = '''streamlit
