@@ -975,12 +975,12 @@ if uploaded_files:
     progress_bar.empty()
 
 requirements = '''streamlit
+numpy>=1.21.0
+scikit-learn>=1.0
 tensorflow
 tensorflow_hub
 opencv-python-headless
 pandas
-numpy
-scikit-learn
 joblib
 ffmpeg-python
 tqdm
