@@ -7,44 +7,34 @@ import tensorflow_hub as hub
 import pickle
 import pandas as pd
 import os
-from sklearn.preprocessing import StandardScaler
 import joblib
 import ffmpeg
 
 
-# Load MoveNet SinglePose or MultiPose model
+# Load MoveNet model
 @st.cache_resource
 def load_movenet_model():
-    model_url = "https://tfhub.dev/google/movenet/singlepose/thunder/4"  # or multipose/lightning
+    model_url = "https://tfhub.dev/google/movenet/singlepose/thunder/4"
     model = hub.load(model_url)
     return model.signatures['serving_default']
 
-# Load classifier (e.g., from sklearn)
-@st.cache_resource
-def load_classifier(model_path="punch_classifier.pkl"):
-    with open(model_path, "rb") as f:
-        clf = pickle.load(f)
-    return clf
+# Preprocess keypoints
 def preprocess_keypoints(keypoints):
-    # keypoints shape: [1, 1, 17, 3]
-    keypoints = keypoints[0, 0, :, :3]  # x, y, score
+    keypoints = keypoints[0, 0, :, :3]  # (17, 3)
     flattened = keypoints.flatten()
-    return flattened  # shape: (51,)
+    return flattened
 
-# ---- Save video using OpenCV ----
-def save_video(frames, fps, width, height, output_path):
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    for frame in frames:
-        if frame.dtype != 'uint8':
-            frame = frame.astype('uint8')
-        out.write(frame)
-    out.release()
+# Dummy rule-based prediction
+def rule_based_prediction(keypoints_flat):
+    kp = np.array(keypoints_flat).reshape(17, 3)
+    # Example: Jab if left wrist (9) higher (lower y) than left elbow (7)
+    if kp[9][1] < kp[7][1]:
+        return "Jab"
+    elif kp[10][1] < kp[8][1]:
+        return "Cross"
+    return "Punch"
 
-# ---- Re-encode with FFmpeg for browser compatibility ----
-def reencode_with_ffmpeg(input_path, output_path):
-    ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', strict='experimental', pix_fmt='yuv420p').run(overwrite_output=True)
-
+# Draw skeleton
 def draw_skeleton(frame, keypoints, label=None):
     keypoints = keypoints[0, 0, :, :2]
     for x, y in keypoints:
@@ -54,14 +44,28 @@ def draw_skeleton(frame, keypoints, label=None):
         cv2.putText(frame, label, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
     return frame
 
+# Save raw video
+def save_video(frames, fps, width, height, output_path):
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    for frame in frames:
+        out.write(frame.astype('uint8'))
+    out.release()
+
+# Re-encode video with ffmpeg
+def reencode_with_ffmpeg(input_path, output_path):
+    ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', pix_fmt='yuv420p').run(overwrite_output=True)
+
+# Prediction function
 def extract_and_predict(video_path, model, clf):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     width  = int(cap.get(3))
     height = int(cap.get(4))
-    
+
     output_frames = []
-    predictions = []
+    model_preds = []
+    rule_preds = []
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -70,53 +74,50 @@ def extract_and_predict(video_path, model, clf):
 
         img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
         input_img = tf.cast(img, dtype=tf.int32)
-        keypoints = model(input_img)  # SinglePose: [1, 1, 17, 3]
+        keypoints = model(input_img)
 
         keypoint_data = preprocess_keypoints(keypoints['output_0'].numpy())
-        # st.write(f"Classifier loaded: {type(clf)}")
-        label = clf.predict([keypoint_data])[0]
-        predictions.append(label)
+        model_label = clf.predict([keypoint_data])[0]
+        rule_label = rule_based_prediction(keypoint_data)
 
+        model_preds.append(model_label)
+        rule_preds.append(rule_label)
+
+        label = f"{model_label} / {rule_label}"
         annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
         output_frames.append(annotated)
 
     cap.release()
-    return output_frames, predictions, fps, width, height
-
+    return output_frames, model_preds, rule_preds, fps, width, height
 
 
 # ------------------- Streamlit GUI -------------------
 
-st.title("🥊 Punch Detection using MoveNet + Classifier")
+st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
 
-# clf = joblib.load("punch_classifier_model.joblib")
+# Upload trained classifier
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
-clf = None  # Initialize
+clf = None
+if uploaded_model:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_model:
+        tmp_model.write(uploaded_model.read())
+        tmp_model.flush()
+        clf = joblib.load(tmp_model.name)
 
-if uploaded_model is not None:
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_model:
-            tmp_model.write(uploaded_model.read())
-            tmp_model.flush()
-            clf = joblib.load(tmp_model.name)
-
-        # st.success(f"✅ Model loaded: {type(clf)}")
-    except Exception as e:
-        st.error(f"❌ Failed to load classifier: {e}")
-        clf = None
-
-
-uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
+# Load MoveNet
 model = load_movenet_model()
+
+# Upload video
+uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
 if uploaded_file and clf:
     st.video(uploaded_file)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
         temp_file.write(uploaded_file.read())
         video_path = temp_file.name
 
     st.info("⏳ Processing video and predicting punches...")
-    frames, preds, fps, width, height = extract_and_predict(video_path, model, clf)
+    frames, preds_model, preds_rule, fps, width, height = extract_and_predict(video_path, model, clf)
 
     raw_output_path = os.path.join(tempfile.gettempdir(), "raw_output.mp4")
     final_output_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
@@ -125,17 +126,29 @@ if uploaded_file and clf:
     reencode_with_ffmpeg(raw_output_path, final_output_path)
 
     st.success("✅ Prediction complete! Showing result:")
-
     with open(final_output_path, 'rb') as f:
         st.video(f.read())
 
-    # Save prediction log
-    csv_path = os.path.join(tempfile.gettempdir(), "punch_predictions.csv")
-    df = pd.DataFrame({'frame': list(range(len(preds))), 'punch_type': preds})
+    # Save comparison CSV
+    df = pd.DataFrame({
+        'frame': list(range(len(preds_model))),
+        'model_prediction': preds_model,
+        'movenet_prediction': preds_rule
+    })
+    csv_path = os.path.join(tempfile.gettempdir(), "punch_comparison.csv")
     df.to_csv(csv_path, index=False)
 
-    st.download_button("Download Prediction CSV", data=open(csv_path, "rb"), file_name="punch_predictions.csv")
+    st.download_button("📥 Download Prediction CSV", data=open(csv_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
 
+    # Comparison summary
+    st.subheader("📊 Prediction Comparison Summary")
+    agree = sum([m == r for m, r in zip(preds_model, preds_rule)])
+    total = len(preds_model)
+    st.write(f"✅ Agreement: {agree}/{total} frames ({agree / total * 100:.2f}%)")
+
+    st.dataframe(df.head(10))
+
+# Save requirements.txt
 requirements = '''streamlit
 tensorflow
 tensorflow_hub
@@ -145,14 +158,7 @@ numpy
 scikit-learn
 joblib
 ffmpeg-python
-tqdm
-seaborn
-lightgbm
-imbalanced-learn
-plotly
-matplotlib
 '''
-
 with open("requirements.txt", "w") as f:
     f.write(requirements)
 print("✅ requirements.txt saved")
