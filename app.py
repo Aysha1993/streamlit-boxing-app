@@ -25,6 +25,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from collections import Counter
 import numpy as np
 import time
+import joblib
 
 
 # Streamlit setup
@@ -793,6 +794,8 @@ if uploaded_files:
         clf = RandomForestClassifier(n_estimators=100, random_state=42)
         clf.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
+
+        joblib.dump(clf, "punch_classifier_model.joblib")
 
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
