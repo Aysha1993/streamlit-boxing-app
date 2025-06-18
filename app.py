@@ -9,6 +9,8 @@ import pandas as pd
 import os
 from sklearn.preprocessing import StandardScaler
 import joblib
+import ffmpeg
+
 
 # Load MoveNet SinglePose or MultiPose model
 @st.cache_resource
@@ -29,6 +31,19 @@ def preprocess_keypoints(keypoints):
     flattened = keypoints.flatten()
     return flattened  # shape: (51,)
 
+# ---- Save video using OpenCV ----
+def save_video(frames, fps, width, height, output_path):
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    for frame in frames:
+        if frame.dtype != 'uint8':
+            frame = frame.astype('uint8')
+        out.write(frame)
+    out.release()
+
+# ---- Re-encode with FFmpeg for browser compatibility ----
+def reencode_with_ffmpeg(input_path, output_path):
+    ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', strict='experimental', pix_fmt='yuv420p').run(overwrite_output=True)
 
 def draw_skeleton(frame, keypoints, label=None):
     keypoints = keypoints[0, 0, :, :2]
@@ -68,11 +83,7 @@ def extract_and_predict(video_path, model, clf):
     cap.release()
     return output_frames, predictions, fps, width, height
 
-def save_video(frames, fps, width, height, output_path):
-    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
-    for frame in frames:
-        out.write(frame)
-    out.release()
+
 
 # ------------------- Streamlit GUI -------------------
 
@@ -107,11 +118,16 @@ if uploaded_file and clf:
     st.info("⏳ Processing video and predicting punches...")
     frames, preds, fps, width, height = extract_and_predict(video_path, model, clf)
 
-    output_video_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
-    save_video(frames, fps, width, height, output_video_path)
+    raw_output_path = os.path.join(tempfile.gettempdir(), "raw_output.mp4")
+    final_output_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
+
+    save_video(frames, fps, width, height, raw_output_path)
+    reencode_with_ffmpeg(raw_output_path, final_output_path)
 
     st.success("✅ Prediction complete! Showing result:")
-    st.video(output_video_path)
+
+    with open(final_output_path, 'rb') as f:
+        st.video(f.read())
 
     # Save prediction log
     csv_path = os.path.join(tempfile.gettempdir(), "punch_predictions.csv")
