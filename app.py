@@ -79,9 +79,22 @@ st.title("🥊 Punch Detection using MoveNet + Classifier")
 
 uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
 model = load_movenet_model()
-clf = None
-# Load the model back
+
 # clf = joblib.load("punch_classifier_model.joblib")
+uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
+clf = None  # Initialize
+
+if uploaded_model is not None:
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_model:
+            tmp_model.write(uploaded_model.read())
+            tmp_model.flush()
+            clf = joblib.load(tmp_model.name)
+
+        st.success(f"✅ Model loaded: {type(clf)}")
+    except Exception as e:
+        st.error(f"❌ Failed to load classifier: {e}")
+        clf = None
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
 
 if uploaded_model and clf:
