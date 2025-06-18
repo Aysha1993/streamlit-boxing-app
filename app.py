@@ -601,7 +601,6 @@ if uploaded_files:
             #st.info(f"keypoints= {keypoints}")
             #st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
-            
             if not keypoints:
                 out_writer.write(frame)
                 continue
