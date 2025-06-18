@@ -100,7 +100,7 @@ if uploaded_model is not None:
             tmp_model.flush()
             clf = joblib.load(tmp_model.name)
 
-        st.success(f"✅ Model loaded: {type(clf)}")
+        # st.success(f"✅ Model loaded: {type(clf)}")
     except Exception as e:
         st.error(f"❌ Failed to load classifier: {e}")
         clf = None
