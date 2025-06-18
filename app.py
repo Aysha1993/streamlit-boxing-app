@@ -73,7 +73,7 @@ def extract_and_predict(video_path, model, clf):
         keypoints = model(input_img)  # SinglePose: [1, 1, 17, 3]
 
         keypoint_data = preprocess_keypoints(keypoints['output_0'].numpy())
-        st.write(f"Classifier loaded: {type(clf)}")
+        # st.write(f"Classifier loaded: {type(clf)}")
         label = clf.predict([keypoint_data])[0]
         predictions.append(label)
 
