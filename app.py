@@ -75,10 +75,8 @@ def save_video(frames, fps, width, height, output_path):
     out.release()
 
 # ------------------- Streamlit GUI -------------------
-st.title("🥊 Punch Detection using MoveNet + Classifier")
 
-uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
-model = load_movenet_model()
+st.title("🥊 Punch Detection using MoveNet + Classifier")
 
 # clf = joblib.load("punch_classifier_model.joblib")
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
@@ -95,20 +93,11 @@ if uploaded_model is not None:
     except Exception as e:
         st.error(f"❌ Failed to load classifier: {e}")
         clf = None
-uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
 
-if uploaded_model and clf:
-    import joblib
-    import tempfile
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_file:
-        tmp_file.write(uploaded_model.read())
-        model_path = tmp_file.name
-        clf = joblib.load(model_path)
-
-    st.success("✅ Model loaded successfully!")
-
-if uploaded_file:
+uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
+model = load_movenet_model()
+if uploaded_file and clf:
     st.video(uploaded_file)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
