@@ -23,12 +23,12 @@ def load_classifier(model_path="punch_classifier.pkl"):
     with open(model_path, "rb") as f:
         clf = pickle.load(f)
     return clf
-
 def preprocess_keypoints(keypoints):
-    # Extract x, y coordinates and normalize to [0, 1]
-    keypoints = keypoints[0, 0, :, :2]  # [17, 2] for singlepose
+    # keypoints shape: [1, 1, 17, 3]
+    keypoints = keypoints[0, 0, :, :3]  # x, y, score
     flattened = keypoints.flatten()
-    return flattened
+    return flattened  # shape: (51,)
+
 
 def draw_skeleton(frame, keypoints, label=None):
     keypoints = keypoints[0, 0, :, :2]
