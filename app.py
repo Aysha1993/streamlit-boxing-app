@@ -32,7 +32,7 @@ def rule_based_prediction(keypoints_flat):
         return "Jab"
     elif kp[10][1] < kp[8][1]:
         return "Cross"
-    return "Punch"
+    return "none"
 
 # Draw skeleton
 def draw_skeleton(frame, keypoints, label=None):
