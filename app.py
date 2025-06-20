@@ -11,7 +11,7 @@ import ffmpeg
 
 # 🧹 Clean old temp files
 temp_dir = tempfile.gettempdir()
-for f in ["movenet_punches.csv", "punch_comparison.csv", "raw_output.mp4", "predicted_output.mp4"]:
+for f in ["movenet_punches.csv", "punch_comparison.csv", "model_predictions.csv", "raw_output.mp4", "predicted_output.mp4"]:
     try:
         os.remove(os.path.join(temp_dir, f))
     except FileNotFoundError:
@@ -167,8 +167,16 @@ if uploaded_file and clf:
     })
     comp_path = os.path.join(temp_dir, "punch_comparison.csv")
     df_compare.to_csv(comp_path, index=False)
-
     st.download_button("📥 Download Comparison CSV", data=open(comp_path, "rb").read(), file_name="punch_comparison.csv", mime="text/csv")
+
+    # Classifier prediction CSV
+    df_model = pd.DataFrame({
+        'frame': list(range(len(preds_model))),
+        'model_prediction': preds_model
+    })
+    model_path = os.path.join(temp_dir, "model_predictions.csv")
+    df_model.to_csv(model_path, index=False)
+    st.download_button("📥 Download Classifier Predictions CSV", data=open(model_path, "rb").read(), file_name="model_predictions.csv", mime="text/csv")
 
     # Filtered CSV
     none_count = preds_rule.count("none")
