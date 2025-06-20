@@ -101,7 +101,7 @@ if uploaded_files:
     st.subheader("📄 Combined Keypoint CSV")
     st.dataframe(df)
 
-    csv_path = "/content/all_punch_logs.csv"
+    csv_path = "all_punch_logs.csv"
     df.to_csv(csv_path, index=False)
     st.download_button("Download Combined CSV", df.to_csv(index=False), file_name="all_punch_logs.csv")
 
@@ -120,7 +120,7 @@ if uploaded_files:
             model = RandomForestClassifier(n_estimators=100, random_state=42)
             model.fit(X, y_encoded)
 
-            joblib.dump(model, "/content/punch_classifier.pkl")
+            joblib.dump(model, "punch_classifier.pkl")
             st.success("✅ Model trained and saved as punch_classifier.pkl")
 
             y_pred = model.predict(X)
