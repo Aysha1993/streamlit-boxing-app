@@ -9,7 +9,7 @@ import os
 import joblib
 import ffmpeg
 
-# Clean up old temp files from previous runs
+# Clean up old temp files at the start
 temp_dir = tempfile.gettempdir()
 for f in ["movenet_punches.csv", "punch_comparison.csv", "raw_output.mp4", "predicted_output.mp4"]:
     try:
@@ -17,29 +17,23 @@ for f in ["movenet_punches.csv", "punch_comparison.csv", "raw_output.mp4", "pred
     except FileNotFoundError:
         pass
 
-# Load MoveNet model
+# Load MoveNet
 @st.cache_resource
 def load_movenet_model():
-    model_url = "https://tfhub.dev/google/movenet/singlepose/thunder/4"
-    model = hub.load(model_url)
+    model = hub.load("https://tfhub.dev/google/movenet/singlepose/thunder/4")
     return model.signatures['serving_default']
 
-# Preprocess keypoints
 def preprocess_keypoints(keypoints):
-    keypoints = keypoints[0, 0, :, :3]
-    flattened = keypoints.flatten()
-    return flattened
+    return keypoints[0, 0, :, :3].flatten()
 
-# Rule-based prediction
-def rule_based_prediction(keypoints_flat):
-    kp = np.array(keypoints_flat).reshape(17, 3)
+def rule_based_prediction(flat_kp):
+    kp = np.array(flat_kp).reshape(17, 3)
     if kp[9][1] < kp[7][1]:
         return "Jab"
     elif kp[10][1] < kp[8][1]:
         return "Cross"
     return "none"
 
-# Draw skeleton
 def draw_skeleton(frame, keypoints, label=None):
     keypoints = keypoints[0, 0, :, :2]
     for x, y in keypoints:
@@ -49,171 +43,120 @@ def draw_skeleton(frame, keypoints, label=None):
         cv2.putText(frame, label, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
     return frame
 
-# Save raw video
 def save_video(frames, fps, width, height, output_path):
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
     for frame in frames:
-        out.write(frame.astype('uint8'))
+        out.write(frame)
     out.release()
 
-# Deduplicate punches
-def deduplicate_punches(preds_rule):
-    last_label = "none"
-    clean_punches = []
-    for label in preds_rule:
-        if label != "none" and label != last_label:
-            clean_punches.append(label)
-        last_label = label
-    return clean_punches
-
-# Re-encode video
 def reencode_with_ffmpeg(input_path, output_path):
     ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', pix_fmt='yuv420p').run(overwrite_output=True)
 
-# Prediction function
+def deduplicate_punches(preds):
+    result, last = [], "none"
+    for p in preds:
+        if p != "none" and p != last:
+            result.append(p)
+        last = p
+    return result
+
 def extract_and_predict(video_path, model, clf):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(3))
-    height = int(cap.get(4))
+    width, height = int(cap.get(3)), int(cap.get(4))
 
-    output_frames = []
-    model_preds = []
-    rule_preds = []
+    frames, preds_model, preds_rule = [], [], []
 
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret: break
 
         img = tf.image.resize_with_pad(tf.expand_dims(frame, axis=0), 256, 256)
-        input_img = tf.cast(img, dtype=tf.int32)
-        keypoints = model(input_img)
+        input_tensor = tf.cast(img, dtype=tf.int32)
+        kp = model(input_tensor)['output_0'].numpy()
+        flat_kp = preprocess_keypoints(kp)
 
-        keypoint_data = preprocess_keypoints(keypoints['output_0'].numpy())
-        model_label = clf.predict([keypoint_data])[0]
-        rule_label = rule_based_prediction(keypoint_data)
+        model_label = clf.predict([flat_kp])[0]
+        rule_label = rule_based_prediction(flat_kp)
 
-        model_preds.append(model_label)
-        rule_preds.append(rule_label)
+        preds_model.append(model_label)
+        preds_rule.append(rule_label)
 
-        label = f"{model_label} / {rule_label}"
-        annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
-        output_frames.append(annotated)
+        frames.append(draw_skeleton(frame.copy(), kp, f"{model_label}/{rule_label}"))
 
     cap.release()
 
-    # Punch stats
-    deduped_punches = deduplicate_punches(rule_preds)
-    total_punches = len(deduped_punches)
-    duration_seconds = len(rule_preds) / fps
-    punch_rate = total_punches / duration_seconds
+    return frames, preds_model, preds_rule, fps, width, height
 
-    stats = {
-        "total_punches": total_punches,
-        "duration_seconds": duration_seconds,
-        "punch_rate": punch_rate,
-        "fps": fps,
-        "frame_count": len(rule_preds)
-    }
+# -------------------- Streamlit GUI --------------------
+st.title("🥊 Punch Detection: MoveNet + Classifier")
 
-    st.subheader("🥊 Refined Punch Stats")
-    st.write(f"✅ Unique Punches: {total_punches}")
-    st.write(f"⏱️ Duration: {duration_seconds:.2f} sec")
-    st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min)")
-
-    return output_frames, model_preds, rule_preds, fps, stats, width, height
-
-# ------------------- Streamlit GUI -------------------
-st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
-
-# Upload trained classifier
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
 clf = None
 if uploaded_model:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_model:
-        tmp_model.write(uploaded_model.read())
-        tmp_model.flush()
-        clf = joblib.load(tmp_model.name)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp:
+        tmp.write(uploaded_model.read())
+        tmp.flush()
+        clf = joblib.load(tmp.name)
 
-# Load MoveNet
 model = load_movenet_model()
 
-# Upload video
 uploaded_file = st.file_uploader("Upload Boxing Video", type=["mp4", "avi", "mov"])
 if uploaded_file and clf:
     st.video(uploaded_file)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
-        temp_file.write(uploaded_file.read())
-        video_path = temp_file.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(uploaded_file.read())
+        video_path = tmp.name
 
-    st.info("⏳ Processing video and predicting punches...")
-    frames, preds_model, preds_rule, fps, stats, width, height = extract_and_predict(video_path, model, clf)
+    st.info("⏳ Processing...")
+    frames, preds_model, preds_rule, fps, width, height = extract_and_predict(video_path, model, clf)
 
-    raw_output_path = os.path.join(tempfile.gettempdir(), "raw_output.mp4")
-    final_output_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
+    raw_path = os.path.join(temp_dir, "raw_output.mp4")
+    final_path = os.path.join(temp_dir, "predicted_output.mp4")
 
-    save_video(frames, fps, width, height, raw_output_path)
-    reencode_with_ffmpeg(raw_output_path, final_output_path)
+    save_video(frames, fps, width, height, raw_path)
+    reencode_with_ffmpeg(raw_path, final_path)
 
-    st.success("✅ Prediction complete! Showing result:")
-    with open(final_output_path, 'rb') as f:
-        st.video(f.read())
+    st.success("✅ Done! Showing video:")
+    st.video(open(final_path, "rb").read())
 
-    # ---- CSV: Classifier vs Rule ----
+    # --- Save Comparison CSV ---
     df_comparison = pd.DataFrame({
-        'frame': list(range(len(preds_model))),
-        'model_prediction': preds_model,
-        'movenet_prediction': preds_rule
+        "frame": list(range(len(preds_model))),
+        "model_prediction": preds_model,
+        "movenet_prediction": preds_rule
     })
-    csv_comparison_path = os.path.join(tempfile.gettempdir(), "punch_comparison.csv")
-    df_comparison.to_csv(csv_comparison_path, index=False)
+    comp_path = os.path.join(temp_dir, "punch_comparison.csv")
+    df_comparison.to_csv(comp_path, index=False)
+    st.download_button("📥 Download Full Comparison CSV", data=open(comp_path, "rb"), file_name="punch_comparison.csv")
 
-    st.download_button("📥 Download Prediction Comparison CSV", data=open(csv_comparison_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
+    # --- Filtered MoveNet Only CSV ---
+    filtered = [(i, p) for i, p in enumerate(preds_rule) if p != "none"]
+    filtered_frames = [i for i, _ in filtered]
+    filtered_labels = [p for _, p in filtered]
 
-    # ---- CSV: Only MoveNet (excluding 'none') ----
-    none_count = preds_rule.count("none")
-    st.write(f"🚫 'none' labels before filtering: {none_count}")
+    st.write(f"🚫 'none' labels: {preds_rule.count('none')}")
+    st.write(f"✅ Filtered rows: {len(filtered_labels)}")
 
-    # Filter 'none' values
-    filtered_indices = [i for i, p in enumerate(preds_rule) if p != "none"]
-    filtered_labels = [p for p in preds_rule if p != "none"]
-
-    assert len(filtered_indices) == len(filtered_labels)
-
-    df_movenet = pd.DataFrame({
-        "frame": filtered_indices,
+    df_filtered = pd.DataFrame({
+        "frame": filtered_frames,
         "movenet_prediction": filtered_labels
     })
 
-    st.write(f"✅ Filtered MoveNet Predictions: {len(df_movenet)}")
-    st.dataframe(df_movenet.head())
+    movenet_path = os.path.join(temp_dir, "movenet_punches.csv")
+    df_filtered.to_csv(movenet_path, index=False)
 
-    # Save filtered only (overwrite and reopen)
-    csv_movenet_path = os.path.join(tempfile.gettempdir(), "movenet_punches.csv")
-    with open(csv_movenet_path, "w") as f:
-        df_movenet.to_csv(f, index=False)
+    with open(movenet_path, "r") as f_check:
+        lines = sum(1 for _ in f_check) - 1
+    st.write(f"📄 Final filtered CSV rows: {lines}")
 
-    # Final file check
-    with open(csv_movenet_path, "r") as check_file:
-        line_count = sum(1 for _ in check_file) - 1
-    st.write(f"📄 Final rows written to CSV: {line_count}")
-
-    with open(csv_movenet_path, "rb") as f:
-        st.download_button("📥 Download MoveNet Predictions Only CSV", data=f, file_name="movenet_punches.csv", mime="text/csv")   
-
-    # Comparison summary
-    st.subheader("📊 Prediction Comparison Summary")
-    agree = sum([m == r for m, r in zip(preds_model, preds_rule)])
-    total = len(preds_model)
-    st.write(f"✅ Agreement: {agree}/{total} frames ({agree / total * 100:.2f}%)")
-
-    st.dataframe(df_comparison.head(10))
+    with open(movenet_path, "rb") as f:
+        st.download_button("📥 Download MoveNet Filtered CSV", data=f, file_name="movenet_punches.csv")
 
 # Save requirements.txt
-requirements = '''streamlit
+with open("requirements.txt", "w") as f:
+    f.write('''streamlit
 tensorflow
 tensorflow_hub
 opencv-python-headless
@@ -222,7 +165,5 @@ numpy
 scikit-learn
 joblib
 ffmpeg-python
-'''
-with open("requirements.txt", "w") as f:
-    f.write(requirements)
+''')
 print("✅ requirements.txt saved")
