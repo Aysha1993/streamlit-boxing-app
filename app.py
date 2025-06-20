@@ -156,26 +156,20 @@ if uploaded_file and clf:
     reencode_with_ffmpeg(raw_path, final_path)
 
     st.success("✅ Prediction complete! Showing result:")
+
     with open(final_path, 'rb') as f:
         st.video(f.read())
-
-    # Comparison CSV
-    df_compare1 = pd.DataFrame({
-        'frame': list(range(len(preds_model))),
-        'model_prediction': preds_model,
-        'movenet_prediction': stats
-    })
-    with open(final_path, 'rb') as f:
-        st.video(f.read())
-
     # Comparison CSV
     df_compare = pd.DataFrame({
         'frame': list(range(len(preds_model))),
         'model_prediction': preds_model,
         'movenet_prediction': preds_rule
     })
+
+
+    
     comp_path = os.path.join(temp_dir, "punch_comparison.csv")
-    df_compare1.to_csv(comp_path, index=False)
+    df_compare.to_csv(comp_path, index=False)
     st.download_button("📥 Download Comparison CSV", data=open(comp_path, "rb").read(), file_name="punch_comparison.csv", mime="text/csv")
 
     # Classifier prediction CSV
