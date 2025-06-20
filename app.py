@@ -4,7 +4,6 @@ import tempfile
 import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
-import pickle
 import pandas as pd
 import os
 import joblib
@@ -19,11 +18,11 @@ def load_movenet_model():
 
 # Preprocess keypoints
 def preprocess_keypoints(keypoints):
-    keypoints = keypoints[0, 0, :, :3]  # (17, 3)
+    keypoints = keypoints[0, 0, :, :3]
     flattened = keypoints.flatten()
     return flattened
 
-# Dummy rule-based prediction
+# Rule-based prediction
 def rule_based_prediction(keypoints_flat):
     kp = np.array(keypoints_flat).reshape(17, 3)
     if kp[9][1] < kp[7][1]:
@@ -50,6 +49,7 @@ def save_video(frames, fps, width, height, output_path):
         out.write(frame.astype('uint8'))
     out.release()
 
+# Deduplicate punches
 def deduplicate_punches(preds_rule):
     last_label = "none"
     clean_punches = []
@@ -59,7 +59,7 @@ def deduplicate_punches(preds_rule):
         last_label = label
     return clean_punches
 
-# Re-encode video with ffmpeg
+# Re-encode video
 def reencode_with_ffmpeg(input_path, output_path):
     ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', pix_fmt='yuv420p').run(overwrite_output=True)
 
@@ -67,7 +67,7 @@ def reencode_with_ffmpeg(input_path, output_path):
 def extract_and_predict(video_path, model, clf):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
-    width  = int(cap.get(3))
+    width = int(cap.get(3))
     height = int(cap.get(4))
 
     output_frames = []
@@ -93,16 +93,15 @@ def extract_and_predict(video_path, model, clf):
         label = f"{model_label} / {rule_label}"
         annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
         output_frames.append(annotated)
-        # st.write(f"⏱️ FPS: {fps}, Total Frames: {len(output_frames)}")
 
     cap.release()
 
+    # Punch stats
     deduped_punches = deduplicate_punches(rule_preds)
     total_punches = len(deduped_punches)
     duration_seconds = len(rule_preds) / fps
     punch_rate = total_punches / duration_seconds
 
-     # 📊 Return punch stats too
     stats = {
         "total_punches": total_punches,
         "duration_seconds": duration_seconds,
@@ -113,10 +112,10 @@ def extract_and_predict(video_path, model, clf):
 
     st.subheader("🥊 Refined Punch Stats")
     st.write(f"✅ Unique Punches: {total_punches}")
-    st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min),stats={stats}")
+    st.write(f"⏱️ Duration: {duration_seconds:.2f} sec")
+    st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min)")
 
     return output_frames, model_preds, rule_preds, fps, stats, width, height
-
 
 # ------------------- Streamlit GUI -------------------
 st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
@@ -143,7 +142,7 @@ if uploaded_file and clf:
         video_path = temp_file.name
 
     st.info("⏳ Processing video and predicting punches...")
-    frames, preds_model, preds_rule, fps, stats,width, height = extract_and_predict(video_path, model, clf)
+    frames, preds_model, preds_rule, fps, stats, width, height = extract_and_predict(video_path, model, clf)
 
     raw_output_path = os.path.join(tempfile.gettempdir(), "raw_output.mp4")
     final_output_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
@@ -165,7 +164,11 @@ if uploaded_file and clf:
     df_comparison.to_csv(csv_comparison_path, index=False)
 
     st.download_button("📥 Download Prediction Comparison CSV", data=open(csv_comparison_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
+
     # ---- CSV: Only MoveNet (excluding 'none') ----
+    none_count = preds_rule.count("none")
+    st.write(f"🚫 'none' labels before filtering: {none_count}")
+
     filtered = [(i, p) for i, p in enumerate(preds_rule) if p != "none"]
     df_movenet = pd.DataFrame(filtered, columns=["frame", "movenet_prediction"])
 
