@@ -9,6 +9,14 @@ import os
 import joblib
 import ffmpeg
 
+# Clean up old temp files from previous runs
+temp_dir = tempfile.gettempdir()
+for f in ["movenet_punches.csv", "punch_comparison.csv", "raw_output.mp4", "predicted_output.mp4"]:
+    try:
+        os.remove(os.path.join(temp_dir, f))
+    except FileNotFoundError:
+        pass
+
 # Load MoveNet model
 @st.cache_resource
 def load_movenet_model():
