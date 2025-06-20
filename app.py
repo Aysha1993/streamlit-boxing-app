@@ -165,18 +165,35 @@ if uploaded_file and clf:
 
     st.download_button("📥 Download Prediction Comparison CSV", data=open(csv_comparison_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
 
+
     # ---- CSV: Only MoveNet (excluding 'none') ----
     none_count = preds_rule.count("none")
     st.write(f"🚫 'none' labels before filtering: {none_count}")
 
-    filtered = [(i, p) for i, p in enumerate(preds_rule) if p != "none"]
-    df_movenet = pd.DataFrame(filtered, columns=["frame", "movenet_prediction"])
-    st.write(f"✅ Filtered MoveNet Predictions: {len(df_movenet)}")
+    # Filter 'none' values
+    filtered_indices = [i for i, p in enumerate(preds_rule) if p != "none"]
+    filtered_labels = [p for p in preds_rule if p != "none"]
 
+    assert len(filtered_indices) == len(filtered_labels)
+
+    df_movenet = pd.DataFrame({
+        "frame": filtered_indices,
+        "movenet_prediction": filtered_labels
+    })
+
+    st.write(f"✅ Filtered MoveNet Predictions: {len(df_movenet)}")
+    st.dataframe(df_movenet.head())
+
+    # Save filtered only
     csv_movenet_path = os.path.join(tempfile.gettempdir(), "movenet_punches.csv")
     df_movenet.to_csv(csv_movenet_path, index=False)
 
-    st.download_button("📥 Download MoveNet Predictions Only CSV", data=open(csv_movenet_path, "rb"), file_name="movenet_punches.csv", mime="text/csv")
+    # Final file check
+    with open(csv_movenet_path, "r") as check_file:
+        line_count = sum(1 for _ in check_file) - 1
+    st.write(f"📄 Final rows written to CSV: {line_count}")
+
+    st.download_button("📥 Download MoveNet Predictions Only CSV", data=open(csv_movenet_path, "rb"), file_name="movenet_punches.csv", mime="text/csv")   
 
     # Comparison summary
     st.subheader("📊 Prediction Comparison Summary")
