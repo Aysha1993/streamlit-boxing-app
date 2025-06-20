@@ -555,14 +555,16 @@ class SimpleIDTracker:
         except:
             return 0
 tracker = SimpleIDTracker()
-# File uploader
-uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
-if uploaded_files:
+# ... (your import and initial setup code remains the same)
 
-    all_logs = []
+uploaded_files = st.file_uploader("Upload multiple boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+all_logs = []
+
+if uploaded_files:
     progress_bar = st.progress(0)
+
     for idx, uploaded_file in enumerate(uploaded_files):
-        st.subheader(f"📦Frame Processing: {uploaded_file.name}")
+        st.subheader(f"\U0001F4E6 Frame Processing: {uploaded_file.name}")
         temp_dir = tempfile.mkdtemp()
         input_path = os.path.join(temp_dir, uploaded_file.name)
 
@@ -575,17 +577,15 @@ if uploaded_files:
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
 
-        # Initialize jersey color identity map (only once)
         if 'jersey_colors_map' not in st.session_state:
             st.session_state['jersey_colors_map'] = {}
 
         last_punch_time = {}
-        #frame loop
+
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -599,62 +599,25 @@ if uploaded_files:
             input_tensor = tf.cast(img, dtype=tf.int32)
             results = model.signatures['serving_default'](input_tensor)
             keypoints = extract_keypoints(results)
-            #st.info(f"keypoints= {keypoints}")
-            #st.info(f"Keypoints shape:{np.array(keypoints).shape}")
 
             if not keypoints:
                 out_writer.write(frame)
                 continue
 
-            # Assign unique IDs to each person
             tracked = tracker.assign_ids(keypoints)
 
-            # Display tracked player labels with jersey color
             for track in tracked:
                 person_id = track["id"]
                 person_kpts = track["keypoints"]
-                # st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
-
-                # Assign stable jersey identity once
                 if person_id not in st.session_state['jersey_colors_map']:
                     jersey = get_jersey_color(frame, person_kpts)
-                    if jersey == "red":
-                        st.session_state['jersey_colors_map'][person_id] = "redboxer"
-                    elif jersey == "blue":
-                        st.session_state['jersey_colors_map'][person_id] = "blueboxer"
-                    else:
-                        st.session_state['jersey_colors_map'][person_id] = f""
+                    st.session_state['jersey_colors_map'][person_id] = f"{jersey}boxer" if jersey in ["red", "blue"] else ""
 
-                boxer_label = st.session_state['jersey_colors_map'][person_id]
-                jersey_color = get_jersey_color(frame, person_kpts)
-
-                y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
-                # cv2.putText(
-                #     frame,
-                #     f"{boxer_label}",
-                #     (x, y - 10),
-                #     cv2.FONT_HERSHEY_SIMPLEX,
-                #     0.6,
-                #     (0, 255, 0),
-                #     2
-                # )
-
-            # # Print jersey color info
-            # for i, person_kpts in enumerate(keypoints):
-            #     jersey = get_jersey_color(frame, person_kpts)
-            #     st.write(f"Person {i+1} jersey color: {jersey}")
-
-
-            rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))  # list of keypoints for all persons in a single frame
+            rescaledkeypoints = rescale_keypoints(keypoints, (256, 256), (height, width))
             postures = check_posture(rescaledkeypoints)
-            glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
+            glove_detections = detect_gloves_by_color_and_shape(frame, rescaledkeypoints)
 
-            h, w = frame.shape[:2]
             punches = []
-            timestamp = frame_idx / fps  # timestamp in seconds
-
-
-            # Initialize referee ID just once
             if 'referee_id' not in st.session_state:
                 st.session_state['referee_id'] = None
 
@@ -663,15 +626,11 @@ if uploaded_files:
                 person_kpts[:, 0] *= width
                 person_kpts[:, 1] *= height
 
-                # Attempt to detect referee (once)
                 if st.session_state['referee_id'] is None:
-                    #st.info("test")
                     bbox = extract_bbox_from_keypoints(person_kpts)
-                    #st.info(f"bbox ={bbox}")
                     if bbox and is_wearing_white(frame, bbox):
                         st.session_state['referee_id'] = person_id
-                        # st.success(f"✅ Referee Detected (ID={person_id})")
-                        continue  # Skip this frame for referee to avoid confusion
+                        continue
 
                 # Skip referee in every frame after detection
                 if person_id in [2, 3]:
@@ -679,36 +638,23 @@ if uploaded_files:
 
                 label = detect_punch(person_id, person_kpts, timestamp)
                 if label != "None":
-                    # ✅ Normalize for jersey color extraction
                     normalized_kpts = person_kpts.copy()
                     normalized_kpts[:, 0] /= width
                     normalized_kpts[:, 1] /= height
-
                     color = get_jersey_color(frame, normalized_kpts)
-                    punches.append({
-                        "frame": frame_idx,
-                        "time": round(timestamp, 2),
-                        "person_id": person_id,
-                        "label": label,
-                        "jersey_color":color
-                    })
+                    punches.append({"frame": frame_idx, "time": round(timestamp, 2), "person_id": person_id, "label": label, "jersey_color": color})
 
-                # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
-
             out_writer.write(annotated)
-            #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
 
             for punch in punches:
                 i = punch["person_id"]
                 punch_log.append({
                     "video": uploaded_file.name,
                     "frame": punch["frame"],
-                    # "person": i,
                     "person": st.session_state['jersey_colors_map'].get(i, f"boxer_{i}"),
                     "timestamp": punch["time"],
                     "punch": punch["label"],
-                    # "jersey_color": punch["jersey_color"],
                     "posture": postures[i] if i < len(postures) else "N/A",
                     "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
@@ -716,264 +662,480 @@ if uploaded_files:
 
             frame_idx += 1
             if frame_idx % 5 == 0:
-              total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
-              progress_bar.progress(min(total_progress, 1.0))
+                total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
+                progress_bar.progress(min(total_progress, 1.0))
 
         cap.release()
         out_writer.release()
 
-        # FFmpeg encode
         final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
-        try:
-          ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
-        except ffmpeg.Error as e:
-          st.error("FFmpeg failed: " + str(e))
-
-        #st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
+        ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
 
         st.video(final_output)
         with open(final_output, "rb") as f:
-            st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+            st.download_button("\U0001F4E5 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4", key=f"video_{uploaded_file.name}")
 
         df = pd.DataFrame(punch_log)
         if df.empty:
             st.warning("⚠️ No punch data found.")
             continue
 
-        # Speed calculation block
         df['timestamp'] = df['frame'] / fps
-
-        # Group by video or person if needed
         df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
-        # df["speed (approx)"] = (
-        #     df.groupby("person")["timestamp"]
-        #     .diff()
-        #     .apply(lambda x: 1 / x if pd.notnull(x) and x > 0 else 0)
-        # )
-
-        # st.write("### 🔍 Keypoints Sample")
-        # st.json(df['keypoints'].iloc[0])
-
-        expanded_df = df.copy()
         keypoint_cols = df['keypoints'].apply(expand_keypoints)
-        if not keypoint_cols.empty:
-            expanded_df = pd.concat([df.drop(columns=['keypoints']), keypoint_cols], axis=1)
-            st.dataframe(expanded_df.head())
-            st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+        expanded_df = pd.concat([df.drop(columns=['keypoints']), keypoint_cols], axis=1)
 
-        all_logs.extend(punch_log)
-        # st.write("All columns:", expanded_df.columns.tolist())
+        st.dataframe(expanded_df.head())
+        per_video_csv_path = f"log_{uploaded_file.name}.csv"
+        expanded_df.to_csv(per_video_csv_path, index=False)
+        with open(per_video_csv_path, "rb") as f:
+            st.download_button("\U0001F4C3 Download CSV", f, file_name=per_video_csv_path, mime="text/csv", key=f"csv_{uploaded_file.name}")
 
-
-        df_log = pd.DataFrame(punch_log)
-
-        # Expand keypoints into flat features
-        df_features = df_log['keypoints'].apply(expand_keypoints)
-        df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
-
-        # Extract features: all keypoints x, y, s columns
-        keypoint_cols = []
-        for i in range(17):
-            keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
-
-        # st.write("df_full columns:", df_full.columns.tolist())
-        # st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
-
-
-        # Add index to track row
-        df_full = df_full.reset_index(drop=False)  # 'index' column will store original indices
-
-        # Then extract features and target
-        X = df_full[keypoint_cols].values
-        y = df_full["punch"]
-        indices = df_full["index"]  # This holds row index from original DataFrame
-
-
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=0.2, random_state=42)
-
-        clf = RandomForestClassifier(n_estimators=100, random_state=42)
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-
-        joblib.dump(clf, "punch_classifier_model.joblib")
-
-        with open("punch_classifier_model.joblib", "rb") as f:
-          st.download_button(
-              label="📥 Download Trained Classifier",
-              data=f,
-              file_name="punch_classifier_model.joblib",
-              mime="application/octet-stream"
-          )
-
-        # Accuracy
-        acc = accuracy_score(y_test, y_pred)
-        #st.info(f" Accuracy:, {acc}")
-
-        # Confusion Matrix
-        cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
-
-        # Reconstruct predictions DataFrame with correct alignment
-        true_labels = pd.Series(y_test).reset_index(drop=True)
-        pred_labels = pd.Series(y_pred).reset_index(drop=True)
-
-        st.write("Punch label counts:\n", y.value_counts())
-        #Only keep existing metadata columns
-        meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
-        meta_columns = [col for col in meta_columns if col in expanded_df.columns]
-
-        pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
-
-        pred_output_df = pd.concat([
-            pred_meta,
-            true_labels.rename("true_label"),
-            pred_labels.rename("predicted_label")
-        ], axis=1)
-
-        st.dataframe(pred_output_df.head())
-
-        st.download_button(
-            "📄 Download Predictions CSV",
-            pred_output_df.to_csv(index=False),
-            file_name="predictions_vs_actual.csv",
-            mime="text/csv"
-        )
-
-        # Heatmap
-        plt.figure(figsize=(8,6))
-        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        plt.show()
-
-        # Detailed Report
-        #st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
-
-        # === Performance Metrics Summary ===
-
-        # Count the number of each predicted label
-        st.subheader("🍩 Punch Count (Pie Chart)")
-        label_counts = expanded_df['punch'].value_counts()
-
-        # Plot pie chart
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.pie(
-            label_counts.values,
-            labels=label_counts.index,
-            autopct='%1.1f%%',
-            startangle=90
-        )
-        ax.axis('equal')  # Equal aspect ratio for a circle
-
-        # Display in Streamlit
-        st.pyplot(fig)
-
-        # Accuracy display
-        #st.metric("✅ Accuracy", f"{acc:.2%}")
-
-        # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
-
-        # # Ensure timestamp is in seconds
-        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
-
-        # st.bar_chart(
-        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
-        #     height=300,
-        #     use_container_width=True
-        # )
-
-        # st.subheader("📈 Per-Punch Speed Over Time")
-
-        # # Ensure timestamp is in seconds
-        # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
-
-        # # Plot punch speed
-        # st.line_chart(
-        #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
-        #     height=300,
-        #     use_container_width=True
-        # )
-
-        # Punch Counts
-        st.subheader("📊 Punch Type Distribution")
-        punch_counts =expanded_df['punch'].value_counts()
-        st.bar_chart(punch_counts)
-
-        #st.subheader("📊 Punch Type Distribution2")
-        # Replace df with filtered_df in all groupby, charts, etc.
-        df_to_use = expanded_df  # instead of pred_output_df
-
-        # Punch frequency over time
-
-        st.subheader("📉 Punch Frequency Over Time")
-        # Round timestamps to 1 second
-        pred_output_df["time_bin"] = expanded_df["timestamp"].round(0)
-
-        # Count punches per second
-        time_grouped = expanded_df[expanded_df["punch"].notna()] \
-            .groupby(["timestamp", "punch"]).size().unstack().fillna(0)
-
-        #st.line_chart(time_grouped)
-
-        import altair as alt
-        melted = time_grouped.reset_index().melt('timestamp', var_name='Punch', value_name='Count')
-
-        chart = alt.Chart(melted).mark_bar().encode(
-            x=alt.X("timestamp:O", title="Time (s)"),
-            y=alt.Y("Count:Q", title="Punch Count"),
-            color="Punch:N",
-            tooltip=["timestamp", "Punch", "Count"]
-        ).properties(height=300)
-
-        st.altair_chart(chart, use_container_width=True)
-
-        # Filter for punches
-        valid_punches = expanded_df[expanded_df["punch"].notna()]
-
-        # Compute punches
-        total_punches = len(valid_punches)
-
-        # Use full timestamp range, NOT just punch timestamps!
-        start_time = expanded_df["timestamp"].min()
-        end_time = expanded_df["timestamp"].max()
-        duration = end_time - start_time
-
-        # # Debug print (optional)
-        # st.write(f"Start Time: {start_time}, End Time: {end_time}, Duration: {duration:.2f}s, Punches: {total_punches}")
-
-        # # Final punch speed
-        # punch_speed = total_punches / duration if duration > 0 else 0
-        # st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
-
-        # # 🎯 Map person_id to jersey color
-        # color_map = st.session_state.get("jersey_colors_map", {})
-        # expanded_df["boxer"] = expanded_df["person"].map(color_map).fillna("unknown")
-
-        # # 👥 Count punches per boxer (red/blue)
-        # st.subheader("👥 Punch Count per Boxer")
-        # boxer_punch_counts = expanded_df.groupby("boxer")["punch"].value_counts().unstack().fillna(0)
-        # st.dataframe(boxer_punch_counts)
-
-        # Count by Person
-        st.subheader("👥 Punch Count per Person")
-        person_punch_counts = expanded_df.groupby("person")["punch"].value_counts().unstack().fillna(0)
-        st.dataframe(person_punch_counts)
-
-        # Confusion matrix chart (if not shown already)
-        st.subheader("🔁 Confusion Matrix")
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        st.pyplot(fig2)
-
-        # Classification report
-        # st.subheader("📋 Classification Report")
-        # report_str = classification_report(y_test, y_pred, output_dict=False)
-        # st.text(report_str)
+        all_logs.append(expanded_df)
 
     progress_bar.empty()
+
+    # Combine and train
+    if all_logs:
+        st.subheader("🧠 Train Combined Classifier")
+        combined_df = pd.concat(all_logs, ignore_index=True)
+        keypoint_cols = [f"{axis}_{i}" for i in range(17) for axis in ["x", "y", "s"]]
+
+        combined_df = combined_df.dropna(subset=["punch"])
+        X_all = combined_df[keypoint_cols].fillna(0).values
+        y_all = combined_df["punch"]
+
+        clf_all = RandomForestClassifier(n_estimators=100, random_state=42)
+        clf_all.fit(X_all, y_all)
+
+        joblib.dump(clf_all, "combined_punch_classifier.joblib")
+        with open("combined_punch_classifier.joblib", "rb") as f:
+            st.download_button("\U0001F4E5 Download Combined Classifier", f, file_name="combined_punch_classifier.joblib", mime="application/octet-stream")
+
+        combined_df.to_csv("all_videos_combined_log.csv", index=False)
+        with open("all_videos_combined_log.csv", "rb") as f:
+            st.download_button("\U0001F4C3 Download Combined CSV", f, file_name="all_videos_combined_log.csv", mime="text/csv")
+    progress_bar.empty()         
+
+# # File uploader
+# uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+# if uploaded_files:
+
+#     all_logs = []
+#     progress_bar = st.progress(0)
+#     for idx, uploaded_file in enumerate(uploaded_files):
+#         st.subheader(f"📦Frame Processing: {uploaded_file.name}")
+#         temp_dir = tempfile.mkdtemp()
+#         input_path = os.path.join(temp_dir, uploaded_file.name)
+
+#         with open(input_path, 'wb') as f:
+#             f.write(uploaded_file.read())
+
+#         cap = cv2.VideoCapture(input_path)
+#         width, height = int(cap.get(3)), int(cap.get(4))
+#         fps = cap.get(cv2.CAP_PROP_FPS)
+#         raw_output = os.path.join(temp_dir, "raw_output.mp4")
+#         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
+
+#         punch_log = []
+#         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+#         frame_idx = 0
+
+#         # Initialize jersey color identity map (only once)
+#         if 'jersey_colors_map' not in st.session_state:
+#             st.session_state['jersey_colors_map'] = {}
+
+#         last_punch_time = {}
+#         #frame loop
+#         while cap.isOpened():
+#             ret, frame = cap.read()
+#             if not ret:
+#                 break
+
+#             h, w = frame.shape[:2]
+#             timestamp = frame_idx / fps
+
+#             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#             img = tf.image.resize_with_pad(tf.expand_dims(rgb_frame, axis=0), 256, 256)
+#             input_tensor = tf.cast(img, dtype=tf.int32)
+#             results = model.signatures['serving_default'](input_tensor)
+#             keypoints = extract_keypoints(results)
+#             #st.info(f"keypoints= {keypoints}")
+#             #st.info(f"Keypoints shape:{np.array(keypoints).shape}")
+
+#             if not keypoints:
+#                 out_writer.write(frame)
+#                 continue
+
+#             # Assign unique IDs to each person
+#             tracked = tracker.assign_ids(keypoints)
+
+#             # Display tracked player labels with jersey color
+#             for track in tracked:
+#                 person_id = track["id"]
+#                 person_kpts = track["keypoints"]
+#                 # st.info(f"track_id= {person_id} ,track_kpts={person_kpts} ")
+
+#                 # Assign stable jersey identity once
+#                 if person_id not in st.session_state['jersey_colors_map']:
+#                     jersey = get_jersey_color(frame, person_kpts)
+#                     if jersey == "red":
+#                         st.session_state['jersey_colors_map'][person_id] = "redboxer"
+#                     elif jersey == "blue":
+#                         st.session_state['jersey_colors_map'][person_id] = "blueboxer"
+#                     else:
+#                         st.session_state['jersey_colors_map'][person_id] = f""
+
+#                 boxer_label = st.session_state['jersey_colors_map'][person_id]
+#                 jersey_color = get_jersey_color(frame, person_kpts)
+
+#                 y, x = int(person_kpts[0][0] * h), int(person_kpts[0][1] * w)
+#                 # cv2.putText(
+#                 #     frame,
+#                 #     f"{boxer_label}",
+#                 #     (x, y - 10),
+#                 #     cv2.FONT_HERSHEY_SIMPLEX,
+#                 #     0.6,
+#                 #     (0, 255, 0),
+#                 #     2
+#                 # )
+
+#             # # Print jersey color info
+#             # for i, person_kpts in enumerate(keypoints):
+#             #     jersey = get_jersey_color(frame, person_kpts)
+#             #     st.write(f"Person {i+1} jersey color: {jersey}")
+
+
+#             rescaledkeypoints = rescale_keypoints(keypoints, input_size=(256, 256), original_size=(height, width))  # list of keypoints for all persons in a single frame
+#             postures = check_posture(rescaledkeypoints)
+#             glove_detections=detect_gloves_by_color_and_shape(frame,rescaledkeypoints)
+
+#             h, w = frame.shape[:2]
+#             punches = []
+#             timestamp = frame_idx / fps  # timestamp in seconds
+
+
+#             # Initialize referee ID just once
+#             if 'referee_id' not in st.session_state:
+#                 st.session_state['referee_id'] = None
+
+#             for person_id, person_kpts in enumerate(rescaledkeypoints):
+#                 person_kpts = np.array(person_kpts)
+#                 person_kpts[:, 0] *= width
+#                 person_kpts[:, 1] *= height
+
+#                 # Attempt to detect referee (once)
+#                 if st.session_state['referee_id'] is None:
+#                     #st.info("test")
+#                     bbox = extract_bbox_from_keypoints(person_kpts)
+#                     #st.info(f"bbox ={bbox}")
+#                     if bbox and is_wearing_white(frame, bbox):
+#                         st.session_state['referee_id'] = person_id
+#                         # st.success(f"✅ Referee Detected (ID={person_id})")
+#                         continue  # Skip this frame for referee to avoid confusion
+
+#                 # Skip referee in every frame after detection
+#                 if person_id in [2, 3]:
+#                     continue
+
+#                 label = detect_punch(person_id, person_kpts, timestamp)
+#                 if label != "None":
+#                     # ✅ Normalize for jersey color extraction
+#                     normalized_kpts = person_kpts.copy()
+#                     normalized_kpts[:, 0] /= width
+#                     normalized_kpts[:, 1] /= height
+
+#                     color = get_jersey_color(frame, normalized_kpts)
+#                     punches.append({
+#                         "frame": frame_idx,
+#                         "time": round(timestamp, 2),
+#                         "person_id": person_id,
+#                         "label": label,
+#                         "jersey_color":color
+#                     })
+
+#                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
+#             annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+
+#             out_writer.write(annotated)
+#             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
+
+#             for punch in punches:
+#                 i = punch["person_id"]
+#                 punch_log.append({
+#                     "video": uploaded_file.name,
+#                     "frame": punch["frame"],
+#                     # "person": i,
+#                     "person": st.session_state['jersey_colors_map'].get(i, f"boxer_{i}"),
+#                     "timestamp": punch["time"],
+#                     "punch": punch["label"],
+#                     # "jersey_color": punch["jersey_color"],
+#                     "posture": postures[i] if i < len(postures) else "N/A",
+#                     "gloves": glove_detections[i] if i < len(glove_detections) else "N/A",
+#                     "keypoints": keypoints[i] if i < len(keypoints) else "N/A"
+#                 })
+
+#             frame_idx += 1
+#             if frame_idx % 5 == 0:
+#               total_progress = (idx + frame_idx / total_frames) / len(uploaded_files)
+#               progress_bar.progress(min(total_progress, 1.0))
+
+#         cap.release()
+#         out_writer.release()
+
+#         # FFmpeg encode
+#         final_output = os.path.join(temp_dir, f"final_{uploaded_file.name}")
+#         try:
+#           ffmpeg.input(raw_output).output(final_output, vcodec='libx264', acodec='aac', strict='experimental').run(overwrite_output=True)
+#         except ffmpeg.Error as e:
+#           st.error("FFmpeg failed: " + str(e))
+
+#         #st.text(f"Frame {frame_idx}: {len(keypoints)} people, {len(punches)} punches")
+
+#         st.video(final_output)
+#         with open(final_output, "rb") as f:
+#             st.download_button("📥 Download Annotated Video", f, file_name=f"annotated_{uploaded_file.name}", mime="video/mp4")
+
+#         df = pd.DataFrame(punch_log)
+#         if df.empty:
+#             st.warning("⚠️ No punch data found.")
+#             continue
+
+#         # Speed calculation block
+#         df['timestamp'] = df['frame'] / fps
+
+#         # Group by video or person if needed
+#         df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+#         # df["speed (approx)"] = (
+#         #     df.groupby("person")["timestamp"]
+#         #     .diff()
+#         #     .apply(lambda x: 1 / x if pd.notnull(x) and x > 0 else 0)
+#         # )
+
+#         # st.write("### 🔍 Keypoints Sample")
+#         # st.json(df['keypoints'].iloc[0])
+
+#         expanded_df = df.copy()
+#         keypoint_cols = df['keypoints'].apply(expand_keypoints)
+#         if not keypoint_cols.empty:
+#             expanded_df = pd.concat([df.drop(columns=['keypoints']), keypoint_cols], axis=1)
+#             st.dataframe(expanded_df.head())
+#             st.download_button("📄 Download Log CSV", expanded_df.to_csv(index=False), file_name=f"log_{uploaded_file.name}.csv", mime="text/csv")
+
+#         all_logs.extend(punch_log)
+#         # st.write("All columns:", expanded_df.columns.tolist())
+
+
+#         df_log = pd.DataFrame(punch_log)
+
+#         # Expand keypoints into flat features
+#         df_features = df_log['keypoints'].apply(expand_keypoints)
+#         df_full = pd.concat([df_log.drop(columns=['keypoints']), df_features], axis=1).dropna()
+
+#         # Extract features: all keypoints x, y, s columns
+#         keypoint_cols = []
+#         for i in range(17):
+#             keypoint_cols.extend([f'x_{i}', f'y_{i}', f's_{i}'])
+
+#         # st.write("df_full columns:", df_full.columns.tolist())
+#         # st.info(f"All keypoint_cols  in dataframe: {keypoint_cols}")
+
+
+#         # Add index to track row
+#         df_full = df_full.reset_index(drop=False)  # 'index' column will store original indices
+
+#         # Then extract features and target
+#         X = df_full[keypoint_cols].values
+#         y = df_full["punch"]
+#         indices = df_full["index"]  # This holds row index from original DataFrame
+
+
+#         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, indices, test_size=0.2, random_state=42)
+
+#         clf = RandomForestClassifier(n_estimators=100, random_state=42)
+#         clf.fit(X_train, y_train)
+#         y_pred = clf.predict(X_test)
+
+#         joblib.dump(clf, "punch_classifier_model.joblib")
+
+#         with open("punch_classifier_model.joblib", "rb") as f:
+#           st.download_button(
+#               label="📥 Download Trained Classifier",
+#               data=f,
+#               file_name="punch_classifier_model.joblib",
+#               mime="application/octet-stream"
+#           )
+
+#         # Accuracy
+#         acc = accuracy_score(y_test, y_pred)
+#         #st.info(f" Accuracy:, {acc}")
+
+#         # Confusion Matrix
+#         cm = confusion_matrix(y_test, y_pred, labels=clf.classes_)
+
+#         # Reconstruct predictions DataFrame with correct alignment
+#         true_labels = pd.Series(y_test).reset_index(drop=True)
+#         pred_labels = pd.Series(y_pred).reset_index(drop=True)
+
+#         st.write("Punch label counts:\n", y.value_counts())
+#         #Only keep existing metadata columns
+#         meta_columns = ["video", "frame", "person", "timestamp", "speed (approx)"]
+#         meta_columns = [col for col in meta_columns if col in expanded_df.columns]
+
+#         pred_meta = expanded_df.loc[idx_test][meta_columns].reset_index(drop=True)
+
+#         pred_output_df = pd.concat([
+#             pred_meta,
+#             true_labels.rename("true_label"),
+#             pred_labels.rename("predicted_label")
+#         ], axis=1)
+
+#         st.dataframe(pred_output_df.head())
+
+#         st.download_button(
+#             "📄 Download Predictions CSV",
+#             pred_output_df.to_csv(index=False),
+#             file_name="predictions_vs_actual.csv",
+#             mime="text/csv"
+#         )
+
+#         # Heatmap
+#         plt.figure(figsize=(8,6))
+#         sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues")
+#         plt.xlabel("Predicted")
+#         plt.ylabel("True")
+#         plt.title("Confusion Matrix")
+#         plt.show()
+
+#         # Detailed Report
+#         #st.info(f"\n Classification Report:\n= {classification_report(y_test, y_pred)}")
+
+#         # === Performance Metrics Summary ===
+
+#         # Count the number of each predicted label
+#         st.subheader("🍩 Punch Count (Pie Chart)")
+#         label_counts = expanded_df['punch'].value_counts()
+
+#         # Plot pie chart
+#         fig, ax = plt.subplots(figsize=(5, 5))
+#         ax.pie(
+#             label_counts.values,
+#             labels=label_counts.index,
+#             autopct='%1.1f%%',
+#             startangle=90
+#         )
+#         ax.axis('equal')  # Equal aspect ratio for a circle
+
+#         # Display in Streamlit
+#         st.pyplot(fig)
+
+#         # Accuracy display
+#         #st.metric("✅ Accuracy", f"{acc:.2%}")
+
+#         # st.subheader("📊 Per-Punch Speed Over Time (Bar Chart)")
+
+#         # # Ensure timestamp is in seconds
+#         # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+
+#         # st.bar_chart(
+#         #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+#         #     height=300,
+#         #     use_container_width=True
+#         # )
+
+#         # st.subheader("📈 Per-Punch Speed Over Time")
+
+#         # # Ensure timestamp is in seconds
+#         # pred_output_df["timestamp_sec"] = pred_output_df["timestamp"].astype(float)
+
+#         # # Plot punch speed
+#         # st.line_chart(
+#         #     pred_output_df.set_index("timestamp_sec")["speed (approx)"],
+#         #     height=300,
+#         #     use_container_width=True
+#         # )
+
+#         # Punch Counts
+#         st.subheader("📊 Punch Type Distribution")
+#         punch_counts =expanded_df['punch'].value_counts()
+#         st.bar_chart(punch_counts)
+
+#         #st.subheader("📊 Punch Type Distribution2")
+#         # Replace df with filtered_df in all groupby, charts, etc.
+#         df_to_use = expanded_df  # instead of pred_output_df
+
+#         # Punch frequency over time
+
+#         st.subheader("📉 Punch Frequency Over Time")
+#         # Round timestamps to 1 second
+#         pred_output_df["time_bin"] = expanded_df["timestamp"].round(0)
+
+#         # Count punches per second
+#         time_grouped = expanded_df[expanded_df["punch"].notna()] \
+#             .groupby(["timestamp", "punch"]).size().unstack().fillna(0)
+
+#         #st.line_chart(time_grouped)
+
+#         import altair as alt
+#         melted = time_grouped.reset_index().melt('timestamp', var_name='Punch', value_name='Count')
+
+#         chart = alt.Chart(melted).mark_bar().encode(
+#             x=alt.X("timestamp:O", title="Time (s)"),
+#             y=alt.Y("Count:Q", title="Punch Count"),
+#             color="Punch:N",
+#             tooltip=["timestamp", "Punch", "Count"]
+#         ).properties(height=300)
+
+#         st.altair_chart(chart, use_container_width=True)
+
+#         # Filter for punches
+#         valid_punches = expanded_df[expanded_df["punch"].notna()]
+
+#         # Compute punches
+#         total_punches = len(valid_punches)
+
+#         # Use full timestamp range, NOT just punch timestamps!
+#         start_time = expanded_df["timestamp"].min()
+#         end_time = expanded_df["timestamp"].max()
+#         duration = end_time - start_time
+
+#         # # Debug print (optional)
+#         # st.write(f"Start Time: {start_time}, End Time: {end_time}, Duration: {duration:.2f}s, Punches: {total_punches}")
+
+#         # # Final punch speed
+#         # punch_speed = total_punches / duration if duration > 0 else 0
+#         # st.metric("⚡ Average Punch Speed (approx)", f"{punch_speed:.2f} punches/sec")
+
+#         # # 🎯 Map person_id to jersey color
+#         # color_map = st.session_state.get("jersey_colors_map", {})
+#         # expanded_df["boxer"] = expanded_df["person"].map(color_map).fillna("unknown")
+
+#         # # 👥 Count punches per boxer (red/blue)
+#         # st.subheader("👥 Punch Count per Boxer")
+#         # boxer_punch_counts = expanded_df.groupby("boxer")["punch"].value_counts().unstack().fillna(0)
+#         # st.dataframe(boxer_punch_counts)
+
+#         # Count by Person
+#         st.subheader("👥 Punch Count per Person")
+#         person_punch_counts = expanded_df.groupby("person")["punch"].value_counts().unstack().fillna(0)
+#         st.dataframe(person_punch_counts)
+
+#         # Confusion matrix chart (if not shown already)
+#         st.subheader("🔁 Confusion Matrix")
+#         fig2, ax2 = plt.subplots(figsize=(6, 4))
+#         sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
+#         plt.xlabel("Predicted")
+#         plt.ylabel("True")
+#         plt.title("Confusion Matrix")
+#         st.pyplot(fig2)
+
+#         # Classification report
+#         # st.subheader("📋 Classification Report")
+#         # report_str = classification_report(y_test, y_pred, output_dict=False)
+#         # st.text(report_str)
+
+#     progress_bar.empty()
 
 requirements = '''streamlit
 numpy>=1.21.0
