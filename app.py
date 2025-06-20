@@ -10,7 +10,6 @@ import os
 import joblib
 import ffmpeg
 
-
 # Load MoveNet model
 @st.cache_resource
 def load_movenet_model():
@@ -92,9 +91,7 @@ def extract_and_predict(video_path, model, clf):
 
 
 # ------------------- Streamlit GUI -------------------
-
 st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
-
 # Upload trained classifier
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
 clf = None
