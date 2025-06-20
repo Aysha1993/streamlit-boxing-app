@@ -84,9 +84,11 @@ def extract_and_predict(video_path, model, clf):
         label = f"{model_label} / {rule_label}"
         annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
         output_frames.append(annotated)
+        st.write(f"⏱️ FPS: {fps}, Total Frames: {len(output_frames)}")
 
     cap.release()
     return output_frames, model_preds, rule_preds, fps, width, height
+
 
 # ------------------- Streamlit GUI -------------------
 st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
