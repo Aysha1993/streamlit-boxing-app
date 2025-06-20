@@ -161,9 +161,9 @@ if uploaded_file and clf:
 
     # Comparison CSV
     df_compare1 = pd.DataFrame({
-        'frame': list(range(len(stats))),
-        'model_prediction': stats,
-        'movenet_prediction': preds_rule
+        'frame': list(range(len(preds_model))),
+        'model_prediction': preds_model,
+        'movenet_prediction': stats
     })
     with open(final_path, 'rb') as f:
         st.video(f.read())
