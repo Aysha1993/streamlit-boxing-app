@@ -115,7 +115,7 @@ def extract_and_predict(video_path, model, clf):
     st.write(f"✅ Unique Punches: {total_punches}")
     st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min),stats={stats}")
 
-    return output_frames, model_preds, rule_preds, fps, width, height
+    return output_frames, model_preds, rule_preds, fps, stats, width, height
 
 
 # ------------------- Streamlit GUI -------------------
