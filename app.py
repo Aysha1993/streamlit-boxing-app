@@ -171,6 +171,7 @@ if uploaded_file and clf:
 
     filtered = [(i, p) for i, p in enumerate(preds_rule) if p != "none"]
     df_movenet = pd.DataFrame(filtered, columns=["frame", "movenet_prediction"])
+    st.write(f"✅ Filtered MoveNet Predictions: {len(df_movenet)}")
 
     csv_movenet_path = os.path.join(tempfile.gettempdir(), "movenet_punches.csv")
     df_movenet.to_csv(csv_movenet_path, index=False)
