@@ -50,6 +50,15 @@ def save_video(frames, fps, width, height, output_path):
         out.write(frame.astype('uint8'))
     out.release()
 
+def deduplicate_punches(preds_rule):
+    last_label = "none"
+    clean_punches = []
+    for label in preds_rule:
+        if label != "none" and label != last_label:
+            clean_punches.append(label)
+        last_label = label
+    return clean_punches
+
 # Re-encode video with ffmpeg
 def reencode_with_ffmpeg(input_path, output_path):
     ffmpeg.input(input_path).output(output_path, vcodec='libx264', acodec='aac', pix_fmt='yuv420p').run(overwrite_output=True)
@@ -77,6 +86,16 @@ def extract_and_predict(video_path, model, clf):
         keypoint_data = preprocess_keypoints(keypoints['output_0'].numpy())
         model_label = clf.predict([keypoint_data])[0]
         rule_label = rule_based_prediction(keypoint_data)
+
+        deduped_punches = deduplicate_punches(rule_label)
+        total_punches = len(deduped_punches)
+        duration_seconds = len(rule_label) / fps
+        punch_rate = total_punches / duration_seconds
+
+        st.subheader("🥊 Refined Punch Stats")
+        st.write(f"✅ Unique Punches: {total_punches}")
+        st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min)")
+
 
         model_preds.append(model_label)
         rule_preds.append(rule_label)
