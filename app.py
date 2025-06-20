@@ -93,7 +93,7 @@ def extract_and_predict(video_path, model, clf):
         label = f"{model_label} / {rule_label}"
         annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
         output_frames.append(annotated)
-        st.write(f"⏱️ FPS: {fps}, Total Frames: {len(output_frames)}")
+        # st.write(f"⏱️ FPS: {fps}, Total Frames: {len(output_frames)}")
 
     cap.release()
 
@@ -165,12 +165,10 @@ if uploaded_file and clf:
     df_comparison.to_csv(csv_comparison_path, index=False)
 
     st.download_button("📥 Download Prediction Comparison CSV", data=open(csv_comparison_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
+    # ---- CSV: Only MoveNet (excluding 'none') ----
+    filtered = [(i, p) for i, p in enumerate(preds_rule) if p != "none"]
+    df_movenet = pd.DataFrame(filtered, columns=["frame", "movenet_prediction"])
 
-    # ---- CSV: Only MoveNet ----
-    df_movenet = pd.DataFrame({
-        'frame': list(range(len(preds_rule))),
-        'movenet_prediction': preds_rule
-    })
     csv_movenet_path = os.path.join(tempfile.gettempdir(), "movenet_punches.csv")
     df_movenet.to_csv(csv_movenet_path, index=False)
 
