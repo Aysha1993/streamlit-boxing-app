@@ -26,7 +26,6 @@ def preprocess_keypoints(keypoints):
 # Dummy rule-based prediction
 def rule_based_prediction(keypoints_flat):
     kp = np.array(keypoints_flat).reshape(17, 3)
-    # Example: Jab if left wrist (9) higher (lower y) than left elbow (7)
     if kp[9][1] < kp[7][1]:
         return "Jab"
     elif kp[10][1] < kp[8][1]:
@@ -89,9 +88,9 @@ def extract_and_predict(video_path, model, clf):
     cap.release()
     return output_frames, model_preds, rule_preds, fps, width, height
 
-
 # ------------------- Streamlit GUI -------------------
 st.title("🥊 Punch Detection: Classifier vs MoveNet Rule-Based")
+
 # Upload trained classifier
 uploaded_model = st.file_uploader("Upload Trained Classifier (.joblib)", type=["joblib"])
 clf = None
@@ -126,16 +125,26 @@ if uploaded_file and clf:
     with open(final_output_path, 'rb') as f:
         st.video(f.read())
 
-    # Save comparison CSV
-    df = pd.DataFrame({
+    # ---- CSV: Classifier vs Rule ----
+    df_comparison = pd.DataFrame({
         'frame': list(range(len(preds_model))),
         'model_prediction': preds_model,
         'movenet_prediction': preds_rule
     })
-    csv_path = os.path.join(tempfile.gettempdir(), "punch_comparison.csv")
-    df.to_csv(csv_path, index=False)
+    csv_comparison_path = os.path.join(tempfile.gettempdir(), "punch_comparison.csv")
+    df_comparison.to_csv(csv_comparison_path, index=False)
 
-    st.download_button("📥 Download Prediction CSV", data=open(csv_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
+    st.download_button("📥 Download Prediction Comparison CSV", data=open(csv_comparison_path, "rb"), file_name="punch_comparison.csv", mime="text/csv")
+
+    # ---- CSV: Only MoveNet ----
+    df_movenet = pd.DataFrame({
+        'frame': list(range(len(preds_rule))),
+        'movenet_prediction': preds_rule
+    })
+    csv_movenet_path = os.path.join(tempfile.gettempdir(), "movenet_punches.csv")
+    df_movenet.to_csv(csv_movenet_path, index=False)
+
+    st.download_button("📥 Download MoveNet Predictions Only CSV", data=open(csv_movenet_path, "rb"), file_name="movenet_punches.csv", mime="text/csv")
 
     # Comparison summary
     st.subheader("📊 Prediction Comparison Summary")
@@ -143,7 +152,7 @@ if uploaded_file and clf:
     total = len(preds_model)
     st.write(f"✅ Agreement: {agree}/{total} frames ({agree / total * 100:.2f}%)")
 
-    st.dataframe(df.head(10))
+    st.dataframe(df_comparison.head(10))
 
 # Save requirements.txt
 requirements = '''streamlit
