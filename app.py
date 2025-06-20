@@ -143,7 +143,7 @@ if uploaded_file and clf:
         video_path = temp_file.name
 
     st.info("⏳ Processing video and predicting punches...")
-    frames, preds_model, preds_rule, fps, width, height = extract_and_predict(video_path, model, clf)
+    frames, preds_model, preds_rule, fps, stats,width, height = extract_and_predict(video_path, model, clf)
 
     raw_output_path = os.path.join(tempfile.gettempdir(), "raw_output.mp4")
     final_output_path = os.path.join(tempfile.gettempdir(), "predicted_output.mp4")
