@@ -87,16 +87,6 @@ def extract_and_predict(video_path, model, clf):
         model_label = clf.predict([keypoint_data])[0]
         rule_label = rule_based_prediction(keypoint_data)
 
-        deduped_punches = deduplicate_punches(rule_label)
-        total_punches = len(deduped_punches)
-        duration_seconds = len(rule_label) / fps
-        punch_rate = total_punches / duration_seconds
-
-        st.subheader("🥊 Refined Punch Stats")
-        st.write(f"✅ Unique Punches: {total_punches}")
-        st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min)")
-
-
         model_preds.append(model_label)
         rule_preds.append(rule_label)
 
@@ -106,6 +96,25 @@ def extract_and_predict(video_path, model, clf):
         st.write(f"⏱️ FPS: {fps}, Total Frames: {len(output_frames)}")
 
     cap.release()
+
+    deduped_punches = deduplicate_punches(rule_preds)
+    total_punches = len(deduped_punches)
+    duration_seconds = len(rule_preds) / fps
+    punch_rate = total_punches / duration_seconds
+
+     # 📊 Return punch stats too
+    stats = {
+        "total_punches": total_punches,
+        "duration_seconds": duration_seconds,
+        "punch_rate": punch_rate,
+        "fps": fps,
+        "frame_count": len(rule_preds)
+    }
+
+    st.subheader("🥊 Refined Punch Stats")
+    st.write(f"✅ Unique Punches: {total_punches}")
+    st.write(f"⚡ Rate: {punch_rate:.2f} punches/sec (~{punch_rate * 60:.1f} per min),stats={stats}")
+
     return output_frames, model_preds, rule_preds, fps, width, height
 
 
