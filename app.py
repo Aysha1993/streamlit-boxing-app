@@ -43,32 +43,29 @@ def rule_based_prediction(keypoints_flat):
     left_wrist = kp[10]
     right_wrist = kp[9]
 
-
-    # Key landmarks
-    nose = kp[0]
-    left_shoulder = kp[6]
-    right_shoulder = kp[5]
-    left_elbow = kp[8]
-    right_elbow = kp[7]
-    left_wrist = kp[10]
-    right_wrist = kp[9]
-
-    # ---- Hook (either hand swinging horizontally with bent elbow) ----
+    # --- Hook (either side) ---
     hook_detected = (
         (abs(right_wrist[0] - right_shoulder[0]) > 60 and right_wrist[1] < right_shoulder[1] and right_elbow[1] > right_wrist[1]) or
         (abs(left_wrist[0] - left_shoulder[0]) > 60 and left_wrist[1] < left_shoulder[1] and left_elbow[1] > left_wrist[1])
     )
-    
 
-    # ---- Jab (Right hand extended forward) ----
-    if right_wrist[1] < right_elbow[1] and abs(right_wrist[0] - nose[0]) < 50:
-        return "Jab"
+    # --- Left Jab (left hand straight, extended forward) ---
+    if left_wrist[1] < left_elbow[1] and abs(left_wrist[0] - nose[0]) < 50:
+        return "Left Jab"
+
+    # --- Right Cross (right hand straight, extended forward) ---
+    elif right_wrist[1] < right_elbow[1] and abs(right_wrist[0] - nose[0]) < 50:
+        return "Right Cross"
+
+    # --- Hook ---
     elif hook_detected:
         return "Hook"
-    # ---- Cross (Left hand extended forward) ----
-    elif left_wrist[1] < left_elbow[1] and abs(left_wrist[0] - nose[0]) < 50:
-        return "Cross"
-    # ---- Guard (both hands near head level, wrists close to nose) ----
+
+    # --- Duck (head below both shoulders) ---
+    elif nose[1] > left_shoulder[1] and nose[1] > right_shoulder[1]:
+        return "Duck"
+
+    # --- Guard (both hands near head) ---
     elif (abs(right_wrist[0] - nose[0]) < 50 and abs(right_wrist[1] - nose[1]) < 50 and
           abs(left_wrist[0] - nose[0]) < 50 and abs(left_wrist[1] - nose[1]) < 50):
         return "Guard"
