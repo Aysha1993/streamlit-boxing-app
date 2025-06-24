@@ -166,8 +166,6 @@ if uploaded_file and clf:
         'movenet_prediction': preds_rule
     })
 
-
-
     comp_path = os.path.join(temp_dir, "punch_comparison.csv")
     df_compare.to_csv(comp_path, index=False)
     st.download_button("📥 Download Comparison CSV", data=open(comp_path, "rb").read(), file_name="punch_comparison.csv", mime="text/csv")
