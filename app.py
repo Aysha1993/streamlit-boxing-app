@@ -33,11 +33,36 @@ def preprocess_keypoints(keypoints):
 # 🤖 Rule-based punch logic
 def rule_based_prediction(keypoints_flat):
     kp = np.array(keypoints_flat).reshape(17, 3)
-    if kp[9][1] < kp[7][1]:
+
+    # Key landmarks
+    nose = kp[0]
+    left_shoulder = kp[6]
+    right_shoulder = kp[5]
+    left_elbow = kp[8]
+    right_elbow = kp[7]
+    left_wrist = kp[10]
+    right_wrist = kp[9]
+
+    # ---- Jab (Right hand extended forward) ----
+    if right_wrist[1] < right_elbow[1] and abs(right_wrist[0] - nose[0]) < 50:
         return "Jab"
-    elif kp[10][1] < kp[8][1]:
+
+    # ---- Cross (Left hand extended forward) ----
+    elif left_wrist[1] < left_elbow[1] and abs(left_wrist[0] - nose[0]) < 50:
         return "Cross"
-    return "none"
+
+    # ---- Hook (horizontal punch, wide wrist from shoulder, elbow bent) ----
+    elif abs(right_wrist[0] - right_shoulder[0]) > 60 and right_wrist[1] < right_shoulder[1]:
+        return "Right Hook"
+    elif abs(left_wrist[0] - left_shoulder[0]) > 60 and left_wrist[1] < left_shoulder[1]:
+        return "Left Hook"
+
+    # ---- Guard (both hands near head level, wrists close to nose) ----
+    elif (abs(right_wrist[0] - nose[0]) < 50 and abs(right_wrist[1] - nose[1]) < 50 and
+          abs(left_wrist[0] - nose[0]) < 50 and abs(left_wrist[1] - nose[1]) < 50):
+        return "Guard"
+
+    return "None"
 
 # 🧍 Draw pose
 def draw_skeleton(frame, keypoints, label=None):
