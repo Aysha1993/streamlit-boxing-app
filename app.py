@@ -118,6 +118,9 @@ def extract_and_predict(video_path, model, clf):
     model_preds = []
     rule_preds = []
 
+    last_label = "None"
+
+    frame_idx = 0
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -131,19 +134,24 @@ def extract_and_predict(video_path, model, clf):
         model_label = clf.predict([keypoint_data])[0]
         rule_label = rule_based_prediction(keypoint_data)
 
-        model_preds.append(model_label)
-        rule_preds.append(rule_label)
+        # Skip frames with no punch or duplicate label
+        if rule_label != "None" and rule_label != last_label:
+            model_preds.append(model_label)
+            rule_preds.append(rule_label)
 
-        label = f"{model_label} / {rule_label}"
-        annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
-        output_frames.append(annotated)
+            label = f"{model_label} / {rule_label}"
+            annotated = draw_skeleton(frame.copy(), keypoints['output_0'].numpy(), label)
+            output_frames.append(annotated)
+            last_label = rule_label
+        else:
+            last_label = rule_label  # still update to suppress duplicates
+        frame_idx += 1
 
     cap.release()
 
     # 📊 Stats
-    deduped = deduplicate_punches(rule_preds)
-    total_punches = len(deduped)
-    duration = len(rule_preds) / fps
+    total_punches = len(rule_preds)
+    duration = frame_idx / fps
     rate = total_punches / duration
 
     stats = {
@@ -151,7 +159,7 @@ def extract_and_predict(video_path, model, clf):
         "duration_seconds": duration,
         "punch_rate": rate,
         "fps": fps,
-        "frame_count": len(rule_preds)
+        "frame_count": frame_idx
     }
 
     st.subheader("🥊 Refined Punch Stats")
