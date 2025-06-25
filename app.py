@@ -556,7 +556,7 @@ class SimpleIDTracker:
             return 0
 tracker = SimpleIDTracker()
 # File uploader
-uploaded_files = st.file_uploader("Upload  boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload boxing video", type=["mp4", "avi", "mov"], accept_multiple_files=True)
 if uploaded_files:
 
     all_logs = []
@@ -574,7 +574,6 @@ if uploaded_files:
         fps = cap.get(cv2.CAP_PROP_FPS)
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
-
 
         punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
