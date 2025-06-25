@@ -124,7 +124,7 @@ keypoint_index = {
 
 # Global punch cooldown tracker
 last_punch_time = {}  # {person_id: timestamp}
-PUNCH_COOLDOWN = 0.0  # seconds, increased to prevent overcounting
+PUNCH_COOLDOWN = 0.3  # seconds, increased to prevent overcounting
 
 def allow_punch(person_id, timestamp):
     """Allow punch only if enough time passed since last."""
