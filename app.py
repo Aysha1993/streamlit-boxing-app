@@ -418,15 +418,17 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_id):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
-    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
+    for idx, (kp_raw, punch, posture, glovedetected,pid) in enumerate(zip(keypoints, punches, postures, glove_detections,person_id)):
         person = kp_raw  # use the current person only
-        if not is_punching_pose(person):
-            #st.info(f"Skipping Person {idx+1} - Not Punching")
+        # if not is_punching_pose(person):
+        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
+        #     continue
+        if pid in [2, 3]:  # skip referees
             continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
@@ -766,7 +768,7 @@ if uploaded_files:
             punch_labels = [persistent_labels.get(pid, "None") for pid in range(len(rescaledkeypoints))]
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
             # annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punch_labels, postures, glove_detections, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punch_labels, postures, glove_detections, h, w,person_id)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
