@@ -464,7 +464,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
 
         #Final label
         glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
-        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
+        label = f"Person {pid}: {punch}, {posture}, Gloves: {glove_str}"
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 0, 0), 1)
         y_offset += line_height
