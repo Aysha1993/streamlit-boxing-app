@@ -235,23 +235,40 @@ def detect_punch(person_id, keypoints, timestamp):
 
 #     return last_punch_label.get(person_id, "None"), is_new_punch
 
-
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
         msgs = []
-        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow drop")
-        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow drop")
-        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder drop")
-        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")
-        if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")
-        if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")
-        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist drop")
-        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist drop")
+        # Use y-coordinates for vertical checks
+        if kp[7][1] > kp[11][1]: msgs.append("Left Elbow drop")
+        if kp[8][1] > kp[12][1]: msgs.append("Right Elbow drop")
+        if kp[5][1] > kp[11][1]: msgs.append("Left Shoulder drop")
+        if kp[6][1] > kp[12][1]: msgs.append("Right Shoulder drop")
+        if kp[15][1] < kp[13][1] - 0.05: msgs.append("Left Knee Bent")
+        if kp[16][1] < kp[14][1] - 0.05: msgs.append("Right Knee Bent")
+        if kp[9][1] > kp[7][1]: msgs.append("Left Wrist drop")
+        if kp[10][1] > kp[8][1]: msgs.append("Right Wrist drop")
         if not msgs:
             msgs.append("Good Posture")
         feedback.append(", ".join(msgs))
     return feedback
+
+# def check_posture(keypoints):
+#     feedback = []
+#     for kp in keypoints:
+#         msgs = []
+#         if kp[7][0] > kp[11][0]: msgs.append("Left Elbow drop")
+#         if kp[8][0] > kp[12][0]: msgs.append("Right Elbow drop")
+#         if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder drop")
+#         if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")
+#         if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")
+#         if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")
+#         if kp[9][0] > kp[7][0]: msgs.append("Left Wrist drop")
+#         if kp[10][0] > kp[8][0]: msgs.append("Right Wrist drop")
+#         if not msgs:
+#             msgs.append("Good Posture")
+#         feedback.append(", ".join(msgs))
+#     return feedback
 
 def detect_gloves_by_color_and_shape(frame, keypoints, confidence_threshold=0.3, crop_size=30):
     """
