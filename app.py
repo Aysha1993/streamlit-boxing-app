@@ -418,16 +418,17 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_id):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_ids):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
-    for idx, (kp_raw, punch, posture, glovedetected,pid) in enumerate(zip(keypoints, punches, postures, glove_detections,person_id)):
+    for idx, (kp_raw, punch, posture, glovedetected,pid) in enumerate(zip(keypoints, punches, postures, glove_detections,person_ids)):
         person = kp_raw  # use the current person only
         # if not is_punching_pose(person):
         #     #st.info(f"Skipping Person {idx+1} - Not Punching")
         #     continue
+        st.info(f"pid={pid}")
         if pid in [2, 3]:  # skip referees
             continue
 
