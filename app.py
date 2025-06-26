@@ -721,6 +721,7 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
             punches = []
+            valid_person_ids = []
             timestamp = frame_idx / fps  # timestamp in seconds
 
 
@@ -746,6 +747,7 @@ if uploaded_files:
                 # Skip referee in every frame after detection
                 if person_id in [2, 3]:
                     continue
+                valid_person_ids.append(person_id)
 
                 label, is_new  = detect_punch(person_id, person_kpts, timestamp)
                 persistent_labels[person_id] = label
@@ -765,10 +767,10 @@ if uploaded_files:
                         "label": label,
                         "jersey_color":color
                     })
-            punch_labels = [persistent_labels.get(pid, "None") for pid in range(len(rescaledkeypoints))]
+            punch_labels = [persistent_labels.get(pid, "None") for pid in valid_person_ids]
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
             # annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punch_labels, postures, glove_detections, h, w,person_id)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punch_labels, postures, glove_detections, h, w,valid_person_ids)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
