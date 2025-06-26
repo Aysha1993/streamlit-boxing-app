@@ -425,9 +425,9 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
     valid_detections = []
     for idx, (kp_raw, punch, posture, glovedetected,pid) in enumerate(zip(keypoints, punches, postures, glove_detections,person_ids)):
         person = kp_raw  # use the current person only
-        # if not is_punching_pose(person):
-        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
-        #     continue
+        if not is_punching_pose(person):
+            #st.info(f"Skipping Person {idx+1} - Not Punching")
+            continue
         
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
@@ -772,13 +772,13 @@ if uploaded_files:
                         "jersey_color":color
                     })
             
-            filtered_keypoints = [rescaledkeypoints[pid] for pid in valid_person_ids]
-            filtered_postures = [postures[pid] for pid in valid_person_ids]
-            filtered_gloves = [glove_detections[pid] for pid in valid_person_ids]
+            # filtered_keypoints = [rescaledkeypoints[pid] for pid in valid_person_ids]
+            # filtered_postures = [postures[pid] for pid in valid_person_ids]
+            # filtered_gloves = [glove_detections[pid] for pid in valid_person_ids]
             filtered_punch_labels = [persistent_labels.get(pid, "None") for pid in valid_person_ids]
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
-            # annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
-            annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punch_labels, filtered_postures, filtered_gloves, h, w,valid_person_ids)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, filtered_punch_labels, postures, glove_detections, h, w,valid_person_ids)
+            # annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punch_labels, filtered_postures, filtered_gloves, h, w,valid_person_ids)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
