@@ -751,7 +751,7 @@ if uploaded_files:
                 if person_id in [2, 3]:
                     continue
                 valid_person_ids.append(person_id)
-                st.info(f"valid_person_ids={valid_person_ids}")
+                #st.info(f"valid_person_ids={valid_person_ids}")
 
                 label, is_new  = detect_punch(person_id, person_kpts, timestamp)
                 persistent_labels[person_id] = label
