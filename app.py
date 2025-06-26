@@ -642,7 +642,9 @@ if uploaded_files:
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-        punch_log = []
+        # Init before loop
+        persistent_labels = {}     # {person_id: label}
+        punch_log = []             # list of new punches
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
 
@@ -744,6 +746,8 @@ if uploaded_files:
                     continue
 
                 label, is_new  = detect_punch(person_id, person_kpts, timestamp)
+                persistent_labels[person_id] = label
+
                 # if label != "None":
                 if is_new :
                     # ✅ Normalize for jersey color extraction
@@ -759,9 +763,10 @@ if uploaded_files:
                         "label": label,
                         "jersey_color":color
                     })
-
+            punch_labels = [persistent_labels.get(pid, "None") for pid in range(len(rescaledkeypoints))]
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            # annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punch_labels, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
