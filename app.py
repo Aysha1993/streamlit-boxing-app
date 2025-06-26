@@ -179,11 +179,13 @@ def detect_punch(person_id, keypoints, timestamp):
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         punch_type = "Guard"
 
+    is_new_punch = False
     # Cooldown check
     if punch_type != "None" and allow_punch(person_id, timestamp):
         last_punch_label[person_id] = punch_type
+        is_new_punch = True
 
-    return last_punch_label.get(person_id, "None")
+    return last_punch_label.get(person_id, "None"), is_new_punch
 
 
 
@@ -741,8 +743,9 @@ if uploaded_files:
                 if person_id in [2, 3]:
                     continue
 
-                label = detect_punch(person_id, person_kpts, timestamp)
-                if label != "None":
+                label, is_new  = detect_punch(person_id, person_kpts, timestamp)
+                # if label != "None":
+                if is_new :
                     # ✅ Normalize for jersey color extraction
                     normalized_kpts = person_kpts.copy()
                     normalized_kpts[:, 0] /= width
