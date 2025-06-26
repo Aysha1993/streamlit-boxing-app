@@ -1027,13 +1027,13 @@ if uploaded_files:
         st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
-        st.subheader("🔁 Confusion Matrix")
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.title("Confusion Matrix")
-        st.pyplot(fig2)
+        # st.subheader("🔁 Confusion Matrix")
+        # fig2, ax2 = plt.subplots(figsize=(6, 4))
+        # sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
+        # plt.xlabel("Predicted")
+        # plt.ylabel("True")
+        # plt.title("Confusion Matrix")
+        # st.pyplot(fig2)
 
         # Classification report
         # st.subheader("📋 Classification Report")
