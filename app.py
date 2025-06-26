@@ -412,7 +412,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         if not is_punching_pose(person):
             #st.info(f"Skipping Person {idx+1} - Not Punching")
             continue
-        
+
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
         #Draw keypoints
@@ -441,7 +441,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                     cx = int(x * frame.shape[1])
                     cy = int(y * frame.shape[0])
                     pad=15
-                    
+
                     cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
                     # cv2.putText(frame, f"PID {pid}", (cx, cy + 15),
                     #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
@@ -451,7 +451,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         #Final label
         glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-        
+
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 0, 0), 1)
         y_offset += line_height
@@ -754,7 +754,7 @@ if uploaded_files:
                         "label": label,
                         "jersey_color":color
                     })
-            
+
             # filtered_keypoints = [rescaledkeypoints[pid] for pid in valid_person_ids]
             # filtered_postures = [postures[pid] for pid in valid_person_ids]
             # filtered_gloves = [glove_detections[pid] for pid in valid_person_ids]
