@@ -179,8 +179,8 @@ def detect_punch(person_id, keypoints, timestamp):
         (rw[1] > re[1] and re[1] > rs[1] and right_elbow_angle < 90)
     ):
         punch_type = "Uppercut"
-    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-        punch_type = "Duck"
+    # elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+    #     punch_type = "Duck"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         punch_type = "Guard"
 
@@ -443,14 +443,14 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                     pad=15
                     
                     cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
-                    cv2.putText(frame, f"PID {pid}", (cx, cy + 15),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+                    # cv2.putText(frame, f"PID {pid}", (cx, cy + 15),
+                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
                     cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         #Final label
         glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
-        label = f"Person {pid}: {punch}, {posture}, Gloves: {glove_str}"
+        label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
         
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
                     0.5, (0, 0, 0), 1)
