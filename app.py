@@ -166,7 +166,7 @@ def detect_punch(person_id, keypoints, timestamp):
     head_height = nose[1]
     punch_type = "None"
 
-    # Rule-based detection
+    # --- Rule-based detection ---
     if dist_lw_nose > 70 and left_elbow_angle > 140 and np.linalg.norm(lw - le) > 30:
         punch_type = "Left Jab"
     elif dist_rw_nose > 70 and right_elbow_angle > 140 and np.linalg.norm(rw - re) > 30:
@@ -174,6 +174,11 @@ def detect_punch(person_id, keypoints, timestamp):
     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
         punch_type = "Hook"
+    elif (
+        (lw[1] > le[1] and le[1] > ls[1] and left_elbow_angle < 90) or
+        (rw[1] > re[1] and re[1] > rs[1] and right_elbow_angle < 90)
+    ):
+        punch_type = "Uppercut"
     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
         punch_type = "Duck"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
@@ -186,6 +191,49 @@ def detect_punch(person_id, keypoints, timestamp):
         is_new_punch = True
 
     return last_punch_label.get(person_id, "None"), is_new_punch
+
+# def detect_punch(person_id, keypoints, timestamp):
+#     NOSE, LEFT_SHOULDER, RIGHT_SHOULDER = 0, 5, 6
+#     LEFT_ELBOW, RIGHT_ELBOW = 7, 8
+#     LEFT_WRIST, RIGHT_WRIST = 9, 10
+#     LEFT_HIP, RIGHT_HIP = 11, 12
+
+#     nose = keypoints[NOSE][:2]
+#     lw, rw = keypoints[LEFT_WRIST][:2], keypoints[RIGHT_WRIST][:2]
+#     le, re = keypoints[LEFT_ELBOW][:2], keypoints[RIGHT_ELBOW][:2]
+#     ls, rs = keypoints[LEFT_SHOULDER][:2], keypoints[RIGHT_SHOULDER][:2]
+#     lh, rh = keypoints[LEFT_HIP][:2], keypoints[RIGHT_HIP][:2]
+
+#     dist_lw_nose = np.linalg.norm(lw - nose)
+#     dist_rw_nose = np.linalg.norm(rw - nose)
+#     left_elbow_angle = calculate_angle(ls, le, lw)
+#     right_elbow_angle = calculate_angle(rs, re, rw)
+#     left_shoulder_angle = calculate_angle(le, ls, lh)
+#     right_shoulder_angle = calculate_angle(re, rs, rh)
+
+#     head_height = nose[1]
+#     punch_type = "None"
+
+#     # Rule-based detection
+#     if dist_lw_nose > 70 and left_elbow_angle > 140 and np.linalg.norm(lw - le) > 30:
+#         punch_type = "Left Jab"
+#     elif dist_rw_nose > 70 and right_elbow_angle > 140 and np.linalg.norm(rw - re) > 30:
+#         punch_type = "Right Cross"
+#     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
+#           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
+#         punch_type = "Hook"
+#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+#         punch_type = "Duck"
+#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
+#         punch_type = "Guard"
+
+#     is_new_punch = False
+#     # Cooldown check
+#     if punch_type != "None" and allow_punch(person_id, timestamp):
+#         last_punch_label[person_id] = punch_type
+#         is_new_punch = True
+
+#     return last_punch_label.get(person_id, "None"), is_new_punch
 
 
 
@@ -429,7 +477,6 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
             #st.info(f"Skipping Person {idx+1} - Not Punching")
             continue
         
-
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
         #Draw keypoints
