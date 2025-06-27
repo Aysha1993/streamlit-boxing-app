@@ -453,7 +453,7 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
 
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-                    1.0, (0, 0, 0), -2)
+                    1.0, (0, 0, 0), 2)
         y_offset += line_height
     return frame
 
