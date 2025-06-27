@@ -830,7 +830,7 @@ if uploaded_files:
 
         all_logs.extend(punch_log)
         # st.write("All columns:", expanded_df.columns.tolist())
-        st.subheader("Analytics Dashboard")
+        st.subheader("Metrics Visualization")
 
 
         df_log = pd.DataFrame(punch_log)
