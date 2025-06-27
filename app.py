@@ -811,7 +811,7 @@ if uploaded_files:
         df['timestamp'] = df['frame'] / fps
 
         # Group by video or person if needed
-        df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+        # df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
         # df["speed (approx)"] = (
         #     df.groupby("person")["timestamp"]
         #     .diff()
@@ -864,13 +864,13 @@ if uploaded_files:
 
         joblib.dump(clf, "punch_classifier_model.joblib")
 
-        with open("punch_classifier_model.joblib", "rb") as f:
-          st.download_button(
-              label="📥 Download Trained Classifier",
-              data=f,
-              file_name="punch_classifier_model.joblib",
-              mime="application/octet-stream"
-          )
+        # with open("punch_classifier_model.joblib", "rb") as f:
+        #   st.download_button(
+        #       label="📥 Download Trained Classifier",
+        #       data=f,
+        #       file_name="punch_classifier_model.joblib",
+        #       mime="application/octet-stream"
+        #   )
 
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
@@ -896,14 +896,14 @@ if uploaded_files:
             pred_labels.rename("predicted_label")
         ], axis=1)
 
-        st.dataframe(pred_output_df.head())
+        # st.dataframe(pred_output_df.head())
 
-        st.download_button(
-            "📄 Download Predictions CSV",
-            pred_output_df.to_csv(index=False),
-            file_name="predictions_vs_actual.csv",
-            mime="text/csv"
-        )
+        # st.download_button(
+        #     "📄 Download Predictions CSV",
+        #     pred_output_df.to_csv(index=False),
+        #     file_name="predictions_vs_actual.csv",
+        #     mime="text/csv"
+        # )
 
         # Heatmap
         plt.figure(figsize=(8,6))
