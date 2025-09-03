@@ -122,40 +122,41 @@ keypoint_index = {
     "left_ankle": 15, "right_ankle": 16,
 }
 
-# --- Globals for punch tracking ---
-last_punch_time = {}     # {person_id: timestamp}
-last_punch_label = {}    # {person_id: last punch type}
-PUNCH_COOLDOWN = 0.5     # seconds
+# Global punch cooldown tracker
+last_punch_time = {}  # {person_id: timestamp}
+PUNCH_COOLDOWN = 0.5  # seconds, increased to prevent overcounting
 
-# --- Angle Helper ---
-def calculate_angle(a, b, c):
-    a, b, c = np.array(a), np.array(b), np.array(c)
-    ba = a - b
-    bc = c - b
-    cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
-    return np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
-
-# --- Cooldown logic ---
 def allow_punch(person_id, timestamp):
+    """Allow punch only if enough time passed since last."""
     last_time = last_punch_time.get(person_id, -999)
     if timestamp - last_time > PUNCH_COOLDOWN:
         last_punch_time[person_id] = timestamp
         return True
     return False
 
-# --- Punch Detection ---
+def calculate_angle(a, b, c):
+    """Calculate angle (in degrees) between points a-b-c."""
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    ba = a - b
+    bc = c - b
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
+    return np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
+
 def detect_punch(person_id, keypoints, timestamp):
+    """Detect punch type using keypoints and cooldown control."""
     NOSE, LEFT_SHOULDER, RIGHT_SHOULDER = 0, 5, 6
     LEFT_ELBOW, RIGHT_ELBOW = 7, 8
     LEFT_WRIST, RIGHT_WRIST = 9, 10
     LEFT_HIP, RIGHT_HIP = 11, 12
 
+    # Get coordinates
     nose = keypoints[NOSE][:2]
     lw, rw = keypoints[LEFT_WRIST][:2], keypoints[RIGHT_WRIST][:2]
     le, re = keypoints[LEFT_ELBOW][:2], keypoints[RIGHT_ELBOW][:2]
     ls, rs = keypoints[LEFT_SHOULDER][:2], keypoints[RIGHT_SHOULDER][:2]
     lh, rh = keypoints[LEFT_HIP][:2], keypoints[RIGHT_HIP][:2]
 
+    # Distances and angles
     dist_lw_nose = np.linalg.norm(lw - nose)
     dist_rw_nose = np.linalg.norm(rw - nose)
     left_elbow_angle = calculate_angle(ls, le, lw)
@@ -166,7 +167,7 @@ def detect_punch(person_id, keypoints, timestamp):
     head_height = nose[1]
     punch_type = "None"
 
-    # --- Rule-based detection ---
+    # Rule-based detection (tightened thresholds)
     if dist_lw_nose > 70 and left_elbow_angle > 140 and np.linalg.norm(lw - le) > 30:
         punch_type = "Left Jab"
     elif dist_rw_nose > 70 and right_elbow_angle > 140 and np.linalg.norm(rw - re) > 30:
@@ -174,80 +175,28 @@ def detect_punch(person_id, keypoints, timestamp):
     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
         punch_type = "Hook"
-    elif (
-        (lw[1] > le[1] and le[1] > ls[1] and left_elbow_angle < 90) or
-        (rw[1] > re[1] and re[1] > rs[1] and right_elbow_angle < 90)
-    ):
-        punch_type = "Uppercut"
-    # elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-    #     punch_type = "Duck"
+    elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
+        punch_type = "Duck"
     elif dist_lw_nose < 50 and dist_rw_nose < 50:
         punch_type = "Guard"
 
-    is_new_punch = False
-    # Cooldown check
+    # Final filter based on cooldown
     if punch_type != "None" and allow_punch(person_id, timestamp):
-        last_punch_label[person_id] = punch_type
-        is_new_punch = True
-
-    return last_punch_label.get(person_id, "None"), is_new_punch
-
-# def detect_punch(person_id, keypoints, timestamp):
-#     NOSE, LEFT_SHOULDER, RIGHT_SHOULDER = 0, 5, 6
-#     LEFT_ELBOW, RIGHT_ELBOW = 7, 8
-#     LEFT_WRIST, RIGHT_WRIST = 9, 10
-#     LEFT_HIP, RIGHT_HIP = 11, 12
-
-#     nose = keypoints[NOSE][:2]
-#     lw, rw = keypoints[LEFT_WRIST][:2], keypoints[RIGHT_WRIST][:2]
-#     le, re = keypoints[LEFT_ELBOW][:2], keypoints[RIGHT_ELBOW][:2]
-#     ls, rs = keypoints[LEFT_SHOULDER][:2], keypoints[RIGHT_SHOULDER][:2]
-#     lh, rh = keypoints[LEFT_HIP][:2], keypoints[RIGHT_HIP][:2]
-
-#     dist_lw_nose = np.linalg.norm(lw - nose)
-#     dist_rw_nose = np.linalg.norm(rw - nose)
-#     left_elbow_angle = calculate_angle(ls, le, lw)
-#     right_elbow_angle = calculate_angle(rs, re, rw)
-#     left_shoulder_angle = calculate_angle(le, ls, lh)
-#     right_shoulder_angle = calculate_angle(re, rs, rh)
-
-#     head_height = nose[1]
-#     punch_type = "None"
-
-#     # Rule-based detection
-#     if dist_lw_nose > 70 and left_elbow_angle > 140 and np.linalg.norm(lw - le) > 30:
-#         punch_type = "Left Jab"
-#     elif dist_rw_nose > 70 and right_elbow_angle > 140 and np.linalg.norm(rw - re) > 30:
-#         punch_type = "Right Cross"
-#     elif ((left_elbow_angle < 100 and left_shoulder_angle > 80) or
-#           (right_elbow_angle < 100 and right_shoulder_angle > 80)):
-#         punch_type = "Hook"
-#     elif head_height > rs[1] + 40 and head_height > ls[1] + 40:
-#         punch_type = "Duck"
-#     elif dist_lw_nose < 50 and dist_rw_nose < 50:
-#         punch_type = "Guard"
-
-#     is_new_punch = False
-#     # Cooldown check
-#     if punch_type != "None" and allow_punch(person_id, timestamp):
-#         last_punch_label[person_id] = punch_type
-#         is_new_punch = True
-
-#     return last_punch_label.get(person_id, "None"), is_new_punch
+        return punch_type
+    return "None"
 
 def check_posture(keypoints):
     feedback = []
     for kp in keypoints:
         msgs = []
-        # Use y-coordinates for vertical checks
-        if kp[7][1] > kp[11][1]: msgs.append("Left Elbow drop")
-        if kp[8][1] > kp[12][1]: msgs.append("Right Elbow drop")
-        if kp[5][1] > kp[11][1]: msgs.append("Left Shoulder drop")
-        if kp[6][1] > kp[12][1]: msgs.append("Right Shoulder drop")
-        if kp[15][1] < kp[13][1] - 0.05: msgs.append("Left Knee Bent")
-        if kp[16][1] < kp[14][1] - 0.05: msgs.append("Right Knee Bent")
-        if kp[9][1] > kp[7][1]: msgs.append("Left Wrist drop")
-        if kp[10][1] > kp[8][1]: msgs.append("Right Wrist drop")
+        if kp[7][0] > kp[11][0]: msgs.append("Left Elbow drop")
+        if kp[8][0] > kp[12][0]: msgs.append("Right Elbow drop")
+        if kp[5][0] > kp[11][0]: msgs.append("Left Shoulder drop")
+        if kp[6][0] > kp[12][0]: msgs.append("Right Shoulder drop")
+        if kp[15][0] < kp[13][0] - 0.05: msgs.append("Left Knee Bent")
+        if kp[16][0] < kp[14][0] - 0.05: msgs.append("Right Knee Bent")
+        if kp[9][0] > kp[7][0]: msgs.append("Left Wrist drop")
+        if kp[10][0] > kp[8][0]: msgs.append("Right Wrist drop")
         if not msgs:
             msgs.append("Good Posture")
         feedback.append(", ".join(msgs))
@@ -402,16 +351,16 @@ SKELETON_EDGES = [
 ]
 
 
-def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w,person_ids):
+def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w):
     y_offset = 30
     line_height = 20
 
     valid_detections = []
-    for idx, (kp_raw, punch, posture, glovedetected,pid) in enumerate(zip(keypoints, punches, postures, glove_detections,person_ids)):
+    for idx, (kp_raw, punch, posture, glovedetected) in enumerate(zip(keypoints, punches, postures, glove_detections)):
         person = kp_raw  # use the current person only
-        if not is_punching_pose(person):
-            #st.info(f"Skipping Person {idx+1} - Not Punching")
-            continue
+        # if not is_punching_pose(person):
+        #     #st.info(f"Skipping Person {idx+1} - Not Punching")
+        #     continue
 
         kp = np.array(kp_raw).reshape(-1, 3).tolist()
 
@@ -441,19 +390,15 @@ def draw_annotations(frame, keypoints, punches, postures, glove_detections, h, w
                     cx = int(x * frame.shape[1])
                     cy = int(y * frame.shape[0])
                     pad=15
-
                     cv2.rectangle(frame, (cx - pad, cy - pad), (cx + pad, cy + pad), (0, 255, 255), 2)
-                    # cv2.putText(frame, f"PID {pid}", (cx, cy + 15),
-                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
                     cv2.putText(frame, f"{side.capitalize()} Glove", (cx + 5, cy - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
         #Final label
         glove_str = f"L-{'Yes' if glovedetected.get('left_glove') else 'No'} R-{'Yes' if glovedetected.get('right_glove') else 'No'}"
         label = f"Person {idx+1}: {punch}, {posture}, Gloves: {glove_str}"
-
         cv2.putText(frame, label, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX,
-                    1.0, (0, 0, 255), 2)
+                    0.5, (0, 0, 0), 1)
         y_offset += line_height
     return frame
 
@@ -630,9 +575,7 @@ if uploaded_files:
         raw_output = os.path.join(temp_dir, "raw_output.mp4")
         out_writer = cv2.VideoWriter(raw_output, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-        # Init before loop
-        persistent_labels = {}     # {person_id: label}
-        punch_log = []             # list of new punches
+        punch_log = []
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_idx = 0
 
@@ -707,7 +650,6 @@ if uploaded_files:
 
             h, w = frame.shape[:2]
             punches = []
-            valid_person_ids = []
             timestamp = frame_idx / fps  # timestamp in seconds
 
 
@@ -733,14 +675,9 @@ if uploaded_files:
                 # Skip referee in every frame after detection
                 if person_id in [2, 3]:
                     continue
-                valid_person_ids.append(person_id)
-                #st.info(f"valid_person_ids={valid_person_ids}")
 
-                label, is_new  = detect_punch(person_id, person_kpts, timestamp)
-                persistent_labels[person_id] = label
-
-                # if label != "None":
-                if is_new :
+                label = detect_punch(person_id, person_kpts, timestamp)
+                if label != "None":
                     # ✅ Normalize for jersey color extraction
                     normalized_kpts = person_kpts.copy()
                     normalized_kpts[:, 0] /= width
@@ -755,13 +692,8 @@ if uploaded_files:
                         "jersey_color":color
                     })
 
-            # filtered_keypoints = [rescaledkeypoints[pid] for pid in valid_person_ids]
-            # filtered_postures = [postures[pid] for pid in valid_person_ids]
-            # filtered_gloves = [glove_detections[pid] for pid in valid_person_ids]
-            filtered_punch_labels = [persistent_labels.get(pid, "None") for pid in valid_person_ids]
                 # st.write(f"[DEBUG] referee: {st.session_state['referee_id']}, time: {round(timestamp, 2)}, label: {label}")
-            annotated = draw_annotations(frame.copy(), rescaledkeypoints, filtered_punch_labels, postures, glove_detections, h, w,valid_person_ids)
-            # annotated = draw_annotations(frame.copy(), filtered_keypoints, filtered_punch_labels, filtered_postures, filtered_gloves, h, w,valid_person_ids)
+            annotated = draw_annotations(frame.copy(), rescaledkeypoints, punches, postures, glove_detections, h, w)
 
             out_writer.write(annotated)
             #st.text(f"Frame {frame_idx} | Punches: {punches} | rescaledkeypoints: {rescaledkeypoints}")
@@ -811,7 +743,7 @@ if uploaded_files:
         df['timestamp'] = df['frame'] / fps
 
         # Group by video or person if needed
-        # df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
+        df['speed (approx)'] = df.groupby('person')['timestamp'].diff().apply(lambda x: 1 / x if x and x > 0 else 0)
         # df["speed (approx)"] = (
         #     df.groupby("person")["timestamp"]
         #     .diff()
@@ -830,7 +762,6 @@ if uploaded_files:
 
         all_logs.extend(punch_log)
         # st.write("All columns:", expanded_df.columns.tolist())
-        st.subheader("Visualization Dashboard")
 
 
         df_log = pd.DataFrame(punch_log)
@@ -865,13 +796,13 @@ if uploaded_files:
 
         joblib.dump(clf, "punch_classifier_model.joblib")
 
-        # with open("punch_classifier_model.joblib", "rb") as f:
-        #   st.download_button(
-        #       label="📥 Download Trained Classifier",
-        #       data=f,
-        #       file_name="punch_classifier_model.joblib",
-        #       mime="application/octet-stream"
-        #   )
+        with open("punch_classifier_model.joblib", "rb") as f:
+          st.download_button(
+              label="📥 Download Trained Classifier",
+              data=f,
+              file_name="punch_classifier_model.joblib",
+              mime="application/octet-stream"
+          )
 
         # Accuracy
         acc = accuracy_score(y_test, y_pred)
@@ -897,14 +828,14 @@ if uploaded_files:
             pred_labels.rename("predicted_label")
         ], axis=1)
 
-        # st.dataframe(pred_output_df.head())
+        st.dataframe(pred_output_df.head())
 
-        # st.download_button(
-        #     "📄 Download Predictions CSV",
-        #     pred_output_df.to_csv(index=False),
-        #     file_name="predictions_vs_actual.csv",
-        #     mime="text/csv"
-        # )
+        st.download_button(
+            "📄 Download Predictions CSV",
+            pred_output_df.to_csv(index=False),
+            file_name="predictions_vs_actual.csv",
+            mime="text/csv"
+        )
 
         # Heatmap
         plt.figure(figsize=(8,6))
@@ -1028,13 +959,13 @@ if uploaded_files:
         st.dataframe(person_punch_counts)
 
         # Confusion matrix chart (if not shown already)
-        # st.subheader("🔁 Confusion Matrix")
-        # fig2, ax2 = plt.subplots(figsize=(6, 4))
-        # sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
-        # plt.xlabel("Predicted")
-        # plt.ylabel("True")
-        # plt.title("Confusion Matrix")
-        # st.pyplot(fig2)
+        st.subheader("🔁 Confusion Matrix")
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", xticklabels=clf.classes_, yticklabels=clf.classes_, cmap="Blues", ax=ax2)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        st.pyplot(fig2)
 
         # Classification report
         # st.subheader("📋 Classification Report")
